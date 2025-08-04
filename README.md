@@ -14,13 +14,12 @@ A simple terminal-based todo application built with Go and Bubble Tea.
 go install github.com/xhd2015/todo@latest
 ```
 
-
 ## Usage
 
 Run the todo application:
 
 ```sh
-./todo
+todo
 ```
 
 ## Controls
