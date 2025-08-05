@@ -46,7 +46,9 @@ func (s *SQLiteStore) createTables() error {
 		text TEXT NOT NULL,
 		done BOOLEAN NOT NULL DEFAULT 0,
 		create_time DATETIME NOT NULL,
-		update_time DATETIME NOT NULL
+		update_time DATETIME NOT NULL,
+		adjusted_top_time INTEGER NOT NULL DEFAULT 0,
+		highlight_level INTEGER NOT NULL DEFAULT 0
 	);`
 
 	createNotesTable := `
@@ -119,7 +121,12 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		if options.SortOrder == "desc" {
 			direction = "DESC"
 		}
-		orderBy = fmt.Sprintf("ORDER BY %s %s", options.SortBy, direction)
+		if options.SortBy == "create_time" {
+			// Special handling for create_time: if AdjustedTopTime is set, use it for priority
+			orderBy = fmt.Sprintf("ORDER BY CASE WHEN adjusted_top_time != 0 THEN adjusted_top_time ELSE strftime('%%s', create_time) * 1000 END %s", direction)
+		} else {
+			orderBy = fmt.Sprintf("ORDER BY %s %s", options.SortBy, direction)
+		}
 	}
 
 	limit := ""
@@ -130,7 +137,7 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		}
 	}
 
-	query := fmt.Sprintf("SELECT id, text, done, create_time, update_time FROM log_entries %s %s %s",
+	query := fmt.Sprintf("SELECT id, text, done, create_time, update_time, adjusted_top_time, highlight_level FROM log_entries %s %s %s",
 		where, orderBy, limit)
 
 	rows, err := les.db.Query(query, args...)
@@ -144,7 +151,7 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		var entry models.LogEntry
 		var createTime, updateTime string
 
-		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &createTime, &updateTime); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel); err != nil {
 			return nil, 0, err
 		}
 
@@ -185,12 +192,14 @@ func (les *LogEntrySQLiteStore) Add(entry models.LogEntry) (int64, error) {
 		entry.UpdateTime = time.Now()
 	}
 
-	query := `INSERT INTO log_entries (text, done, create_time, update_time) 
-			  VALUES (?, ?, ?, ?)`
+	query := `INSERT INTO log_entries (text, done, create_time, update_time, adjusted_top_time, highlight_level) 
+			  VALUES (?, ?, ?, ?, ?, ?)`
 
 	result, err := les.db.Exec(query, entry.Text, entry.Done,
 		entry.CreateTime.Format("2006-01-02 15:04:05"),
-		entry.UpdateTime.Format("2006-01-02 15:04:05"))
+		entry.UpdateTime.Format("2006-01-02 15:04:05"),
+		entry.AdjustedTopTime,
+		entry.HighlightLevel)
 	if err != nil {
 		return 0, err
 	}
@@ -243,6 +252,14 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 	} else {
 		setParts = append(setParts, "update_time = ?")
 		args = append(args, time.Now().Format("2006-01-02 15:04:05"))
+	}
+	if update.AdjustedTopTime != nil {
+		setParts = append(setParts, "adjusted_top_time = ?")
+		args = append(args, *update.AdjustedTopTime)
+	}
+	if update.HighlightLevel != nil {
+		setParts = append(setParts, "highlight_level = ?")
+		args = append(args, *update.HighlightLevel)
 	}
 
 	if len(setParts) == 0 {

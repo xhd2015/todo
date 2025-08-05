@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/go-dom-tui/styles"
 )
 
 // ConfirmDialogProps contains the properties for the confirmation dialog
@@ -36,15 +37,15 @@ func ConfirmDialog(props ConfirmDialogProps) *dom.Node {
 	}
 
 	return dom.Div(dom.DivProps{
-		Style: dom.Style{},
+		Style: styles.Style{},
 	},
 		dom.TextWithProps(promptText, dom.TextNodeProps{
-			Style: dom.Style{},
+			Style: styles.Style{},
 		}),
 		dom.TextWithProps(deleteText, dom.TextNodeProps{
 			Focused:   props.SelectedButton == 0,
 			Focusable: true,
-			Style: dom.Style{
+			Style: styles.Style{
 				Color: colors.RED_ERROR,
 				Bold:  props.SelectedButton == 0,
 			},
@@ -62,7 +63,7 @@ func ConfirmDialog(props ConfirmDialogProps) *dom.Node {
 		dom.TextWithProps(cancelText, dom.TextNodeProps{
 			Focused:   props.SelectedButton == 1,
 			Focusable: true,
-			Style: dom.Style{
+			Style: styles.Style{
 				Color: "blue",
 				Bold:  props.SelectedButton == 1,
 			},

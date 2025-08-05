@@ -81,7 +81,12 @@ func (les *LogEntryMemoryStore) List(options storage.LogEntryListOptions) ([]mod
 			case "done":
 				less = !entries[i].Done && entries[j].Done
 			case "create_time":
-				less = entries[i].CreateTime.Before(entries[j].CreateTime)
+				// If AdjustedTopTime is set, use it for sorting priority
+				if entries[i].AdjustedTopTime != 0 || entries[j].AdjustedTopTime != 0 {
+					less = entries[i].AdjustedTopTime < entries[j].AdjustedTopTime
+				} else {
+					less = entries[i].CreateTime.Before(entries[j].CreateTime)
+				}
 			case "update_time":
 				less = entries[i].UpdateTime.Before(entries[j].UpdateTime)
 			default:
@@ -168,6 +173,9 @@ func (les *LogEntryMemoryStore) Update(id int64, update models.LogEntryOptional)
 		entry.UpdateTime = *update.UpdateTime
 	} else {
 		entry.UpdateTime = time.Now()
+	}
+	if update.AdjustedTopTime != nil {
+		entry.AdjustedTopTime = *update.AdjustedTopTime
 	}
 
 	les.logEntries[id] = entry

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
@@ -153,7 +154,7 @@ func Main(args []string) error {
 	appState.OnToggle = func(id int64) {
 		var foundEntry *models.EntryView
 		for _, entry := range logManager.Entries {
-			if entry.ID == id {
+			if entry.Data.ID == id {
 				foundEntry = entry
 				break
 			}
@@ -161,9 +162,22 @@ func Main(args []string) error {
 		if foundEntry == nil {
 			return
 		}
-		done := !foundEntry.Done
+		done := !foundEntry.Data.Done
 		logManager.Update(id, models.LogEntryOptional{
 			Done: &done,
+		})
+		appState.Entries = logManager.Entries
+	}
+	appState.OnPromote = func(id int64) {
+		currentTime := time.Now().UnixMilli()
+		logManager.Update(id, models.LogEntryOptional{
+			AdjustedTopTime: &currentTime,
+		})
+		appState.Entries = logManager.Entries
+	}
+	appState.OnUpdateHighlight = func(id int64, highlightLevel int) {
+		logManager.Update(id, models.LogEntryOptional{
+			HighlightLevel: &highlightLevel,
 		})
 		appState.Entries = logManager.Entries
 	}

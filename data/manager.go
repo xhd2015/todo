@@ -1,6 +1,7 @@
 package data
 
 import (
+	"sort"
 	"time"
 
 	"github.com/xhd2015/todo/data/storage"
@@ -34,19 +35,12 @@ func (m *LogManager) Init() error {
 		notesView := make([]*models.NoteView, 0, len(notes))
 		for _, note := range notes {
 			notesView = append(notesView, &models.NoteView{
-				ID:         note.ID,
-				Text:       note.Text,
-				CreateTime: note.CreateTime,
-				UpdateTime: note.UpdateTime,
+				Data: &note,
 			})
 		}
 		m.Entries = append(m.Entries, &models.EntryView{
-			ID:         entry.ID,
-			Text:       entry.Text,
-			Done:       entry.Done,
-			Notes:      notesView,
-			CreateTime: entry.CreateTime,
-			UpdateTime: entry.UpdateTime,
+			Data:  &entry,
+			Notes: notesView,
 			DetailPage: &models.EntryOnDetailPage{
 				InputState: &models.InputState{
 					Value: entry.Text,
@@ -54,7 +48,32 @@ func (m *LogManager) Init() error {
 			},
 		})
 	}
+	sortEntries(m.Entries)
 	return nil
+}
+
+func sortEntries(entries []*models.EntryView) {
+	sort.Slice(entries, func(i, j int) bool {
+		return !isNewer(entries[i], entries[j])
+	})
+}
+
+func isNewer(a *models.EntryView, b *models.EntryView) bool {
+	// compare create time if both are not adjusted top time
+	if a.Data.AdjustedTopTime == 0 && b.Data.AdjustedTopTime == 0 {
+		return a.Data.CreateTime.After(b.Data.CreateTime)
+	}
+
+	// compare adjusted top time if both are adjusted top time
+	if a.Data.AdjustedTopTime == 0 {
+		return false
+	}
+	if b.Data.AdjustedTopTime == 0 {
+		return true
+	}
+
+	// compare adjusted top time if both are adjusted top time
+	return a.Data.AdjustedTopTime > b.Data.AdjustedTopTime
 }
 
 func (m *LogManager) Add(entry models.LogEntry) error {
@@ -70,8 +89,7 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 	}
 	entry.ID = id
 	m.Entries = append(m.Entries, &models.EntryView{
-		ID:    entry.ID,
-		Text:  entry.Text,
+		Data:  &entry,
 		Notes: []*models.NoteView{},
 		DetailPage: &models.EntryOnDetailPage{
 			InputState: &models.InputState{
@@ -91,21 +109,15 @@ func (m *LogManager) Update(id int64, entry models.LogEntryOptional) error {
 	if err != nil {
 		return err
 	}
+	var hasAdjustedTopTime bool
 	for _, e := range m.Entries {
-		if e.ID == id {
-			if entry.Text != nil {
-				e.Text = *entry.Text
-			}
-			if entry.Done != nil {
-				e.Done = *entry.Done
-			}
-			if entry.CreateTime != nil {
-				e.CreateTime = *entry.CreateTime
-			}
-			if entry.UpdateTime != nil {
-				e.UpdateTime = *entry.UpdateTime
-			}
+		if e.Data.ID == id {
+			e.Data.Update(&entry)
+			hasAdjustedTopTime = entry.AdjustedTopTime != nil
 		}
+	}
+	if hasAdjustedTopTime {
+		sortEntries(m.Entries)
 	}
 	return nil
 }
@@ -116,7 +128,7 @@ func (m *LogManager) Delete(id int64) error {
 		return err
 	}
 	for i, e := range m.Entries {
-		if e.ID == id {
+		if e.Data.ID == id {
 			m.Entries = append(m.Entries[:i], m.Entries[i+1:]...)
 			return nil
 		}
@@ -137,12 +149,9 @@ func (m *LogManager) AddNote(entryID int64, note models.Note) error {
 	}
 	note.ID = id
 	for _, entry := range m.Entries {
-		if entry.ID == entryID {
+		if entry.Data.ID == entryID {
 			entry.Notes = append(entry.Notes, &models.NoteView{
-				ID:         id,
-				Text:       note.Text,
-				CreateTime: note.CreateTime,
-				UpdateTime: note.UpdateTime,
+				Data: &note,
 			})
 			return nil
 		}
@@ -156,9 +165,9 @@ func (m *LogManager) DeleteNote(entryID int64, noteID int64) error {
 		return err
 	}
 	for _, entry := range m.Entries {
-		if entry.ID == entryID {
+		if entry.Data.ID == entryID {
 			for i, n := range entry.Notes {
-				if n.ID == noteID {
+				if n.Data.ID == noteID {
 					entry.Notes = append(entry.Notes[:i], entry.Notes[i+1:]...)
 					return nil
 				}
@@ -179,14 +188,11 @@ func (m *LogManager) UpdateNote(entryID int64, noteID int64, note models.Note) e
 		return err
 	}
 	for _, entry := range m.Entries {
-		if entry.ID == entryID {
+		if entry.Data.ID == entryID {
 			for i, n := range entry.Notes {
-				if n.ID == noteID {
+				if n.Data.ID == noteID {
 					entry.Notes[i] = &models.NoteView{
-						ID:         note.ID,
-						Text:       note.Text,
-						CreateTime: note.CreateTime,
-						UpdateTime: note.UpdateTime,
+						Data: &note,
 					}
 					return nil
 				}

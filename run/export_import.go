@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/models"
@@ -29,17 +28,12 @@ type ExportData struct {
 }
 
 type ExportEntry struct {
-	Text       string       `json:"text"`
-	Done       bool         `json:"done"`
-	CreateTime time.Time    `json:"create_time"`
-	UpdateTime time.Time    `json:"update_time"`
-	Notes      []ExportNote `json:"notes"`
+	Data  *models.LogEntry `json:"data"`
+	Notes []ExportNote     `json:"notes"`
 }
 
 type ExportNote struct {
-	Text       string    `json:"text"`
-	CreateTime time.Time `json:"create_time"`
-	UpdateTime time.Time `json:"update_time"`
+	Data *models.Note `json:"data"`
 }
 
 func handleExport(args []string) error {
@@ -74,18 +68,13 @@ func handleExport(args []string) error {
 
 	for _, entry := range logManager.Entries {
 		exportEntry := ExportEntry{
-			Text:       entry.Text,
-			Done:       entry.Done,
-			CreateTime: entry.CreateTime,
-			UpdateTime: entry.UpdateTime,
-			Notes:      make([]ExportNote, 0, len(entry.Notes)),
+			Data:  entry.Data,
+			Notes: make([]ExportNote, 0, len(entry.Notes)),
 		}
 
 		for _, note := range entry.Notes {
 			exportEntry.Notes = append(exportEntry.Notes, ExportNote{
-				Text:       note.Text,
-				CreateTime: note.CreateTime,
-				UpdateTime: note.UpdateTime,
+				Data: note.Data,
 			})
 		}
 
@@ -146,14 +135,14 @@ func handleImport(args []string) error {
 	// Create a set of existing entry texts for deduplication
 	existingTexts := make(map[string]bool)
 	for _, entry := range logManager.Entries {
-		existingTexts[strings.TrimSpace(entry.Text)] = true
+		existingTexts[strings.TrimSpace(entry.Data.Text)] = true
 	}
 
 	imported := 0
 	skipped := 0
 
 	for _, importEntry := range importData.Entries {
-		trimmedText := strings.TrimSpace(importEntry.Text)
+		trimmedText := strings.TrimSpace(importEntry.Data.Text)
 		if existingTexts[trimmedText] {
 			skipped++
 			continue
@@ -161,10 +150,8 @@ func handleImport(args []string) error {
 
 		// Add the entry
 		entryID, err := logManager.LogEntryService.Add(models.LogEntry{
-			Text:       importEntry.Text,
-			Done:       importEntry.Done,
-			CreateTime: importEntry.CreateTime,
-			UpdateTime: importEntry.UpdateTime,
+			Text: importEntry.Data.Text,
+			Done: importEntry.Data.Done,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to add entry: %w", err)
@@ -173,9 +160,7 @@ func handleImport(args []string) error {
 		// Add notes
 		for _, note := range importEntry.Notes {
 			_, err := logManager.LogNoteService.Add(entryID, models.Note{
-				Text:       note.Text,
-				CreateTime: note.CreateTime,
-				UpdateTime: note.UpdateTime,
+				Text: note.Data.Text,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to add note: %w", err)

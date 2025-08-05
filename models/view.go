@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 type InputState struct {
 	Value          string
 	Focused        bool
@@ -9,13 +7,7 @@ type InputState struct {
 }
 
 type EntryView struct {
-	ID   int64
-	Text string
-
-	Done bool
-
-	CreateTime time.Time
-	UpdateTime time.Time
+	Data *LogEntry
 
 	DetailPage *EntryOnDetailPage
 
@@ -23,11 +15,7 @@ type EntryView struct {
 }
 
 type NoteView struct {
-	ID   int64
-	Text string
-
-	CreateTime time.Time
-	UpdateTime time.Time
+	Data *Note
 }
 
 type EntryOnDetailPage struct {

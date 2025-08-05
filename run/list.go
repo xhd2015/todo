@@ -42,8 +42,8 @@ func handleList(args []string) error {
 
 	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
 	for _, entry := range logManager.Entries {
-		text := entry.Text
-		if entry.Done && isTTY {
+		text := entry.Data.Text
+		if entry.Data.Done && isTTY {
 			text = strikethroughStyle.Render(text)
 		}
 		fmt.Printf("- %s\n", text)
