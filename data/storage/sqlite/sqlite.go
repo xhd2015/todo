@@ -45,10 +45,12 @@ func (s *SQLiteStore) createTables() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		text TEXT NOT NULL,
 		done BOOLEAN NOT NULL DEFAULT 0,
+		done_time DATETIME,
 		create_time DATETIME NOT NULL,
 		update_time DATETIME NOT NULL,
 		adjusted_top_time INTEGER NOT NULL DEFAULT 0,
-		highlight_level INTEGER NOT NULL DEFAULT 0
+		highlight_level INTEGER NOT NULL DEFAULT 0,
+		parent_id INTEGER NOT NULL DEFAULT 0
 	);`
 
 	createNotesTable := `
@@ -137,7 +139,7 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		}
 	}
 
-	query := fmt.Sprintf("SELECT id, text, done, create_time, update_time, adjusted_top_time, highlight_level FROM log_entries %s %s %s",
+	query := fmt.Sprintf("SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id FROM log_entries %s %s %s",
 		where, orderBy, limit)
 
 	rows, err := les.db.Query(query, args...)
@@ -150,8 +152,9 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 	for rows.Next() {
 		var entry models.LogEntry
 		var createTime, updateTime string
+		var doneTime *string
 
-		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &doneTime, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel, &entry.ParentID); err != nil {
 			return nil, 0, err
 		}
 
@@ -160,6 +163,13 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		}
 		if entry.UpdateTime, err = tryParseTime(updateTime); err != nil {
 			return nil, 0, err
+		}
+		if doneTime != nil {
+			if parsedDoneTime, err := tryParseTime(*doneTime); err != nil {
+				return nil, 0, err
+			} else {
+				entry.DoneTime = &parsedDoneTime
+			}
 		}
 
 		entries = append(entries, entry)
@@ -192,14 +202,20 @@ func (les *LogEntrySQLiteStore) Add(entry models.LogEntry) (int64, error) {
 		entry.UpdateTime = time.Now()
 	}
 
-	query := `INSERT INTO log_entries (text, done, create_time, update_time, adjusted_top_time, highlight_level) 
-			  VALUES (?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO log_entries (text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id) 
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
-	result, err := les.db.Exec(query, entry.Text, entry.Done,
+	var doneTimeStr interface{}
+	if entry.DoneTime != nil {
+		doneTimeStr = entry.DoneTime.Format("2006-01-02 15:04:05")
+	}
+
+	result, err := les.db.Exec(query, entry.Text, entry.Done, doneTimeStr,
 		entry.CreateTime.Format("2006-01-02 15:04:05"),
 		entry.UpdateTime.Format("2006-01-02 15:04:05"),
 		entry.AdjustedTopTime,
-		entry.HighlightLevel)
+		entry.HighlightLevel,
+		entry.ParentID)
 	if err != nil {
 		return 0, err
 	}
@@ -242,6 +258,14 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 		setParts = append(setParts, "done = ?")
 		args = append(args, *update.Done)
 	}
+	if update.DoneTime != nil {
+		setParts = append(setParts, "done_time = ?")
+		if *update.DoneTime != nil {
+			args = append(args, (*update.DoneTime).Format("2006-01-02 15:04:05"))
+		} else {
+			args = append(args, nil)
+		}
+	}
 	if update.CreateTime != nil {
 		setParts = append(setParts, "create_time = ?")
 		args = append(args, update.CreateTime.Format("2006-01-02 15:04:05"))
@@ -260,6 +284,10 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 	if update.HighlightLevel != nil {
 		setParts = append(setParts, "highlight_level = ?")
 		args = append(args, *update.HighlightLevel)
+	}
+	if update.ParentID != nil {
+		setParts = append(setParts, "parent_id = ?")
+		args = append(args, *update.ParentID)
 	}
 
 	if len(setParts) == 0 {

@@ -11,7 +11,8 @@ type EntryView struct {
 
 	DetailPage *EntryOnDetailPage
 
-	Notes []*NoteView
+	Notes    []*NoteView
+	Children []*EntryView
 }
 
 type NoteView struct {

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -22,15 +23,45 @@ func NewLogManager(logEntryService storage.LogEntryService, logNoteService stora
 	}
 }
 
-func (m *LogManager) Init() error {
-	entries, _, err := m.LogEntryService.List(storage.LogEntryListOptions{})
+func (m *LogManager) InitWithHistory(showHistory bool) error {
+	entries, err := loadEntries(m.LogEntryService, m.LogNoteService, showHistory)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		notes, _, err := m.LogNoteService.List(entry.ID, storage.LogNoteListOptions{})
+	m.Entries = entries
+	return nil
+}
+
+func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, showHistory bool) ([]*models.EntryView, error) {
+	entries, _, err := svc.List(storage.LogEntryListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var filteredEntries []models.LogEntry
+	if !showHistory {
+		// Filter out entries that are done and have done_time before today
+		today := time.Now().Truncate(24 * time.Hour)
+		for _, entry := range entries {
+			if entry.Done && entry.DoneTime != nil && entry.DoneTime.Before(today) {
+				// Skip entries that are done and have done_time before today
+				continue
+			}
+			filteredEntries = append(filteredEntries, entry)
+		}
+	} else {
+		// Show all entries including historical ones
+		filteredEntries = entries
+	}
+
+	var entriesView []*models.EntryView
+	// Create a map for quick lookup
+	entryMap := make(map[int64]*models.EntryView)
+
+	for _, entry := range filteredEntries {
+		notes, _, err := noteSvc.List(entry.ID, storage.LogNoteListOptions{})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		notesView := make([]*models.NoteView, 0, len(notes))
 		for _, note := range notes {
@@ -38,18 +69,36 @@ func (m *LogManager) Init() error {
 				Data: &note,
 			})
 		}
-		m.Entries = append(m.Entries, &models.EntryView{
-			Data:  &entry,
-			Notes: notesView,
+		entryView := &models.EntryView{
+			Data:     &entry,
+			Notes:    notesView,
+			Children: []*models.EntryView{},
 			DetailPage: &models.EntryOnDetailPage{
 				InputState: &models.InputState{
 					Value: entry.Text,
 				},
 			},
-		})
+		}
+		entryMap[entry.ID] = entryView
+		entriesView = append(entriesView, entryView)
 	}
-	sortEntries(m.Entries)
-	return nil
+
+	// Build parent-child relationships
+	for _, entryView := range entriesView {
+		if entryView.Data.ParentID != 0 {
+			if parent, exists := entryMap[entryView.Data.ParentID]; exists {
+				parent.Children = append(parent.Children, entryView)
+			}
+		}
+	}
+
+	sortEntries(entriesView)
+	return entriesView, nil
+}
+
+// Init initializes with default behavior (no history)
+func (m *LogManager) Init() error {
+	return m.InitWithHistory(false)
 }
 
 func sortEntries(entries []*models.EntryView) {
@@ -88,15 +137,28 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 		return err
 	}
 	entry.ID = id
-	m.Entries = append(m.Entries, &models.EntryView{
-		Data:  &entry,
-		Notes: []*models.NoteView{},
+	entryView := &models.EntryView{
+		Data:     &entry,
+		Notes:    []*models.NoteView{},
+		Children: []*models.EntryView{},
 		DetailPage: &models.EntryOnDetailPage{
 			InputState: &models.InputState{
 				Value: entry.Text,
 			},
 		},
-	})
+	}
+
+	// If this entry has a parent, add it to parent's children
+	if entry.ParentID != 0 {
+		for _, existingEntry := range m.Entries {
+			if existingEntry.Data.ID == entry.ParentID {
+				existingEntry.Children = append(existingEntry.Children, entryView)
+				break
+			}
+		}
+	}
+
+	m.Entries = append(m.Entries, entryView)
 	return nil
 }
 
@@ -105,18 +167,69 @@ func (m *LogManager) Update(id int64, entry models.LogEntryOptional) error {
 		t := time.Now()
 		entry.UpdateTime = &t
 	}
+
+	var targetEntry *models.EntryView
+	var oldParentID int64
+
+	// Find the target entry and remember its old parent
+	for _, e := range m.Entries {
+		if e.Data.ID == id {
+			targetEntry = e
+			oldParentID = e.Data.ParentID
+			break
+		}
+	}
+
+	if targetEntry == nil {
+		return fmt.Errorf("entry with id %d not found", id)
+	}
+
 	err := m.LogEntryService.Update(id, entry)
 	if err != nil {
 		return err
 	}
+
 	var hasAdjustedTopTime bool
-	for _, e := range m.Entries {
-		if e.Data.ID == id {
-			e.Data.Update(&entry)
-			hasAdjustedTopTime = entry.AdjustedTopTime != nil
+	var parentChanged bool
+
+	// Update the entry data
+	targetEntry.Data.Update(&entry)
+	hasAdjustedTopTime = entry.AdjustedTopTime != nil
+
+	// Handle parent-child relationship changes
+	if entry.ParentID != nil {
+		newParentID := *entry.ParentID
+		if newParentID != oldParentID {
+			parentChanged = true
+
+			// Remove from old parent's children
+			if oldParentID != 0 {
+				for _, e := range m.Entries {
+					if e.Data.ID == oldParentID {
+						for i, child := range e.Children {
+							if child.Data.ID == id {
+								e.Children = append(e.Children[:i], e.Children[i+1:]...)
+								break
+							}
+						}
+						break
+					}
+				}
+			}
+
+			// Add to new parent's children
+			if newParentID != 0 {
+				for _, e := range m.Entries {
+					if e.Data.ID == newParentID {
+						e.Children = append(e.Children, targetEntry)
+						break
+					}
+				}
+			}
 		}
 	}
-	if hasAdjustedTopTime {
+
+	if hasAdjustedTopTime || parentChanged {
 		sortEntries(m.Entries)
 	}
 	return nil

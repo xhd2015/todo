@@ -220,6 +220,9 @@ func (les *LogEntryFileStore) Update(id int64, update models.LogEntryOptional) e
 			if update.Done != nil {
 				entry.Done = *update.Done
 			}
+			if update.DoneTime != nil {
+				entry.DoneTime = *update.DoneTime
+			}
 			if update.CreateTime != nil {
 				entry.CreateTime = *update.CreateTime
 			}
@@ -230,6 +233,12 @@ func (les *LogEntryFileStore) Update(id int64, update models.LogEntryOptional) e
 			}
 			if update.AdjustedTopTime != nil {
 				entry.AdjustedTopTime = *update.AdjustedTopTime
+			}
+			if update.HighlightLevel != nil {
+				entry.HighlightLevel = *update.HighlightLevel
+			}
+			if update.ParentID != nil {
+				entry.ParentID = *update.ParentID
 			}
 
 			fs.data.LogEntries[i] = entry

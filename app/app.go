@@ -21,6 +21,7 @@ const (
 	SelectedEntryMode_Editing
 	SelectedEntryMode_ShowActions
 	SelectedEntryMode_DeleteConfirm
+	SelectedEntryMode_AddingChild
 )
 
 type State struct {
@@ -30,6 +31,7 @@ type State struct {
 	SelectedEntryIndex int
 	SelectedEntryMode  SelectedEntryMode
 	SelectedInputState models.InputState
+	ChildInputState    models.InputState
 
 	SelectedDeleteConfirmButton int
 
@@ -37,11 +39,14 @@ type State struct {
 
 	EnteredEntryIndex int
 
+	ShowHistory bool // Whether to show historical (done) todos from before today
+
 	Quit func()
 
 	Refresh func()
 
 	OnAdd             func(string)
+	OnAddChild        func(parentID int64, text string)
 	OnUpdate          func(id int64, text string)
 	OnDelete          func(id int64)
 	OnToggle          func(id int64)
@@ -49,6 +54,8 @@ type State struct {
 	OnUpdateHighlight func(id int64, highlightLevel int)
 
 	OnAddNote func(id int64, text string)
+
+	OnRefreshEntries func() // Callback to refresh entries when ShowHistory changes
 
 	LastCtrlC time.Time
 }
@@ -68,9 +75,45 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}
 		}
 
+		// Build a flat list of all entries with their depths for rendering
+		type EntryWithDepth struct {
+			Entry *models.EntryView
+			Index int
+			Depth int
+		}
+
+		var flatEntries []EntryWithDepth
+		entryIndex := 0
+
+		var addEntryRecursive func(entry *models.EntryView, depth int)
+		addEntryRecursive = func(entry *models.EntryView, depth int) {
+			flatEntries = append(flatEntries, EntryWithDepth{
+				Entry: entry,
+				Index: entryIndex,
+				Depth: depth,
+			})
+			entryIndex++
+
+			// Add children recursively
+			for _, child := range entry.Children {
+				addEntryRecursive(child, depth+1)
+			}
+		}
+
+		// Add top-level entries (ParentID == 0)
+		for _, entry := range state.Entries {
+			if entry.Data.ParentID == 0 {
+				addEntryRecursive(entry, 0)
+			}
+		}
+
 		var children []*dom.Node
-		for i, item := range state.Entries {
+		for _, entryWithDepth := range flatEntries {
+			item := entryWithDepth.Entry
+			i := entryWithDepth.Index
+			depth := entryWithDepth.Depth
 			isSelected := state.SelectedEntryIndex == i
+
 			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
 				children = append(children, dom.Input(dom.InputProps{
 					Value:          state.SelectedInputState.Value,
@@ -97,90 +140,45 @@ func App(state *State, window *dom.Window) *dom.Node {
 				continue
 			}
 
-			children = append(children, dom.Li(dom.ListItemProps{
-				Focusable: dom.Focusable(true),
-				Selected:  isSelected,
-				Focused:   state.SelectedEntryMode == SelectedEntryMode_Default && isSelected,
-				ItemPrefix: dom.String(func() string {
-					if item.Data.Done {
-						return "✓ "
-					}
-					return "• "
-				}()),
-				OnFocus: func() {
-					state.SelectedEntryIndex = i
-				},
-				OnBlur: func() {
-					state.SelectedEntryIndex = -1
-				},
-				OnKeyDown: func(e *dom.DOMEvent) {
-					switch e.Key {
-					case "e":
-						state.SelectedEntryMode = SelectedEntryMode_Editing
-						state.SelectedInputState.Value = item.Data.Text
-						state.SelectedInputState.Focused = true
-						state.SelectedInputState.CursorPosition = len(item.Data.Text) + 1
-					case "d":
-						state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
-						state.SelectedDeleteConfirmButton = 0
-					case "enter":
-						if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
-							state.SelectedEntryMode = SelectedEntryMode_Default
-							return
-						}
-						state.EnteredEntryIndex = i
+			// Always render the TodoItem
+			children = append(children, TodoItem(TodoItemProps{
+				Item:       item,
+				Index:      i,
+				Depth:      depth,
+				IsSelected: isSelected,
+				State:      state,
+			}))
 
-						item.DetailPage.InputState.Value = ""
-						item.DetailPage.InputState.Focused = true
-						item.DetailPage.InputState.CursorPosition = 0
-					case "esc":
-						state.SelectedEntryMode = SelectedEntryMode_Default
-					case "up", "down":
-						state.SelectedEntryMode = SelectedEntryMode_Default
-					case "left", "right":
-						if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
-							delta := 1
-							if e.Key == "left" {
-								delta = -1
+			// Render child input box under the item when in AddingChild mode
+			if state.SelectedEntryMode == SelectedEntryMode_AddingChild && isSelected {
+				children = append(children, dom.Input(dom.InputProps{
+					Placeholder:    "add child todo",
+					Value:          state.ChildInputState.Value,
+					Focused:        state.ChildInputState.Focused,
+					CursorPosition: state.ChildInputState.CursorPosition,
+					OnCursorMove: func(delta int, seek int) {
+						state.ChildInputState.CursorPosition += delta
+					},
+					OnChange: func(value string) {
+						state.ChildInputState.Value = value
+					},
+					OnKeyDown: func(e *dom.DOMEvent) {
+						switch e.Key {
+						case "up", "down":
+							e.PreventDefault()
+						case "esc":
+							state.SelectedEntryMode = SelectedEntryMode_Default
+						case "enter":
+							if strings.TrimSpace(state.ChildInputState.Value) != "" {
+								state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
+								state.ChildInputState.Value = ""
+								state.ChildInputState.CursorPosition = 0
 							}
-							state.SelectedDeleteConfirmButton += delta
-							if state.SelectedDeleteConfirmButton < 0 {
-								state.SelectedDeleteConfirmButton = 1
-							}
-							if state.SelectedDeleteConfirmButton > 1 {
-								state.SelectedDeleteConfirmButton = 0
-							}
-						} else if state.SelectedEntryMode == SelectedEntryMode_Default {
-							if e.Key == "right" {
-								// show actions
-								state.SelectedEntryMode = SelectedEntryMode_ShowActions
-							}
+							state.SelectedEntryMode = SelectedEntryMode_Default
 						}
-					case " ":
-						// toggle status
-						state.OnToggle(item.Data.ID)
-					}
-				},
-			}, dom.Text(item.Data.Text, styles.Style{
-				Color: func() string {
-					if isSelected {
-						return colors.GREEN_SUCCESS
-					} else if item.Data.HighlightLevel > 4 {
-						return colors.DARK_RED_5
-					} else if item.Data.HighlightLevel > 3 {
-						return colors.DARK_RED_4
-					} else if item.Data.HighlightLevel > 2 {
-						return colors.DARK_RED_3
-					} else if item.Data.HighlightLevel > 1 {
-						return colors.DARK_RED_2
-					} else if item.Data.HighlightLevel == 1 {
-						return colors.DARK_RED_1
-					} else {
-						return ""
-					}
-				}(),
-				Strikethrough: item.Data.Done,
-			})))
+					},
+				}))
+			}
 
 			if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm && isSelected {
 				children = append(children, ConfirmDialog(ConfirmDialogProps{
@@ -258,46 +256,6 @@ func App(state *State, window *dom.Window) *dom.Node {
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					},
 				}))
-
-				// 	dom.Div(dom.DivProps{
-				// 	Style: styles.Style{
-				// 		BorderColor:   colors.PURPLE_PRIMARY,
-				// 		BorderRouned:  true,
-				// 		NoDefault:     true,
-				// 		PaddingLeft:   styles.Int(1),
-				// 		PaddingRight:  styles.Int(1),
-				// 		PaddingTop:    styles.Int(1),
-				// 		PaddingBottom: styles.Int(1),
-				// 	},
-				// 	Focusable: true,
-				// 	OnKeyDown: func(d *dom.DOMEvent) {
-				// 		switch d.Key {
-				// 		case "up", "down":
-				// 			d.PreventDefault()
-				// 		case "esc":
-				// 			state.SelectedEntryMode = SelectedEntryMode_Default
-				// 		}
-				// 	},
-				// },
-
-				// dom.Div(dom.DivProps{
-				// 	Focused:   true,
-				// 	Focusable: true,
-				// 	OnKeyDown: func(d *dom.DOMEvent) {
-				// 		switch d.Key {
-				// 		case "enter":
-				// 			state.OnPromote(item.ID)
-				// 			state.SelectedEntryMode = SelectedEntryMode_Default
-
-				// 			// set selected to bottom
-				// 			state.SelectedEntryIndex = len(state.Entries) - 1
-				// 		}
-				// 	},
-				// }, dom.Text("Promote", styles.Style{
-				// 	BorderRouned: true,
-				// 	Bold:         true,
-				// })),
-				// ))
 			}
 		}
 		return dom.Fragment(
@@ -315,6 +273,23 @@ func App(state *State, window *dom.Window) *dom.Node {
 						state.Quit()
 						return true
 					}
+
+					// Handle special commands starting with /
+					if strings.HasPrefix(s, "/") {
+						switch s {
+						case "/history":
+							// Toggle ShowHistory and refresh entries
+							state.ShowHistory = !state.ShowHistory
+							if state.OnRefreshEntries != nil {
+								state.OnRefreshEntries()
+							}
+							return true
+						default:
+							// Unknown command, do nothing
+							return true
+						}
+					}
+
 					state.OnAdd(s)
 					return true
 				},

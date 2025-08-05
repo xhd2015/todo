@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/todo/models"
 	"golang.org/x/term"
 )
 
@@ -39,14 +40,40 @@ func handleList(args []string) error {
 	}
 
 	strikethroughStyle := lipgloss.NewStyle().Strikethrough(true)
-
 	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
-	for _, entry := range logManager.Entries {
+
+	// Recursive function to render entries with proper indentation
+	var renderEntryRecursive func(entry *models.EntryView, depth int)
+	renderEntryRecursive = func(entry *models.EntryView, depth int) {
+		// Create indentation (2 spaces per depth level)
+		indent := strings.Repeat("  ", depth)
+
+		// Choose bullet based on completion status
+		bullet := "•"
+		if entry.Data.Done {
+			bullet = "✓"
+		}
+
+		// Apply styling
 		text := entry.Data.Text
 		if entry.Data.Done && isTTY {
 			text = strikethroughStyle.Render(text)
 		}
-		fmt.Printf("- %s\n", text)
+
+		// Print the entry with indentation
+		fmt.Printf("%s%s %s\n", indent, bullet, text)
+
+		// Recursively render children
+		for _, child := range entry.Children {
+			renderEntryRecursive(child, depth+1)
+		}
+	}
+
+	// Render only top-level entries (ParentID == 0) and their children
+	for _, entry := range logManager.Entries {
+		if entry.Data.ParentID == 0 {
+			renderEntryRecursive(entry, 0)
+		}
 	}
 
 	return nil

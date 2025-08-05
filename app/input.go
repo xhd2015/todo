@@ -28,7 +28,14 @@ func BindInput(props InputProps) *dom.Node {
 			props.State.Value = value
 		},
 		OnCursorMove: func(delta int, seek int) {
-			props.State.CursorPosition += delta
+			newPosition := props.State.CursorPosition + delta
+			if newPosition < 0 {
+				newPosition = 0
+			}
+			if newPosition > len(props.State.Value)+1 {
+				newPosition = len(props.State.Value) + 1
+			}
+			props.State.CursorPosition = newPosition
 		},
 		OnKeyDown: func(event *dom.DOMEvent) {
 			if event.Key == "enter" {

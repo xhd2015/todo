@@ -131,6 +131,18 @@ func Main(args []string) error {
 			p.Send(cursor.Blink())
 		},
 	}
+	appState.OnRefreshEntries = func() {
+		// Run refresh asynchronously to avoid blocking the UI
+		go func() {
+			err := logManager.InitWithHistory(appState.ShowHistory)
+			if err != nil {
+				// TODO: Handle error appropriately
+				return
+			}
+			appState.Entries = logManager.Entries
+			p.Send(cursor.Blink()) // Trigger UI refresh
+		}()
+	}
 	appState.OnAdd = func(value string) {
 		value = strings.TrimSpace(value)
 		if value == "" {
@@ -138,6 +150,17 @@ func Main(args []string) error {
 		}
 		logManager.Add(models.LogEntry{
 			Text: value,
+		})
+		appState.Entries = logManager.Entries
+	}
+	appState.OnAddChild = func(parentID int64, text string) {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return
+		}
+		logManager.Add(models.LogEntry{
+			Text:     text,
+			ParentID: parentID,
 		})
 		appState.Entries = logManager.Entries
 	}
@@ -163,8 +186,14 @@ func Main(args []string) error {
 			return
 		}
 		done := !foundEntry.Data.Done
+		var doneTime *time.Time
+		if done {
+			now := time.Now()
+			doneTime = &now
+		}
 		logManager.Update(id, models.LogEntryOptional{
-			Done: &done,
+			Done:     &done,
+			DoneTime: &doneTime,
 		})
 		appState.Entries = logManager.Entries
 	}

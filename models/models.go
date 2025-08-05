@@ -5,23 +5,27 @@ import (
 )
 
 type LogEntry struct {
-	ID              int64     `json:"id"`
-	Text            string    `json:"text"`
-	Done            bool      `json:"done"`
-	CreateTime      time.Time `json:"create_time"`
-	UpdateTime      time.Time `json:"update_time"`
-	AdjustedTopTime int64     `json:"adjusted_top_time"`
-	HighlightLevel  int       `json:"highlight_level"`
+	ID              int64      `json:"id"`
+	Text            string     `json:"text"`
+	Done            bool       `json:"done"`
+	DoneTime        *time.Time `json:"done_time"`
+	CreateTime      time.Time  `json:"create_time"`
+	UpdateTime      time.Time  `json:"update_time"`
+	AdjustedTopTime int64      `json:"adjusted_top_time"`
+	HighlightLevel  int        `json:"highlight_level"`
+	ParentID        int64      `json:"parent_id"`
 }
 
 type LogEntryOptional struct {
-	ID              *int64     `json:"id"`
-	Text            *string    `json:"text"`
-	Done            *bool      `json:"done"`
-	CreateTime      *time.Time `json:"create_time"`
-	UpdateTime      *time.Time `json:"update_time"`
-	AdjustedTopTime *int64     `json:"adjusted_top_time"`
-	HighlightLevel  *int       `json:"highlight_level"`
+	ID              *int64      `json:"id"`
+	Text            *string     `json:"text"`
+	Done            *bool       `json:"done"`
+	DoneTime        **time.Time `json:"done_time"`
+	CreateTime      *time.Time  `json:"create_time"`
+	UpdateTime      *time.Time  `json:"update_time"`
+	AdjustedTopTime *int64      `json:"adjusted_top_time"`
+	HighlightLevel  *int        `json:"highlight_level"`
+	ParentID        *int64      `json:"parent_id"`
 }
 
 func (c *LogEntry) Update(optional *LogEntryOptional) {
@@ -37,6 +41,9 @@ func (c *LogEntry) Update(optional *LogEntryOptional) {
 	if optional.Done != nil {
 		c.Done = *optional.Done
 	}
+	if optional.DoneTime != nil {
+		c.DoneTime = *optional.DoneTime
+	}
 	if optional.CreateTime != nil {
 		c.CreateTime = *optional.CreateTime
 	}
@@ -48,6 +55,9 @@ func (c *LogEntry) Update(optional *LogEntryOptional) {
 	}
 	if optional.HighlightLevel != nil {
 		c.HighlightLevel = *optional.HighlightLevel
+	}
+	if optional.ParentID != nil {
+		c.ParentID = *optional.ParentID
 	}
 }
 
