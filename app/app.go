@@ -1,8 +1,10 @@
 package app
 
 import (
+	"strings"
 	"time"
 
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/todo/models"
 )
@@ -31,6 +33,7 @@ type State struct {
 	OnAdd    func(string)
 	OnUpdate func(id int64, text string)
 	OnDelete func(id int64)
+	OnToggle func(id int64)
 
 	OnAddNote func(id int64, text string)
 
@@ -79,17 +82,24 @@ func App(state *State, window *dom.Window) *dom.Node {
 				}))
 				continue
 			}
+
+			isSelected := state.SelectedEntryIndex == i
 			children = append(children, dom.Li(dom.ListItemProps{
 				Focusable: dom.Focusable(true),
-				Selected:  state.SelectedEntryIndex == i,
-				Focused:   !state.SelectedShowDeleteConfirm && state.SelectedEntryIndex == i,
+				Selected:  isSelected,
+				Focused:   !state.SelectedShowDeleteConfirm && isSelected,
+				ItemPrefix: dom.String(func() string {
+					if item.Done {
+						return "✓ "
+					}
+					return "• "
+				}()),
 				OnFocus: func() {
 					state.SelectedEntryIndex = i
 				},
 				OnBlur: func() {
 					state.SelectedEntryIndex = -1
 				},
-				Text: item.Text,
 				OnKeyDown: func(e *dom.DOMEvent) {
 					switch e.Key {
 					case "e":
@@ -126,9 +136,20 @@ func App(state *State, window *dom.Window) *dom.Node {
 						if state.SelectedDeleteConfirmButton > 1 {
 							state.SelectedDeleteConfirmButton = 0
 						}
+					case " ":
+						// toggle status
+						state.OnToggle(item.ID)
 					}
 				},
-			}))
+			}, dom.Text(item.Text, dom.Style{
+				Color: func() string {
+					if isSelected {
+						return colors.GREEN_SUCCESS
+					}
+					return ""
+				}(),
+				Strikethrough: item.Done,
+			})))
 
 			if state.SelectedShowDeleteConfirm && state.SelectedEntryIndex == i {
 				children = append(children, ConfirmDialog(ConfirmDialogProps{
@@ -163,7 +184,17 @@ func App(state *State, window *dom.Window) *dom.Node {
 			BindInput(InputProps{
 				Placeholder: "add todo",
 				State:       &state.Input,
-				onEnter:     state.OnAdd,
+				onEnter: func(s string) bool {
+					if strings.TrimSpace(s) == "" {
+						return false
+					}
+					if s == "exit" || s == "quit" || s == "q" {
+						state.Quit()
+						return true
+					}
+					state.OnAdd(s)
+					return true
+				},
 			}),
 		)
 	}
@@ -189,9 +220,7 @@ func App(state *State, window *dom.Window) *dom.Node {
 				}
 				var children []*dom.Node
 				for _, note := range notes {
-					children = append(children, dom.Li(dom.ListItemProps{
-						Text: note.Text,
-					}))
+					children = append(children, dom.Li(dom.ListItemProps{}, dom.Text(note.Text)))
 				}
 				return dom.Ul(dom.DivProps{}, children...)
 			}(),
@@ -199,8 +228,9 @@ func App(state *State, window *dom.Window) *dom.Node {
 			BindInput(InputProps{
 				Placeholder: "add note",
 				State:       item.DetailPage.InputState,
-				onEnter: func(value string) {
+				onEnter: func(value string) bool {
 					state.OnAddNote(item.ID, value)
+					return true
 				},
 			}),
 		)
@@ -246,7 +276,7 @@ func App(state *State, window *dom.Window) *dom.Node {
 					Color: "1",
 				})
 			}
-			return nil
+			return dom.Text("type 'exit','quit' or 'q' to exit")
 		}(),
 	)
 }

@@ -1,18 +1,20 @@
 package data
 
 import (
-	idata "github.com/xhd2015/todo/data/storage"
+	"time"
+
+	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/models"
 )
 
 type LogManager struct {
-	LogEntryService idata.LogEntryService
-	LogNoteService  idata.LogNoteService
+	LogEntryService storage.LogEntryService
+	LogNoteService  storage.LogNoteService
 
 	Entries []*models.EntryView
 }
 
-func NewLogManager(logEntryService idata.LogEntryService, logNoteService idata.LogNoteService) *LogManager {
+func NewLogManager(logEntryService storage.LogEntryService, logNoteService storage.LogNoteService) *LogManager {
 	return &LogManager{
 		LogEntryService: logEntryService,
 		LogNoteService:  logNoteService,
@@ -20,26 +22,31 @@ func NewLogManager(logEntryService idata.LogEntryService, logNoteService idata.L
 }
 
 func (m *LogManager) Init() error {
-	entries, _, err := m.LogEntryService.List(idata.LogEntryListOptions{})
+	entries, _, err := m.LogEntryService.List(storage.LogEntryListOptions{})
 	if err != nil {
 		return err
 	}
 	for _, entry := range entries {
-		notes, _, err := m.LogNoteService.List(entry.ID, idata.LogNoteListOptions{})
+		notes, _, err := m.LogNoteService.List(entry.ID, storage.LogNoteListOptions{})
 		if err != nil {
 			return err
 		}
-		notesView := make([]*models.NoteView, len(notes))
-		for i, note := range notes {
-			notesView[i] = &models.NoteView{
-				ID:   note.ID,
-				Text: note.Text,
-			}
+		notesView := make([]*models.NoteView, 0, len(notes))
+		for _, note := range notes {
+			notesView = append(notesView, &models.NoteView{
+				ID:         note.ID,
+				Text:       note.Text,
+				CreateTime: note.CreateTime,
+				UpdateTime: note.UpdateTime,
+			})
 		}
 		m.Entries = append(m.Entries, &models.EntryView{
-			ID:    entry.ID,
-			Text:  entry.Text,
-			Notes: notesView,
+			ID:         entry.ID,
+			Text:       entry.Text,
+			Done:       entry.Done,
+			Notes:      notesView,
+			CreateTime: entry.CreateTime,
+			UpdateTime: entry.UpdateTime,
 			DetailPage: &models.EntryOnDetailPage{
 				InputState: &models.InputState{
 					Value: entry.Text,
@@ -51,6 +58,12 @@ func (m *LogManager) Init() error {
 }
 
 func (m *LogManager) Add(entry models.LogEntry) error {
+	if entry.CreateTime.IsZero() {
+		entry.CreateTime = time.Now()
+	}
+	if entry.UpdateTime.IsZero() {
+		entry.UpdateTime = time.Now()
+	}
 	id, err := m.LogEntryService.Add(entry)
 	if err != nil {
 		return err
@@ -70,6 +83,10 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 }
 
 func (m *LogManager) Update(id int64, entry models.LogEntryOptional) error {
+	if entry.UpdateTime == nil {
+		t := time.Now()
+		entry.UpdateTime = &t
+	}
 	err := m.LogEntryService.Update(id, entry)
 	if err != nil {
 		return err
@@ -108,6 +125,12 @@ func (m *LogManager) Delete(id int64) error {
 }
 
 func (m *LogManager) AddNote(entryID int64, note models.Note) error {
+	if note.CreateTime.IsZero() {
+		note.CreateTime = time.Now()
+	}
+	if note.UpdateTime.IsZero() {
+		note.UpdateTime = time.Now()
+	}
 	id, err := m.LogNoteService.Add(entryID, note)
 	if err != nil {
 		return err
@@ -116,8 +139,10 @@ func (m *LogManager) AddNote(entryID int64, note models.Note) error {
 	for _, entry := range m.Entries {
 		if entry.ID == entryID {
 			entry.Notes = append(entry.Notes, &models.NoteView{
-				ID:   id,
-				Text: note.Text,
+				ID:         id,
+				Text:       note.Text,
+				CreateTime: note.CreateTime,
+				UpdateTime: note.UpdateTime,
 			})
 			return nil
 		}
@@ -158,8 +183,10 @@ func (m *LogManager) UpdateNote(entryID int64, noteID int64, note models.Note) e
 			for i, n := range entry.Notes {
 				if n.ID == noteID {
 					entry.Notes[i] = &models.NoteView{
-						ID:   note.ID,
-						Text: note.Text,
+						ID:         note.ID,
+						Text:       note.Text,
+						CreateTime: note.CreateTime,
+						UpdateTime: note.UpdateTime,
 					}
 					return nil
 				}

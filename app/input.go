@@ -8,7 +8,7 @@ import (
 type InputProps struct {
 	Placeholder string
 	State       *models.InputState
-	onEnter     func(string)
+	onEnter     func(string) bool
 }
 
 func BindInput(props InputProps) *dom.Node {
@@ -35,9 +35,10 @@ func BindInput(props InputProps) *dom.Node {
 				if props.State.Value == "" {
 					return
 				}
-				props.onEnter(props.State.Value)
-				props.State.Value = ""
-				props.State.CursorPosition = 0
+				if props.onEnter(props.State.Value) {
+					props.State.Value = ""
+					props.State.CursorPosition = 0
+				}
 			}
 		},
 	})

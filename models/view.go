@@ -25,6 +25,9 @@ type EntryView struct {
 type NoteView struct {
 	ID   int64
 	Text string
+
+	CreateTime time.Time
+	UpdateTime time.Time
 }
 
 type EntryOnDetailPage struct {

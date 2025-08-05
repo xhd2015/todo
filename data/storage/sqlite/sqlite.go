@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	idata "github.com/xhd2015/todo/data/storage"
+	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -74,7 +74,7 @@ func (s *SQLiteStore) Close() error {
 	return s.db.Close()
 }
 
-func NewLogEntryService(filePath string) (idata.LogEntryService, error) {
+func NewLogEntryService(filePath string) (storage.LogEntryService, error) {
 	store, err := New(filePath)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func NewLogEntryService(filePath string) (idata.LogEntryService, error) {
 	return &LogEntrySQLiteStore{SQLiteStore: store}, nil
 }
 
-func NewLogNoteService(filePath string) (idata.LogNoteService, error) {
+func NewLogNoteService(filePath string) (storage.LogNoteService, error) {
 	store, err := New(filePath)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func NewLogNoteService(filePath string) (idata.LogNoteService, error) {
 }
 
 // LogEntry service methods
-func (les *LogEntrySQLiteStore) List(options idata.LogEntryListOptions) ([]models.LogEntry, int64, error) {
+func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]models.LogEntry, int64, error) {
 	var whereClause []string
 	var args []interface{}
 
@@ -148,10 +148,10 @@ func (les *LogEntrySQLiteStore) List(options idata.LogEntryListOptions) ([]model
 			return nil, 0, err
 		}
 
-		if entry.CreateTime, err = time.Parse("2006-01-02 15:04:05", createTime); err != nil {
+		if entry.CreateTime, err = tryParseTime(createTime); err != nil {
 			return nil, 0, err
 		}
-		if entry.UpdateTime, err = time.Parse("2006-01-02 15:04:05", updateTime); err != nil {
+		if entry.UpdateTime, err = tryParseTime(updateTime); err != nil {
 			return nil, 0, err
 		}
 
@@ -163,6 +163,18 @@ func (les *LogEntrySQLiteStore) List(options idata.LogEntryListOptions) ([]model
 	}
 
 	return entries, total, nil
+}
+
+// parsing time "2025-08-05T10:15:43Z" as "2006-01-02 15:04:05": cannot parse "T10:15:43Z" as " "
+func tryParseTime(s string) (time.Time, error) {
+	if strings.Contains(s, "T") {
+		return tryParseStdTime(s)
+	}
+	return time.Parse("2006-01-02 15:04:05", s)
+}
+
+func tryParseStdTime(s string) (time.Time, error) {
+	return time.Parse("2006-01-02T15:04:05Z", s)
 }
 
 func (les *LogEntrySQLiteStore) Add(entry models.LogEntry) (int64, error) {
@@ -258,7 +270,7 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 }
 
 // LogNote service methods
-func (lns *LogNoteSQLiteStore) List(entryID int64, options idata.LogNoteListOptions) ([]models.Note, int64, error) {
+func (lns *LogNoteSQLiteStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	var whereClause []string
 	var args []interface{}
 
@@ -315,10 +327,10 @@ func (lns *LogNoteSQLiteStore) List(entryID int64, options idata.LogNoteListOpti
 			return nil, 0, err
 		}
 
-		if note.CreateTime, err = time.Parse("2006-01-02 15:04:05", createTime); err != nil {
+		if note.CreateTime, err = tryParseTime(createTime); err != nil {
 			return nil, 0, err
 		}
-		if note.UpdateTime, err = time.Parse("2006-01-02 15:04:05", updateTime); err != nil {
+		if note.UpdateTime, err = tryParseTime(updateTime); err != nil {
 			return nil, 0, err
 		}
 

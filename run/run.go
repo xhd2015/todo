@@ -34,6 +34,18 @@ Examples:
 `
 
 func Main(args []string) error {
+	if len(args) > 0 {
+		arg0 := args[0]
+		switch arg0 {
+		case "list":
+			return handleList(args[1:])
+		case "export":
+			return handleExport(args[1:])
+		case "import":
+			return handleImport(args[1:])
+		}
+	}
+
 	var debugLogFile string
 	var storageType string = "sqlite" // default to sqlite
 
@@ -67,12 +79,10 @@ func Main(args []string) error {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
 
-	logEntryService, logNoteService, err := createLogServices(storageType)
+	logManager, err := CreateLogManager(storageType)
 	if err != nil {
 		return err
 	}
-
-	logManager := data.NewLogManager(logEntryService, logNoteService)
 	config, err := data.LoadConfig()
 	if err != nil {
 		return err
@@ -121,6 +131,10 @@ func Main(args []string) error {
 		},
 	}
 	appState.OnAdd = func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
 		logManager.Add(models.LogEntry{
 			Text: value,
 		})
@@ -134,6 +148,23 @@ func Main(args []string) error {
 	}
 	appState.OnDelete = func(id int64) {
 		logManager.Delete(id)
+		appState.Entries = logManager.Entries
+	}
+	appState.OnToggle = func(id int64) {
+		var foundEntry *models.EntryView
+		for _, entry := range logManager.Entries {
+			if entry.ID == id {
+				foundEntry = entry
+				break
+			}
+		}
+		if foundEntry == nil {
+			return
+		}
+		done := !foundEntry.Done
+		logManager.Update(id, models.LogEntryOptional{
+			Done: &done,
+		})
 		appState.Entries = logManager.Entries
 	}
 	appState.OnAddNote = func(id int64, text string) {

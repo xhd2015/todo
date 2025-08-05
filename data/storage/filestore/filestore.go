@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	idata "github.com/xhd2015/todo/data/storage"
+	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -54,7 +54,7 @@ func New(filePath string) (*FileStore, error) {
 	return fs, nil
 }
 
-func NewLogEntryService(filePath string) (idata.LogEntryService, error) {
+func NewLogEntryService(filePath string) (storage.LogEntryService, error) {
 	fs, err := New(filePath)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func NewLogEntryService(filePath string) (idata.LogEntryService, error) {
 	return &LogEntryFileStore{FileStore: fs}, nil
 }
 
-func NewLogNoteService(filePath string) (idata.LogNoteService, error) {
+func NewLogNoteService(filePath string) (storage.LogNoteService, error) {
 	fs, err := New(filePath)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (fs *FileStore) nextID() int64 {
 }
 
 // LogEntry service methods
-func (les *LogEntryFileStore) List(options idata.LogEntryListOptions) ([]models.LogEntry, int64, error) {
+func (les *LogEntryFileStore) List(options storage.LogEntryListOptions) ([]models.LogEntry, int64, error) {
 	fs := les.FileStore
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
@@ -233,7 +233,7 @@ func (les *LogEntryFileStore) Update(id int64, update models.LogEntryOptional) e
 }
 
 // LogNote service methods
-func (lns *LogNoteFileStore) List(entryID int64, options idata.LogNoteListOptions) ([]models.Note, int64, error) {
+func (lns *LogNoteFileStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	fs := lns.FileStore
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	idata "github.com/xhd2015/todo/data/storage"
+	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -40,18 +40,18 @@ func (ms *MemoryStore) nextIDValue() int64 {
 	return id
 }
 
-func NewLogEntryService() idata.LogEntryService {
+func NewLogEntryService() storage.LogEntryService {
 	store := New()
 	return &LogEntryMemoryStore{MemoryStore: store}
 }
 
-func NewLogNoteService() idata.LogNoteService {
+func NewLogNoteService() storage.LogNoteService {
 	store := New()
 	return &LogNoteMemoryStore{MemoryStore: store}
 }
 
 // LogEntry service methods
-func (les *LogEntryMemoryStore) List(options idata.LogEntryListOptions) ([]models.LogEntry, int64, error) {
+func (les *LogEntryMemoryStore) List(options storage.LogEntryListOptions) ([]models.LogEntry, int64, error) {
 	les.mu.RLock()
 	defer les.mu.RUnlock()
 
@@ -175,7 +175,7 @@ func (les *LogEntryMemoryStore) Update(id int64, update models.LogEntryOptional)
 }
 
 // LogNote service methods
-func (lns *LogNoteMemoryStore) List(entryID int64, options idata.LogNoteListOptions) ([]models.Note, int64, error) {
+func (lns *LogNoteMemoryStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	lns.mu.RLock()
 	defer lns.mu.RUnlock()
 
