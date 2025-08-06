@@ -182,18 +182,6 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 	return entries, total, nil
 }
 
-// parsing time "2025-08-05T10:15:43Z" as "2006-01-02 15:04:05": cannot parse "T10:15:43Z" as " "
-func tryParseTime(s string) (time.Time, error) {
-	if strings.Contains(s, "T") {
-		return tryParseStdTime(s)
-	}
-	return time.Parse("2006-01-02 15:04:05", s)
-}
-
-func tryParseStdTime(s string) (time.Time, error) {
-	return time.Parse("2006-01-02T15:04:05Z", s)
-}
-
 func (les *LogEntrySQLiteStore) Add(entry models.LogEntry) (int64, error) {
 	if entry.CreateTime.IsZero() {
 		entry.CreateTime = time.Now()
@@ -261,21 +249,21 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 	if update.DoneTime != nil {
 		setParts = append(setParts, "done_time = ?")
 		if *update.DoneTime != nil {
-			args = append(args, (*update.DoneTime).Format("2006-01-02 15:04:05"))
+			args = append(args, formatTime(**update.DoneTime))
 		} else {
 			args = append(args, nil)
 		}
 	}
 	if update.CreateTime != nil {
 		setParts = append(setParts, "create_time = ?")
-		args = append(args, update.CreateTime.Format("2006-01-02 15:04:05"))
+		args = append(args, formatTime(*update.CreateTime))
 	}
 	if update.UpdateTime != nil {
 		setParts = append(setParts, "update_time = ?")
-		args = append(args, update.UpdateTime.Format("2006-01-02 15:04:05"))
+		args = append(args, formatTime(*update.UpdateTime))
 	} else {
 		setParts = append(setParts, "update_time = ?")
-		args = append(args, time.Now().Format("2006-01-02 15:04:05"))
+		args = append(args, formatTime(time.Now()))
 	}
 	if update.AdjustedTopTime != nil {
 		setParts = append(setParts, "adjusted_top_time = ?")
@@ -410,8 +398,8 @@ func (lns *LogNoteSQLiteStore) Add(entryID int64, note models.Note) (int64, erro
 			  VALUES (?, ?, ?, ?)`
 
 	result, err := lns.db.Exec(query, entryID, note.Text,
-		note.CreateTime.Format("2006-01-02 15:04:05"),
-		note.UpdateTime.Format("2006-01-02 15:04:05"))
+		formatTime(note.CreateTime),
+		formatTime(note.UpdateTime))
 	if err != nil {
 		return 0, err
 	}
@@ -447,14 +435,14 @@ func (lns *LogNoteSQLiteStore) Update(entryID int64, noteID int64, update models
 	}
 	if update.CreateTime != nil {
 		setParts = append(setParts, "create_time = ?")
-		args = append(args, update.CreateTime.Format("2006-01-02 15:04:05"))
+		args = append(args, formatTime(*update.CreateTime))
 	}
 	if update.UpdateTime != nil {
 		setParts = append(setParts, "update_time = ?")
-		args = append(args, update.UpdateTime.Format("2006-01-02 15:04:05"))
+		args = append(args, formatTime(*update.UpdateTime))
 	} else {
 		setParts = append(setParts, "update_time = ?")
-		args = append(args, time.Now().Format("2006-01-02 15:04:05"))
+		args = append(args, formatTime(time.Now()))
 	}
 
 	if len(setParts) == 0 {

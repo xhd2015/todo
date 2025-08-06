@@ -1,29 +1,36 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/ui/tree"
 )
 
 type TodoItemProps struct {
-	Item       *models.EntryView
-	Index      int
-	Depth      int
-	IsSelected bool
-	State      *State
+	Item        *models.EntryView
+	Index       int
+	Depth       int
+	IsLastChild []bool
+	IsSelected  bool
+	State       *State
 }
 
 func TodoItem(props TodoItemProps) *dom.Node {
 	item := props.Item
 	i := props.Index
 	depth := props.Depth
+	isLastChild := props.IsLastChild
 	isSelected := props.IsSelected
 	state := props.State
-	indent := ""
-	for d := 0; d < depth; d++ {
-		indent += "  " // Two spaces per depth level
+
+	// Build tree connector prefix using common utility
+	treePrefix := tree.BuildTreePrefix(depth, isLastChild)
+	if depth > 0 {
+		// treePrefix = " " + treePrefix
 	}
 
 	return dom.Li(dom.ListItemProps{
@@ -31,11 +38,11 @@ func TodoItem(props TodoItemProps) *dom.Node {
 		Selected:  isSelected,
 		Focused:   state.SelectedEntryMode == SelectedEntryMode_Default && isSelected,
 		ItemPrefix: dom.String(func() string {
-			prefix := indent
+			prefix := treePrefix
 			if item.Data.Done {
-				prefix += "✓ "
+				prefix += "✓"
 			} else {
-				prefix += "• "
+				prefix += "•"
 			}
 			return prefix
 		}()),
@@ -51,11 +58,30 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				// focus to input
 				state.SelectedEntryIndex = -1
 				state.Input.Focused = true
+			case "?":
+				state.SelectedEntryIndex = -1
+				state.Input.Focused = true
+				if !strings.HasPrefix(state.Input.Value, "?") {
+					state.Input.Value = "?" + state.Input.Value
+					state.Input.CursorPosition = len(state.Input.Value)
+				}
 			case "e":
 				state.SelectedEntryMode = SelectedEntryMode_Editing
 				state.SelectedInputState.Value = item.Data.Text
 				state.SelectedInputState.Focused = true
 				state.SelectedInputState.CursorPosition = len(item.Data.Text) + 1
+			case "j":
+				// move down
+				state.SelectedEntryIndex = i + 1
+				if state.SelectedEntryIndex >= len(state.Entries) {
+					state.SelectedEntryIndex = len(state.Entries) - 1
+				}
+			case "k":
+				// move up
+				state.SelectedEntryIndex = i - 1
+				if state.SelectedEntryIndex < 0 {
+					state.SelectedEntryIndex = 0
+				}
 			case "d":
 				state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
 				state.SelectedDeleteConfirmButton = 0

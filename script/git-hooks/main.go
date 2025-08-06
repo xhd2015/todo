@@ -141,9 +141,11 @@ func preCommitCheck(noCommit bool, amend bool) error {
 	}
 
 	if !noCommit {
-		err = cmd.Dir(rootDir).Run("git", append([]string{"add"}, affectedFiles...)...)
-		if err != nil {
-			return nil
+		if len(affectedFiles) > 0 {
+			err = cmd.Dir(rootDir).Run("git", append([]string{"add"}, affectedFiles...)...)
+			if err != nil {
+				return nil
+			}
 		}
 	}
 

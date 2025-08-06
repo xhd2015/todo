@@ -240,12 +240,29 @@ func (m *LogManager) Delete(id int64) error {
 	if err != nil {
 		return err
 	}
-	for i, e := range m.Entries {
-		if e.Data.ID == id {
-			m.Entries = append(m.Entries[:i], m.Entries[i+1:]...)
-			return nil
+
+	// bread-first search
+	var traverse func(entries []*models.EntryView) ([]*models.EntryView, bool)
+	traverse = func(entries []*models.EntryView) ([]*models.EntryView, bool) {
+		for i, e := range entries {
+			if e.Data.ID == id {
+				newEntries := make([]*models.EntryView, len(entries)-1)
+				copy(newEntries, entries[:i])
+				copy(newEntries[i:], entries[i+1:])
+				return newEntries, true
+			}
 		}
+		for _, e := range entries {
+			children, ok := traverse(e.Children)
+			if ok {
+				e.Children = children
+				return entries, true
+			}
+		}
+		return entries, false
 	}
+
+	m.Entries, _ = traverse(m.Entries)
 	return nil
 }
 

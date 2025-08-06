@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/ui/tree"
 	"golang.org/x/term"
 )
 
@@ -42,11 +43,11 @@ func handleList(args []string) error {
 	strikethroughStyle := lipgloss.NewStyle().Strikethrough(true)
 	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
 
-	// Recursive function to render entries with proper indentation
-	var renderEntryRecursive func(entry *models.EntryView, depth int)
-	renderEntryRecursive = func(entry *models.EntryView, depth int) {
-		// Create indentation (2 spaces per depth level)
-		indent := strings.Repeat("  ", depth)
+	// Recursive function to render entries with proper tree connectors
+	var renderEntryRecursive func(entry *models.EntryView, depth int, ancestorIsLast []bool)
+	renderEntryRecursive = func(entry *models.EntryView, depth int, ancestorIsLast []bool) {
+		// Build tree connector prefix using common utility
+		treePrefix := tree.BuildTreePrefix(depth, ancestorIsLast)
 
 		// Choose bullet based on completion status
 		bullet := "•"
@@ -60,19 +61,24 @@ func handleList(args []string) error {
 			text = strikethroughStyle.Render(text)
 		}
 
-		// Print the entry with indentation
-		fmt.Printf("%s%s %s\n", indent, bullet, text)
+		// Print the entry with tree connectors
+		fmt.Printf("%s%s %s\n", treePrefix, bullet, text)
 
 		// Recursively render children
-		for _, child := range entry.Children {
-			renderEntryRecursive(child, depth+1)
+		for childIndex, child := range entry.Children {
+			isLastChild := (childIndex == len(entry.Children)-1)
+			// Create ancestor info for child: copy parent's info and add current level
+			childAncestorIsLast := make([]bool, depth+1)
+			copy(childAncestorIsLast, ancestorIsLast)
+			childAncestorIsLast[depth] = isLastChild
+			renderEntryRecursive(child, depth+1, childAncestorIsLast)
 		}
 	}
 
 	// Render only top-level entries (ParentID == 0) and their children
 	for _, entry := range logManager.Entries {
 		if entry.Data.ParentID == 0 {
-			renderEntryRecursive(entry, 0)
+			renderEntryRecursive(entry, 0, []bool{})
 		}
 	}
 
