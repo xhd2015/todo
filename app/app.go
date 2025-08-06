@@ -62,7 +62,8 @@ type State struct {
 	OnPromote         func(id int64)
 	OnUpdateHighlight func(id int64, highlightLevel int)
 
-	OnAddNote func(id int64, text string)
+	OnAddNote    func(id int64, text string)
+	OnDeleteNote func(entryID int64, noteID int64)
 
 	OnRefreshEntries func() // Callback to refresh entries when ShowHistory changes
 
@@ -264,7 +265,79 @@ func DetailPage(state *State, id int64) *dom.Node {
 			}
 			var children []*dom.Node
 			for _, note := range notes {
-				children = append(children, dom.Li(dom.ListItemProps{}, dom.Text(note.Data.Text)))
+				isSelected := item.DetailPage.SelectedNoteID == note.Data.ID
+				children = append(children, dom.Li(dom.ListItemProps{
+					Selected: isSelected,
+					Focused:  item.DetailPage.SelectedNoteMode == models.SelectedNoteMode_Default && isSelected,
+					OnFocus: func() {
+						item.DetailPage.SelectedNoteID = note.Data.ID
+					},
+					OnBlur: func() {
+						item.DetailPage.SelectedNoteID = 0
+					},
+					Focusable: dom.Focusable(true),
+					OnKeyDown: func(e *dom.DOMEvent) {
+						keyEvent := e.KeydownEvent
+						switch keyEvent.KeyType {
+						default:
+							key := string(keyEvent.Runes)
+							switch key {
+							case "e":
+								item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Editing
+							case "d":
+								item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Deleting
+							}
+						}
+					},
+				}, dom.Text(note.Data.Text)))
+
+				if item.DetailPage.SelectedNoteMode == models.SelectedNoteMode_Editing && isSelected {
+					children = append(children, dom.Input(dom.InputProps{
+						Value:          item.DetailPage.EditInputState.Value,
+						Focused:        item.DetailPage.EditInputState.Focused,
+						CursorPosition: item.DetailPage.EditInputState.CursorPosition,
+						OnCursorMove: func(position int) {
+							item.DetailPage.EditInputState.CursorPosition = position
+						},
+						OnChange: func(value string) {
+							item.DetailPage.EditInputState.Value = value
+						},
+						OnKeyDown: func(e *dom.DOMEvent) {
+							keyEvent := e.KeydownEvent
+							switch keyEvent.KeyType {
+							case dom.KeyTypeUp, dom.KeyTypeDown:
+								e.PreventDefault()
+							case dom.KeyTypeEsc:
+								item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Default
+							case dom.KeyTypeEnter:
+								state.OnUpdate(item.Data.ID, item.DetailPage.EditInputState.Value)
+								item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Default
+							}
+						},
+					}))
+				}
+
+				if item.DetailPage.SelectedNoteMode == models.SelectedNoteMode_Deleting && isSelected {
+					children = append(children, ConfirmDialog(ConfirmDialogProps{
+						PromptText:     "Delete Note",
+						DeleteText:     "[Delete]",
+						CancelText:     "[Cancel]",
+						SelectedButton: item.DetailPage.ConfirmDeleteButton,
+						OnDelete: func() {
+							state.OnDeleteNote(item.Data.ID, note.Data.ID)
+							item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Default
+						},
+						OnCancel: func() {
+							item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Default
+						},
+						OnNavigateRight: func() {
+							item.DetailPage.ConfirmDeleteButton = 1
+						},
+						OnNavigateLeft: func() {
+							item.DetailPage.ConfirmDeleteButton = 0
+						},
+					}))
+				}
 			}
 			return dom.Ul(dom.DivProps{}, children...)
 		}(),

@@ -214,6 +214,10 @@ func Main(args []string) error {
 		})
 		appState.Entries = logManager.Entries
 	}
+	appState.OnDeleteNote = func(entryID int64, noteID int64) {
+		logManager.DeleteNote(entryID, noteID)
+		appState.Entries = logManager.Entries
+	}
 
 	model := &Model{
 		app: charm.NewCharmApp(&appState, app.App),

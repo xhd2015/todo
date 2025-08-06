@@ -33,8 +33,24 @@ type NoteView struct {
 	Data *Note
 }
 
+type SelectedNoteMode int
+
+const (
+	SelectedNoteMode_Default SelectedNoteMode = iota
+	SelectedNoteMode_Editing
+	SelectedNoteMode_Deleting
+)
+
 type EntryOnDetailPage struct {
+	SelectedNoteID int64
+
+	SelectedNoteMode SelectedNoteMode
+
 	InputState *InputState
+
+	EditInputState InputState
+
+	ConfirmDeleteButton int
 }
 
 func (list LogEntryViews) Get(id int64) *LogEntryView {
