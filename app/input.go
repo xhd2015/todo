@@ -10,10 +10,11 @@ import (
 type InputProps struct {
 	Placeholder        string
 	State              *models.InputState
-	onEnter            func(string) bool
+	OnEnter            func(string) bool
 	onSearchChange     func(string)
 	onSearchActivate   func()
 	onSearchDeactivate func()
+	OnKeyDown          func(event *dom.DOMEvent)
 }
 
 func SearchInput(props InputProps) *dom.Node {
@@ -56,13 +57,17 @@ func SearchInput(props InputProps) *dom.Node {
 			props.State.CursorPosition = position
 		},
 		OnKeyDown: func(event *dom.DOMEvent) {
+			if props.OnKeyDown != nil {
+				props.OnKeyDown(event)
+				return
+			}
 			keyEvent := event.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEnter:
 				if props.State.Value == "" {
 					return
 				}
-				if props.onEnter(props.State.Value) {
+				if props.OnEnter(props.State.Value) {
 					props.State.Value = ""
 					props.State.CursorPosition = 0
 				}

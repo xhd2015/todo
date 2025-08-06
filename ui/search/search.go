@@ -14,24 +14,35 @@ func FilterEntriesRecursive(entries []*models.LogEntryView, query string) []*mod
 
 	query = strings.ToLower(query)
 	var filtered []*models.LogEntryView
-
 	for _, entry := range entries {
 		// Check if current entry matches
-		entryMatches := strings.Contains(strings.ToLower(entry.Data.Text), query)
+		idx := strings.Index(strings.ToLower(entry.Data.Text), query)
+		var matchTexts []models.MatchText
+		if idx >= 0 {
+			matchTexts = []models.MatchText{
+				{
+					Text: entry.Data.Text[:idx],
+				},
+				{
+					Text:  entry.Data.Text[idx : idx+len(query)],
+					Match: true,
+				},
+				{
+					Text: entry.Data.Text[idx+len(query):],
+				},
+			}
+		}
+		entry.MatchTexts = matchTexts
 
 		// Recursively filter children
 		filteredChildren := FilterEntriesRecursive(entry.Children, query)
 
 		// Include entry if it matches or has matching children
-		if entryMatches || len(filteredChildren) > 0 {
+		if idx >= 0 || len(filteredChildren) > 0 {
 			// Create a copy of the entry with filtered children
-			filteredEntry := &models.LogEntryView{
-				Data:       entry.Data,
-				DetailPage: entry.DetailPage,
-				Notes:      entry.Notes,
-				Children:   filteredChildren,
-			}
-			filtered = append(filtered, filteredEntry)
+			filteredEntry := *entry
+			filteredEntry.Children = filteredChildren
+			filtered = append(filtered, &filteredEntry)
 		}
 	}
 

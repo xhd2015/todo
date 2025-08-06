@@ -6,13 +6,25 @@ type InputState struct {
 	CursorPosition int
 }
 
+func (c *InputState) Reset() {
+	c.Value = ""
+	c.CursorPosition = 0
+}
+
 type LogEntryView struct {
 	Data *LogEntry
+
+	MatchTexts []MatchText
 
 	DetailPage *EntryOnDetailPage
 
 	Notes    []*NoteView
 	Children LogEntryViews
+}
+
+type MatchText struct {
+	Text  string
+	Match bool
 }
 
 type LogEntryViews []*LogEntryView
@@ -71,6 +83,14 @@ func (list LogEntryViews) FindPrev(id int64) *LogEntryView {
 func (list LogEntryViews) findAdjacent(id int64, next bool) *LogEntryView {
 	var traverse func(prev *LogEntryView, e *LogEntryView) *LogEntryView
 	traverse = func(prev *LogEntryView, cur *LogEntryView) *LogEntryView {
+		p := prev
+		for _, child := range cur.Children {
+			found := traverse(p, child)
+			if found != nil {
+				return found
+			}
+			p = child
+		}
 		if next {
 			if prev != nil && prev.Data.ID == id {
 				return cur
@@ -79,14 +99,6 @@ func (list LogEntryViews) findAdjacent(id int64, next bool) *LogEntryView {
 			if cur != nil && cur.Data.ID == id {
 				return prev
 			}
-		}
-		p := prev
-		for _, child := range cur.Children {
-			found := traverse(p, child)
-			if found != nil {
-				return found
-			}
-			p = child
 		}
 		return nil
 	}

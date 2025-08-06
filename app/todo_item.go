@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/colors"
@@ -27,6 +28,51 @@ func TodoItem(props TodoItemProps) *dom.Node {
 
 	// Build tree connector prefix using common utility
 	treePrefix := tree.BuildTreePrefix(depth, isLastChild)
+
+	textColor := func() string {
+		if isSelected {
+			return colors.GREEN_SUCCESS
+		} else if item.Data.Done {
+			return ""
+		} else if item.Data.HighlightLevel > 4 {
+			return colors.DARK_RED_5
+		} else if item.Data.HighlightLevel > 3 {
+			return colors.DARK_RED_4
+		} else if item.Data.HighlightLevel > 2 {
+			return colors.DARK_RED_3
+		} else if item.Data.HighlightLevel > 1 {
+			return colors.DARK_RED_2
+		} else if item.Data.HighlightLevel == 1 {
+			return colors.DARK_RED_1
+		} else {
+			return ""
+		}
+	}()
+
+	var textNode *dom.Node
+	if state.IsSearchActive && len(item.MatchTexts) > 0 {
+		nodes := make([]*dom.Node, 0, len(item.MatchTexts))
+		for _, matchText := range item.MatchTexts {
+			if matchText.Text == "" {
+				continue
+			}
+			color := textColor
+			if matchText.Match {
+				color = colors.GREEN_SUCCESS
+			}
+			node := dom.Text(matchText.Text, styles.Style{
+				Color:         color,
+				Strikethrough: item.Data.Done,
+			})
+			nodes = append(nodes, node)
+		}
+		textNode = dom.Fragment(nodes...)
+	} else {
+		textNode = dom.Text(item.Data.Text, styles.Style{
+			Color:         textColor,
+			Strikethrough: item.Data.Done,
+		})
+	}
 
 	return dom.Li(dom.ListItemProps{
 		Focusable: dom.Focusable(true),
@@ -64,11 +110,15 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				item.DetailPage.InputState.Focused = true
 				item.DetailPage.InputState.CursorPosition = 0
 			case dom.KeyTypeEsc:
+				if state.IsSearchActive {
+					state.ClearSearch()
+				}
 				state.SelectedEntryMode = SelectedEntryMode_Default
 			case dom.KeyTypeUp, dom.KeyTypeDown:
 				state.SelectedEntryMode = SelectedEntryMode_Default
 			case dom.KeyTypeLeft, dom.KeyTypeRight:
-				if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
+				switch state.SelectedEntryMode {
+				case SelectedEntryMode_DeleteConfirm:
 					delta := 1
 					if keyEvent.KeyType == dom.KeyTypeLeft {
 						delta = -1
@@ -80,7 +130,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					if state.SelectedDeleteConfirmButton > 1 {
 						state.SelectedDeleteConfirmButton = 0
 					}
-				} else if state.SelectedEntryMode == SelectedEntryMode_Default {
+				case SelectedEntryMode_Default:
 					if keyEvent.KeyType == dom.KeyTypeRight {
 						// show actions
 						state.SelectedEntryMode = SelectedEntryMode_ShowActions
@@ -96,9 +146,11 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					// focus to input
 					state.SelectedEntryID = 0
 					state.Input.Focused = true
+					state.LastSelectedEntryID = item.Data.ID
 				case "?":
 					state.SelectedEntryID = 0
 					state.Input.Focused = true
+					state.LastSelectedEntryID = item.Data.ID
 					if !strings.HasPrefix(state.Input.Value, "?") {
 						state.Input.Value = "?" + state.Input.Value
 						state.Input.CursorPosition = len(state.Input.Value)
@@ -136,26 +188,22 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				}
 			}
 		},
-	}, dom.Text(item.Data.Text, styles.Style{
-		Color: func() string {
-			if isSelected {
-				return colors.GREEN_SUCCESS
-			} else if item.Data.Done {
-				return ""
-			} else if item.Data.HighlightLevel > 4 {
-				return colors.DARK_RED_5
-			} else if item.Data.HighlightLevel > 3 {
-				return colors.DARK_RED_4
-			} else if item.Data.HighlightLevel > 2 {
-				return colors.DARK_RED_3
-			} else if item.Data.HighlightLevel > 1 {
-				return colors.DARK_RED_2
-			} else if item.Data.HighlightLevel == 1 {
-				return colors.DARK_RED_1
-			} else {
-				return ""
+	}, dom.Fragment(
+		textNode,
+		func() *dom.Node {
+			if len(item.Notes) == 0 {
+				return nil
 			}
+			return dom.Text("("+strconv.Itoa(len(item.Notes))+" notes)", styles.Style{
+				Color: func() string {
+					if isSelected {
+						return colors.GREEN_SUCCESS
+					}
+					return colors.GREY_TEXT
+				}(),
+				Strikethrough: item.Data.Done,
+			})
 		}(),
-		Strikethrough: item.Data.Done,
-	}))
+	),
+	)
 }

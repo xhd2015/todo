@@ -27,11 +27,12 @@ const (
 type State struct {
 	Entries models.LogEntryViews
 
-	Input              models.InputState
-	SelectedEntryID    int64
-	SelectedEntryMode  SelectedEntryMode
-	SelectedInputState models.InputState
-	ChildInputState    models.InputState
+	Input               models.InputState
+	SelectedEntryID     int64
+	LastSelectedEntryID int64
+	SelectedEntryMode   SelectedEntryMode
+	SelectedInputState  models.InputState
+	ChildInputState     models.InputState
 
 	SelectedDeleteConfirmButton int
 
@@ -62,6 +63,12 @@ type State struct {
 	OnRefreshEntries func() // Callback to refresh entries when ShowHistory changes
 
 	LastCtrlC time.Time
+}
+
+func (state *State) ClearSearch() {
+	state.IsSearchActive = false
+	state.SearchQuery = ""
+	state.Input.Reset()
 }
 
 func App(state *State, window *dom.Window) *dom.Node {
@@ -144,7 +151,23 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			return SearchInput(InputProps{
 				Placeholder: placeholder,
 				State:       &state.Input,
-				onEnter: func(s string) bool {
+				OnKeyDown: func(event *dom.DOMEvent) {
+					keyEvent := event.KeydownEvent
+					switch keyEvent.KeyType {
+					case dom.KeyTypeUp:
+						if state.LastSelectedEntryID != 0 {
+							state.SelectedEntryID = state.LastSelectedEntryID
+							state.LastSelectedEntryID = 0
+							state.Input.Focused = false
+							event.PreventDefault()
+						}
+					case dom.KeyTypeEsc:
+						if state.IsSearchActive {
+							state.ClearSearch()
+						}
+					}
+				},
+				OnEnter: func(s string) bool {
 					if strings.TrimSpace(s) == "" {
 						return false
 					}
@@ -236,7 +259,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 		SearchInput(InputProps{
 			Placeholder: "add note",
 			State:       item.DetailPage.InputState,
-			onEnter: func(value string) bool {
+			OnEnter: func(value string) bool {
 				state.OnAddNote(item.Data.ID, value)
 				return true
 			},
