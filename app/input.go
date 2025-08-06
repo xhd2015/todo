@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/go-dom-tui/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -14,7 +15,7 @@ type InputProps struct {
 	onSearchChange     func(string)
 	onSearchActivate   func()
 	onSearchDeactivate func()
-	OnKeyDown          func(event *dom.DOMEvent)
+	OnKeyDown          func(event *dom.DOMEvent) bool
 }
 
 func SearchInput(props InputProps) *dom.Node {
@@ -58,8 +59,9 @@ func SearchInput(props InputProps) *dom.Node {
 		},
 		OnKeyDown: func(event *dom.DOMEvent) {
 			if props.OnKeyDown != nil {
-				props.OnKeyDown(event)
-				return
+				if props.OnKeyDown(event) {
+					return
+				}
 			}
 			keyEvent := event.KeydownEvent
 			switch keyEvent.KeyType {
@@ -67,6 +69,7 @@ func SearchInput(props InputProps) *dom.Node {
 				if props.State.Value == "" {
 					return
 				}
+				log.Logf("OnEnter: %q", props.State.Value)
 				if props.OnEnter(props.State.Value) {
 					props.State.Value = ""
 					props.State.CursorPosition = 0

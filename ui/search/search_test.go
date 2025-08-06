@@ -55,7 +55,7 @@ func TestSearchFunctionality(t *testing.T) {
 	}
 
 	// Test search for "buy"
-	filtered := FilterEntriesRecursive(entries, "buy")
+	filtered := FilterEntriesQuery(entries, "buy")
 	if len(filtered) != 1 {
 		t.Errorf("Expected 1 entry for 'buy', got %d", len(filtered))
 	}
@@ -67,7 +67,7 @@ func TestSearchFunctionality(t *testing.T) {
 	}
 
 	// Test search for "milk"
-	filtered = FilterEntriesRecursive(entries, "milk")
+	filtered = FilterEntriesQuery(entries, "milk")
 	if len(filtered) != 1 {
 		t.Errorf("Expected 1 entry for 'milk', got %d", len(filtered))
 	}
@@ -82,7 +82,7 @@ func TestSearchFunctionality(t *testing.T) {
 	}
 
 	// Test search for "code"
-	filtered = FilterEntriesRecursive(entries, "code")
+	filtered = FilterEntriesQuery(entries, "code")
 	if len(filtered) != 1 {
 		t.Errorf("Expected 1 entry for 'code', got %d", len(filtered))
 	}
@@ -91,13 +91,13 @@ func TestSearchFunctionality(t *testing.T) {
 	}
 
 	// Test search for non-existent term
-	filtered = FilterEntriesRecursive(entries, "nonexistent")
+	filtered = FilterEntriesQuery(entries, "nonexistent")
 	if len(filtered) != 0 {
 		t.Errorf("Expected 0 entries for 'nonexistent', got %d", len(filtered))
 	}
 
 	// Test empty search
-	filtered = FilterEntriesRecursive(entries, "")
+	filtered = FilterEntriesQuery(entries, "")
 	if len(filtered) != 3 {
 		t.Errorf("Expected 3 entries for empty search, got %d", len(filtered))
 	}

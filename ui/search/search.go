@@ -6,16 +6,37 @@ import (
 	"github.com/xhd2015/todo/models"
 )
 
-// FilterEntriesRecursive filters entries and their children based on search query
-func FilterEntriesRecursive(entries []*models.LogEntryView, query string) []*models.LogEntryView {
+func FilterEntries(entries []*models.LogEntryView, fn func(entry *models.LogEntryView) bool) []*models.LogEntryView {
+	if fn == nil {
+		return entries
+	}
+	var filtered []*models.LogEntryView
+	for _, entry := range entries {
+		ok := fn(entry)
+		// Recursively filter children
+		filteredChildren := FilterEntries(entry.Children, fn)
+
+		// Include entry if it matches or has matching children
+		if ok || len(filteredChildren) > 0 {
+			// Create a copy of the entry with filtered children
+			filteredEntry := *entry
+			filteredEntry.Children = filteredChildren
+			filtered = append(filtered, &filteredEntry)
+		}
+	}
+
+	return filtered
+}
+
+// FilterEntriesQuery filters entries and their children based on search query
+func FilterEntriesQuery(entries []*models.LogEntryView, query string) []*models.LogEntryView {
 	if query == "" {
 		return entries
 	}
 
 	query = strings.ToLower(query)
-	var filtered []*models.LogEntryView
-	for _, entry := range entries {
-		// Check if current entry matches
+
+	return FilterEntries(entries, func(entry *models.LogEntryView) bool {
 		idx := strings.Index(strings.ToLower(entry.Data.Text), query)
 		var matchTexts []models.MatchText
 		if idx >= 0 {
@@ -33,18 +54,6 @@ func FilterEntriesRecursive(entries []*models.LogEntryView, query string) []*mod
 			}
 		}
 		entry.MatchTexts = matchTexts
-
-		// Recursively filter children
-		filteredChildren := FilterEntriesRecursive(entry.Children, query)
-
-		// Include entry if it matches or has matching children
-		if idx >= 0 || len(filteredChildren) > 0 {
-			// Create a copy of the entry with filtered children
-			filteredEntry := *entry
-			filteredEntry.Children = filteredChildren
-			filtered = append(filtered, &filteredEntry)
-		}
-	}
-
-	return filtered
+		return idx >= 0
+	})
 }

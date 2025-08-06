@@ -95,9 +95,6 @@ func TodoItem(props TodoItemProps) *dom.Node {
 		},
 		OnKeyDown: func(e *dom.DOMEvent) {
 			keyEvent := e.KeydownEvent
-			if keyEvent == nil {
-				return
-			}
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEnter:
 				if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
@@ -139,6 +136,12 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			case dom.KeyTypeSpace:
 				// toggle status
 				state.OnToggle(item.Data.ID)
+			case dom.KeyTypeCtrlC:
+				if state.IsSearchActive {
+					state.ClearSearch()
+					e.PreventDefault()
+					e.StopPropagation()
+				}
 			default:
 				key := string(keyEvent.Runes)
 				switch key {
@@ -176,6 +179,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						prevID = prev.Data.ID
 					}
 					state.SelectedEntryID = prevID
+				case "z":
+					state.ZenMode = !state.ZenMode
 				case "d":
 					state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
 					state.SelectedDeleteConfirmButton = 0

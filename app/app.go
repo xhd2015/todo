@@ -36,6 +36,10 @@ type State struct {
 
 	SelectedDeleteConfirmButton int
 
+	// in ZenMode, only show highlighted and
+	// unfinished entries
+	ZenMode bool
+
 	SelectedActionIndex int
 
 	EnteredEntryID int64
@@ -72,7 +76,6 @@ func (state *State) ClearSearch() {
 }
 
 func App(state *State, window *dom.Window) *dom.Node {
-
 	return dom.Div(dom.DivProps{
 		OnKeyDown: func(event *dom.DOMEvent) {
 			keyEvent := event.KeydownEvent
@@ -151,7 +154,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			return SearchInput(InputProps{
 				Placeholder: placeholder,
 				State:       &state.Input,
-				OnKeyDown: func(event *dom.DOMEvent) {
+				OnKeyDown: func(event *dom.DOMEvent) bool {
 					keyEvent := event.KeydownEvent
 					switch keyEvent.KeyType {
 					case dom.KeyTypeUp:
@@ -165,7 +168,14 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 						if state.IsSearchActive {
 							state.ClearSearch()
 						}
+					case dom.KeyTypeCtrlC:
+						if state.IsSearchActive {
+							state.ClearSearch()
+							event.PreventDefault()
+							event.StopPropagation()
+						}
 					}
+					return false
 				},
 				OnEnter: func(s string) bool {
 					if strings.TrimSpace(s) == "" {
@@ -199,6 +209,9 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 							if state.OnRefreshEntries != nil {
 								state.OnRefreshEntries()
 							}
+							return true
+						case "/zen":
+							state.ZenMode = !state.ZenMode
 							return true
 						default:
 							// Unknown command, do nothing

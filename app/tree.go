@@ -42,8 +42,15 @@ func RenderEntryTree(state *State) []*dom.Node {
 
 	// Filter entries based on search query if active
 	entriesToRender := state.Entries
+
+	if state.ZenMode {
+		entriesToRender = search.FilterEntries(state.Entries, func(entry *models.LogEntryView) bool {
+			return entry.Data.HighlightLevel > 0 && !entry.Data.Done
+		})
+	}
+
 	if state.IsSearchActive && state.SearchQuery != "" {
-		entriesToRender = search.FilterEntriesRecursive(state.Entries, state.SearchQuery)
+		entriesToRender = search.FilterEntriesQuery(state.Entries, state.SearchQuery)
 	}
 
 	// Add top-level entries (ParentID == 0)
