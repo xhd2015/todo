@@ -48,43 +48,12 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			state.SelectedEntryID = 0
 		},
 		OnKeyDown: func(e *dom.DOMEvent) {
-			switch e.Key {
-			case "/":
-				// focus to input
-				state.SelectedEntryID = 0
-				state.Input.Focused = true
-			case "?":
-				state.SelectedEntryID = 0
-				state.Input.Focused = true
-				if !strings.HasPrefix(state.Input.Value, "?") {
-					state.Input.Value = "?" + state.Input.Value
-					state.Input.CursorPosition = len(state.Input.Value)
-				}
-			case "e":
-				state.SelectedEntryMode = SelectedEntryMode_Editing
-				state.SelectedInputState.Value = item.Data.Text
-				state.SelectedInputState.Focused = true
-				state.SelectedInputState.CursorPosition = len(item.Data.Text) + 1
-			case "j":
-				// move down
-				next := state.Entries.FindNextOrLast(state.SelectedEntryID)
-				var nextID int64
-				if next != nil {
-					nextID = next.Data.ID
-				}
-				state.SelectedEntryID = nextID
-			case "k":
-				// move up
-				prev := state.Entries.FindPrevOrFirst(state.SelectedEntryID)
-				var prevID int64
-				if prev != nil {
-					prevID = prev.Data.ID
-				}
-				state.SelectedEntryID = prevID
-			case "d":
-				state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
-				state.SelectedDeleteConfirmButton = 0
-			case "enter":
+			keyEvent := e.KeydownEvent
+			if keyEvent == nil {
+				return
+			}
+			switch keyEvent.KeyType {
+			case dom.KeyTypeEnter:
 				if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
 					state.SelectedEntryMode = SelectedEntryMode_Default
 					return
@@ -94,14 +63,14 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				item.DetailPage.InputState.Value = ""
 				item.DetailPage.InputState.Focused = true
 				item.DetailPage.InputState.CursorPosition = 0
-			case "esc":
+			case dom.KeyTypeEsc:
 				state.SelectedEntryMode = SelectedEntryMode_Default
-			case "up", "down":
+			case dom.KeyTypeUp, dom.KeyTypeDown:
 				state.SelectedEntryMode = SelectedEntryMode_Default
-			case "left", "right":
+			case dom.KeyTypeLeft, dom.KeyTypeRight:
 				if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
 					delta := 1
-					if e.Key == "left" {
+					if keyEvent.KeyType == dom.KeyTypeLeft {
 						delta = -1
 					}
 					state.SelectedDeleteConfirmButton += delta
@@ -112,20 +81,59 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						state.SelectedDeleteConfirmButton = 0
 					}
 				} else if state.SelectedEntryMode == SelectedEntryMode_Default {
-					if e.Key == "right" {
+					if keyEvent.KeyType == dom.KeyTypeRight {
 						// show actions
 						state.SelectedEntryMode = SelectedEntryMode_ShowActions
 					}
 				}
-			case " ":
+			case dom.KeyTypeSpace:
 				// toggle status
 				state.OnToggle(item.Data.ID)
-			case "a":
-				// add child
-				state.SelectedEntryMode = SelectedEntryMode_AddingChild
-				state.ChildInputState.Value = ""
-				state.ChildInputState.Focused = true
-				state.ChildInputState.CursorPosition = 0
+			default:
+				key := string(keyEvent.Runes)
+				switch key {
+				case "/":
+					// focus to input
+					state.SelectedEntryID = 0
+					state.Input.Focused = true
+				case "?":
+					state.SelectedEntryID = 0
+					state.Input.Focused = true
+					if !strings.HasPrefix(state.Input.Value, "?") {
+						state.Input.Value = "?" + state.Input.Value
+						state.Input.CursorPosition = len(state.Input.Value)
+					}
+				case "e":
+					state.SelectedEntryMode = SelectedEntryMode_Editing
+					state.SelectedInputState.Value = item.Data.Text
+					state.SelectedInputState.Focused = true
+					state.SelectedInputState.CursorPosition = len(item.Data.Text) + 1
+				case "j":
+					// move down
+					next := state.Entries.FindNextOrLast(state.SelectedEntryID)
+					var nextID int64
+					if next != nil {
+						nextID = next.Data.ID
+					}
+					state.SelectedEntryID = nextID
+				case "k":
+					// move up
+					prev := state.Entries.FindPrevOrFirst(state.SelectedEntryID)
+					var prevID int64
+					if prev != nil {
+						prevID = prev.Data.ID
+					}
+					state.SelectedEntryID = prevID
+				case "d":
+					state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
+					state.SelectedDeleteConfirmButton = 0
+				case "a":
+					// add child
+					state.SelectedEntryMode = SelectedEntryMode_AddingChild
+					state.ChildInputState.Value = ""
+					state.ChildInputState.Focused = true
+					state.ChildInputState.CursorPosition = 0
+				}
 			}
 		},
 	}, dom.Text(item.Data.Text, styles.Style{

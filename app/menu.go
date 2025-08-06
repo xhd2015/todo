@@ -41,7 +41,8 @@ func Menu(props MenuProps) *dom.Node {
 			Focused:   selected,
 			Focusable: true,
 			OnKeyDown: func(e *dom.DOMEvent) {
-				if e.Key == "up" {
+				keyEvent := e.KeydownEvent
+				if keyEvent.KeyType == dom.KeyTypeUp {
 					next := i - 1
 					if next < 0 {
 						next = len(props.Items) - 1
@@ -49,7 +50,7 @@ func Menu(props MenuProps) *dom.Node {
 					e.PreventDefault()
 					props.OnSelect(next)
 				}
-				if e.Key == "down" {
+				if keyEvent.KeyType == dom.KeyTypeDown {
 					next := i + 1
 					if next >= len(props.Items) {
 						next = 0
@@ -57,7 +58,7 @@ func Menu(props MenuProps) *dom.Node {
 					e.PreventDefault()
 					props.OnSelect(next)
 				}
-				if e.Key == "enter" {
+				if keyEvent.KeyType == dom.KeyTypeEnter {
 					if item.OnSelect != nil {
 						item.OnSelect()
 					}
@@ -78,7 +79,8 @@ func Menu(props MenuProps) *dom.Node {
 		},
 		Focusable: true,
 		OnKeyDown: func(d *dom.DOMEvent) {
-			if d.Key == "esc" {
+			keyEvent := d.KeydownEvent
+			if keyEvent.KeyType == dom.KeyTypeEsc {
 				d.PreventDefault()
 				if props.OnDismiss != nil {
 					props.OnDismiss()

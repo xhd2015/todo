@@ -241,12 +241,9 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	res := m.app.Update(msg)
+	m.app.Update(msg)
 	if m.quit {
 		return m, tea.Quit
-	}
-	if res, ok := res.(tea.Cmd); ok {
-		return m, res
 	}
 	return m, nil
 }

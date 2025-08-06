@@ -45,19 +45,20 @@ func SearchInput(props InputProps) *dom.Node {
 				}
 			}
 		},
-		OnCursorMove: func(delta int, seek int) {
-			newPosition := props.State.CursorPosition + delta
-			if newPosition < 0 {
-				newPosition = 0
+		OnCursorMove: func(position int) {
+			if position < 0 {
+				position = 0
 			}
-			if newPosition > len(props.State.Value)+1 {
-				newPosition = len(props.State.Value) + 1
+			rnLen := runLength(props.State.Value)
+			if position > rnLen+1 {
+				position = rnLen + 1
 			}
-			props.State.CursorPosition = newPosition
+			props.State.CursorPosition = position
 		},
 		OnKeyDown: func(event *dom.DOMEvent) {
-			switch event.Key {
-			case "enter":
+			keyEvent := event.KeydownEvent
+			switch keyEvent.KeyType {
+			case dom.KeyTypeEnter:
 				if props.State.Value == "" {
 					return
 				}
@@ -65,7 +66,7 @@ func SearchInput(props InputProps) *dom.Node {
 					props.State.Value = ""
 					props.State.CursorPosition = 0
 				}
-			case "esc":
+			case dom.KeyTypeEsc:
 				// Exit search mode if active and search callbacks are provided
 				if props.onSearchDeactivate != nil && strings.HasPrefix(props.State.Value, "?") {
 					props.onSearchDeactivate()
@@ -75,4 +76,8 @@ func SearchInput(props InputProps) *dom.Node {
 			}
 		},
 	})
+}
+
+func runLength(s string) int {
+	return len([]rune(s))
 }

@@ -72,11 +72,11 @@ func (list LogEntryViews) findAdjacent(id int64, next bool) *LogEntryView {
 	var traverse func(prev *LogEntryView, e *LogEntryView) *LogEntryView
 	traverse = func(prev *LogEntryView, cur *LogEntryView) *LogEntryView {
 		if next {
-			if prev.Data.ID == id {
+			if prev != nil && prev.Data.ID == id {
 				return cur
 			}
 		} else {
-			if cur.Data.ID == id {
+			if cur != nil && cur.Data.ID == id {
 				return prev
 			}
 		}

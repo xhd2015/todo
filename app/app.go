@@ -68,8 +68,12 @@ func App(state *State, window *dom.Window) *dom.Node {
 
 	return dom.Div(dom.DivProps{
 		OnKeyDown: func(event *dom.DOMEvent) {
-			switch event.Key {
-			case "ctrl+c":
+			keyEvent := event.KeydownEvent
+			if keyEvent == nil {
+				return
+			}
+			switch keyEvent.KeyType {
+			case dom.KeyTypeCtrlC:
 				if time.Since(state.LastCtrlC) < time.Millisecond*CtrlCExitDelayMs {
 					state.Quit()
 					return
@@ -80,7 +84,7 @@ func App(state *State, window *dom.Window) *dom.Node {
 					time.Sleep(time.Millisecond * CtrlCExitDelayMs)
 					state.Refresh()
 				}()
-			case "esc":
+			case dom.KeyTypeEsc:
 				if state.EnteredEntryID > 0 {
 					state.EnteredEntryID = 0
 				}
@@ -205,8 +209,9 @@ func DetailPage(state *State, id int64) *dom.Node {
 
 	return dom.Div(dom.DivProps{
 		OnKeyDown: func(d *dom.DOMEvent) {
-			switch d.Key {
-			case "esc":
+			keyEvent := d.KeydownEvent
+			switch keyEvent.KeyType {
+			case dom.KeyTypeEsc:
 				state.EnteredEntryID = 0
 			}
 		},

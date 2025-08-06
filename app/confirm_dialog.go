@@ -50,12 +50,13 @@ func ConfirmDialog(props ConfirmDialogProps) *dom.Node {
 				Bold:  props.SelectedButton == 0,
 			},
 			OnKeyDown: func(d *dom.DOMEvent) {
-				switch d.Key {
-				case "esc":
+				keyEvent := d.KeydownEvent
+				switch keyEvent.KeyType {
+				case dom.KeyTypeEsc:
 					props.OnCancel()
-				case "right":
+				case dom.KeyTypeRight:
 					props.OnNavigateRight()
-				case "enter":
+				case dom.KeyTypeEnter:
 					props.OnDelete()
 				}
 			},
@@ -68,12 +69,13 @@ func ConfirmDialog(props ConfirmDialogProps) *dom.Node {
 				Bold:  props.SelectedButton == 1,
 			},
 			OnKeyDown: func(d *dom.DOMEvent) {
-				switch d.Key {
-				case "esc":
+				keyEvent := d.KeydownEvent
+				switch keyEvent.KeyType {
+				case dom.KeyTypeEsc:
 					props.OnCancel()
-				case "left":
+				case dom.KeyTypeLeft:
 					props.OnNavigateLeft()
-				case "enter":
+				case dom.KeyTypeEnter:
 					props.OnCancel()
 				}
 			},

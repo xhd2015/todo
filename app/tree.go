@@ -69,19 +69,20 @@ func RenderEntryTree(state *State) []*dom.Node {
 				Value:          state.SelectedInputState.Value,
 				Focused:        state.SelectedInputState.Focused,
 				CursorPosition: state.SelectedInputState.CursorPosition,
-				OnCursorMove: func(delta int, seek int) {
-					state.SelectedInputState.CursorPosition += delta
+				OnCursorMove: func(position int) {
+					state.SelectedInputState.CursorPosition = position
 				},
 				OnChange: func(value string) {
 					state.SelectedInputState.Value = value
 				},
 				OnKeyDown: func(e *dom.DOMEvent) {
-					switch e.Key {
-					case "up", "down":
+					keyEvent := e.KeydownEvent
+					switch keyEvent.KeyType {
+					case dom.KeyTypeUp, dom.KeyTypeDown:
 						e.PreventDefault()
-					case "esc":
+					case dom.KeyTypeEsc:
 						state.SelectedEntryMode = SelectedEntryMode_Default
-					case "enter":
+					case dom.KeyTypeEnter:
 						state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					}
@@ -106,19 +107,20 @@ func RenderEntryTree(state *State) []*dom.Node {
 				Value:          state.ChildInputState.Value,
 				Focused:        state.ChildInputState.Focused,
 				CursorPosition: state.ChildInputState.CursorPosition,
-				OnCursorMove: func(delta int, seek int) {
-					state.ChildInputState.CursorPosition += delta
+				OnCursorMove: func(position int) {
+					state.ChildInputState.CursorPosition = position
 				},
 				OnChange: func(value string) {
 					state.ChildInputState.Value = value
 				},
 				OnKeyDown: func(e *dom.DOMEvent) {
-					switch e.Key {
-					case "up", "down":
+					keyEvent := e.KeydownEvent
+					switch keyEvent.KeyType {
+					case dom.KeyTypeUp, dom.KeyTypeDown:
 						e.PreventDefault()
-					case "esc":
+					case dom.KeyTypeEsc:
 						state.SelectedEntryMode = SelectedEntryMode_Default
-					case "enter":
+					case dom.KeyTypeEnter:
 						if strings.TrimSpace(state.ChildInputState.Value) != "" {
 							state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
 							state.ChildInputState.Value = ""
@@ -196,8 +198,9 @@ func RenderEntryTree(state *State) []*dom.Node {
 				},
 				Items: items,
 				OnKeyDown: func(e *dom.DOMEvent) {
-					switch e.Key {
-					case "up", "down":
+					keyEvent := e.KeydownEvent
+					switch keyEvent.KeyType {
+					case dom.KeyTypeUp, dom.KeyTypeDown:
 						e.PreventDefault()
 					}
 				},

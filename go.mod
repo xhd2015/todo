@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/mattn/go-sqlite3 v1.14.30
 	github.com/shirou/gopsutil/v3 v3.24.5
-	github.com/xhd2015/go-dom-tui v0.0.5
+	github.com/xhd2015/go-dom-tui v0.0.6
 	github.com/xhd2015/less-gen v0.0.19
 	github.com/xhd2015/xgo v1.0.49-0.20240916074001-40aa40fc7623
 	golang.org/x/term v0.33.0
@@ -42,3 +42,5 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.3.8 // indirect
 )
+
+replace github.com/xhd2015/go-dom-tui => /Users/xhd2015/Projects/xhd2015/todo/go-dom-tui
