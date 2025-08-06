@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -24,10 +25,10 @@ const (
 )
 
 type State struct {
-	Entries []*models.EntryView
+	Entries models.LogEntryViews
 
 	Input              models.InputState
-	SelectedEntryIndex int
+	SelectedEntryID    int64
 	SelectedEntryMode  SelectedEntryMode
 	SelectedInputState models.InputState
 	ChildInputState    models.InputState
@@ -36,7 +37,7 @@ type State struct {
 
 	SelectedActionIndex int
 
-	EnteredEntryIndex int
+	EnteredEntryID int64
 
 	ShowHistory bool // Whether to show historical (done) todos from before today
 
@@ -64,123 +65,6 @@ type State struct {
 }
 
 func App(state *State, window *dom.Window) *dom.Node {
-	mainPage := func() *dom.Node {
-		height := window.Height
-		availableHeight := height - 5 - len(state.Entries)
-		if availableHeight < 3 {
-			availableHeight = 3
-		}
-		var brs []*dom.Node
-		if availableHeight > 3 {
-			brs = make([]*dom.Node, availableHeight-3)
-			for i := range brs {
-				brs[i] = dom.Br()
-			}
-		}
-
-		// Render the tree of entries
-		children := RenderEntryTree(state)
-		return dom.Fragment(
-			dom.Ul(dom.DivProps{}, children...),
-			dom.Fragment(brs...),
-			// input
-			func() *dom.Node {
-				placeholder := "add todo"
-				if state.IsSearchActive {
-					placeholder = "search todos (ESC to exit search)"
-				}
-
-				return BindInput(InputProps{
-					Placeholder: placeholder,
-					State:       &state.Input,
-					onEnter: func(s string) bool {
-						if strings.TrimSpace(s) == "" {
-							return false
-						}
-
-						// Handle search mode
-						if state.IsSearchActive {
-							// In search mode, enter just exits search
-							state.IsSearchActive = false
-							state.SearchQuery = ""
-							return true
-						}
-
-						if s == "exit" || s == "quit" || s == "q" {
-							state.Quit()
-							return true
-						}
-
-						// Handle special commands starting with /
-						if strings.HasPrefix(s, "/") {
-							switch s {
-							case "/history":
-								// Toggle ShowHistory and refresh entries
-								state.ShowHistory = !state.ShowHistory
-								if state.OnRefreshEntries != nil {
-									state.OnRefreshEntries()
-								}
-								return true
-							default:
-								// Unknown command, do nothing
-								return true
-							}
-						}
-
-						state.OnAdd(s)
-						return true
-					},
-					onSearchChange: func(query string) {
-						state.SearchQuery = query
-					},
-					onSearchActivate: func() {
-						state.IsSearchActive = true
-					},
-					onSearchDeactivate: func() {
-						state.IsSearchActive = false
-						state.SearchQuery = ""
-					},
-				})
-			}(),
-		)
-	}
-
-	detailPage := func(item *models.EntryView) *dom.Node {
-		return dom.Div(dom.DivProps{
-			OnKeyDown: func(d *dom.DOMEvent) {
-				switch d.Key {
-				case "esc":
-					state.EnteredEntryIndex = -1
-				}
-			},
-		},
-			dom.Text(item.Data.Text),
-
-			dom.H1(dom.DivProps{}, dom.Text("Notes")),
-
-			func() *dom.Node {
-				notes := item.Notes
-
-				if len(notes) == 0 {
-					return dom.Fragment(dom.Text("No notes"), dom.Br())
-				}
-				var children []*dom.Node
-				for _, note := range notes {
-					children = append(children, dom.Li(dom.ListItemProps{}, dom.Text(note.Data.Text)))
-				}
-				return dom.Ul(dom.DivProps{}, children...)
-			}(),
-
-			BindInput(InputProps{
-				Placeholder: "add note",
-				State:       item.DetailPage.InputState,
-				onEnter: func(value string) bool {
-					state.OnAddNote(item.Data.ID, value)
-					return true
-				},
-			}),
-		)
-	}
 
 	return dom.Div(dom.DivProps{
 		OnKeyDown: func(event *dom.DOMEvent) {
@@ -197,8 +81,8 @@ func App(state *State, window *dom.Window) *dom.Node {
 					state.Refresh()
 				}()
 			case "esc":
-				if state.EnteredEntryIndex >= 0 {
-					state.EnteredEntryIndex = -1
+				if state.EnteredEntryID > 0 {
+					state.EnteredEntryID = 0
 				}
 			}
 		},
@@ -209,10 +93,10 @@ func App(state *State, window *dom.Window) *dom.Node {
 		})),
 
 		func() *dom.Node {
-			if state.EnteredEntryIndex < 0 {
-				return mainPage()
+			if state.EnteredEntryID == 0 {
+				return MainPage(state, window)
 			} else {
-				return detailPage(state.Entries[state.EnteredEntryIndex])
+				return DetailPage(state, state.EnteredEntryID)
 			}
 		}(),
 		func() *dom.Node {
@@ -224,5 +108,133 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}
 			return dom.Text("type 'exit','quit' or 'q' to exit")
 		}(),
+	)
+}
+
+func MainPage(state *State, window *dom.Window) *dom.Node {
+	height := window.Height
+	availableHeight := height - 5 - len(state.Entries)
+	if availableHeight < 3 {
+		availableHeight = 3
+	}
+	var brs []*dom.Node
+	if availableHeight > 3 {
+		brs = make([]*dom.Node, availableHeight-3)
+		for i := range brs {
+			brs[i] = dom.Br()
+		}
+	}
+
+	// Render the tree of entries
+	children := RenderEntryTree(state)
+	return dom.Fragment(
+		dom.Ul(dom.DivProps{}, children...),
+		dom.Fragment(brs...),
+		// input
+		func() *dom.Node {
+			placeholder := "add todo"
+			if state.IsSearchActive {
+				placeholder = "search todos (ESC to exit search)"
+			}
+
+			return SearchInput(InputProps{
+				Placeholder: placeholder,
+				State:       &state.Input,
+				onEnter: func(s string) bool {
+					if strings.TrimSpace(s) == "" {
+						return false
+					}
+
+					// Handle search mode
+					if state.IsSearchActive {
+						// In search mode, enter just exits search
+						state.IsSearchActive = false
+						state.SearchQuery = ""
+						return true
+					}
+
+					if s == "exit" || s == "quit" || s == "q" {
+						state.Quit()
+						return true
+					}
+
+					// Handle special commands starting with /
+					if strings.HasPrefix(s, "/") {
+						switch s {
+						case "/history":
+							// Toggle ShowHistory and refresh entries
+							state.ShowHistory = !state.ShowHistory
+							if state.OnRefreshEntries != nil {
+								state.OnRefreshEntries()
+							}
+							return true
+						case "/reload":
+							if state.OnRefreshEntries != nil {
+								state.OnRefreshEntries()
+							}
+							return true
+						default:
+							// Unknown command, do nothing
+							return true
+						}
+					}
+
+					state.OnAdd(s)
+					return true
+				},
+				onSearchChange: func(query string) {
+					state.SearchQuery = query
+				},
+				onSearchActivate: func() {
+					state.IsSearchActive = true
+				},
+				onSearchDeactivate: func() {
+					state.IsSearchActive = false
+					state.SearchQuery = ""
+				},
+			})
+		}(),
+	)
+}
+
+func DetailPage(state *State, id int64) *dom.Node {
+	item := state.Entries.Get(id)
+	if item == nil {
+		return dom.Text(fmt.Sprintf("not found: %d", id))
+	}
+
+	return dom.Div(dom.DivProps{
+		OnKeyDown: func(d *dom.DOMEvent) {
+			switch d.Key {
+			case "esc":
+				state.EnteredEntryID = 0
+			}
+		},
+	},
+		dom.Text(item.Data.Text),
+
+		dom.H1(dom.DivProps{}, dom.Text("Notes")),
+
+		func() *dom.Node {
+			notes := item.Notes
+
+			if len(notes) == 0 {
+				return dom.Fragment(dom.Text("No notes"), dom.Br())
+			}
+			var children []*dom.Node
+			for _, note := range notes {
+				children = append(children, dom.Li(dom.ListItemProps{}, dom.Text(note.Data.Text)))
+			}
+			return dom.Ul(dom.DivProps{}, children...)
+		}(),
+
+		SearchInput(InputProps{
+			Placeholder: "add note",
+			State:       item.DetailPage.InputState,
+			onEnter: func(value string) bool {
+				state.OnAddNote(item.Data.ID, value)
+				return true
+			},
+		}),
 	)
 }

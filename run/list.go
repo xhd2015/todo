@@ -44,8 +44,8 @@ func handleList(args []string) error {
 	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
 
 	// Recursive function to render entries with proper tree connectors
-	var renderEntryRecursive func(entry *models.EntryView, depth int, ancestorIsLast []bool)
-	renderEntryRecursive = func(entry *models.EntryView, depth int, ancestorIsLast []bool) {
+	var renderEntryRecursive func(entry *models.LogEntryView, depth int, ancestorIsLast []bool)
+	renderEntryRecursive = func(entry *models.LogEntryView, depth int, ancestorIsLast []bool) {
 		// Build tree connector prefix using common utility
 		treePrefix := tree.BuildTreePrefix(depth, ancestorIsLast)
 

@@ -13,7 +13,7 @@ type LogManager struct {
 	LogEntryService storage.LogEntryService
 	LogNoteService  storage.LogNoteService
 
-	Entries []*models.EntryView
+	Entries []*models.LogEntryView
 }
 
 func NewLogManager(logEntryService storage.LogEntryService, logNoteService storage.LogNoteService) *LogManager {
@@ -32,7 +32,7 @@ func (m *LogManager) InitWithHistory(showHistory bool) error {
 	return nil
 }
 
-func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, showHistory bool) ([]*models.EntryView, error) {
+func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, showHistory bool) ([]*models.LogEntryView, error) {
 	entries, _, err := svc.List(storage.LogEntryListOptions{})
 	if err != nil {
 		return nil, err
@@ -54,9 +54,9 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 		filteredEntries = entries
 	}
 
-	var entriesView []*models.EntryView
+	var entriesView []*models.LogEntryView
 	// Create a map for quick lookup
-	entryMap := make(map[int64]*models.EntryView)
+	entryMap := make(map[int64]*models.LogEntryView)
 
 	for _, entry := range filteredEntries {
 		notes, _, err := noteSvc.List(entry.ID, storage.LogNoteListOptions{})
@@ -69,10 +69,10 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 				Data: &note,
 			})
 		}
-		entryView := &models.EntryView{
+		entryView := &models.LogEntryView{
 			Data:     &entry,
 			Notes:    notesView,
-			Children: []*models.EntryView{},
+			Children: []*models.LogEntryView{},
 			DetailPage: &models.EntryOnDetailPage{
 				InputState: &models.InputState{
 					Value: entry.Text,
@@ -101,13 +101,13 @@ func (m *LogManager) Init() error {
 	return m.InitWithHistory(false)
 }
 
-func sortEntries(entries []*models.EntryView) {
+func sortEntries(entries []*models.LogEntryView) {
 	sort.Slice(entries, func(i, j int) bool {
 		return !isNewer(entries[i], entries[j])
 	})
 }
 
-func isNewer(a *models.EntryView, b *models.EntryView) bool {
+func isNewer(a *models.LogEntryView, b *models.LogEntryView) bool {
 	// compare create time if both are not adjusted top time
 	if a.Data.AdjustedTopTime == 0 && b.Data.AdjustedTopTime == 0 {
 		return a.Data.CreateTime.After(b.Data.CreateTime)
@@ -137,10 +137,10 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 		return err
 	}
 	entry.ID = id
-	entryView := &models.EntryView{
+	entryView := &models.LogEntryView{
 		Data:     &entry,
 		Notes:    []*models.NoteView{},
-		Children: []*models.EntryView{},
+		Children: []*models.LogEntryView{},
 		DetailPage: &models.EntryOnDetailPage{
 			InputState: &models.InputState{
 				Value: entry.Text,
@@ -168,7 +168,7 @@ func (m *LogManager) Update(id int64, entry models.LogEntryOptional) error {
 		entry.UpdateTime = &t
 	}
 
-	var targetEntry *models.EntryView
+	var targetEntry *models.LogEntryView
 	var oldParentID int64
 
 	// Find the target entry and remember its old parent
@@ -242,11 +242,11 @@ func (m *LogManager) Delete(id int64) error {
 	}
 
 	// bread-first search
-	var traverse func(entries []*models.EntryView) ([]*models.EntryView, bool)
-	traverse = func(entries []*models.EntryView) ([]*models.EntryView, bool) {
+	var traverse func(entries []*models.LogEntryView) ([]*models.LogEntryView, bool)
+	traverse = func(entries []*models.LogEntryView) ([]*models.LogEntryView, bool) {
 		for i, e := range entries {
 			if e.Data.ID == id {
-				newEntries := make([]*models.EntryView, len(entries)-1)
+				newEntries := make([]*models.LogEntryView, len(entries)-1)
 				copy(newEntries, entries[:i])
 				copy(newEntries[i:], entries[i+1:])
 				return newEntries, true

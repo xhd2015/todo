@@ -7,13 +7,13 @@ import (
 )
 
 // FilterEntriesRecursive filters entries and their children based on search query
-func FilterEntriesRecursive(entries []*models.EntryView, query string) []*models.EntryView {
+func FilterEntriesRecursive(entries []*models.LogEntryView, query string) []*models.LogEntryView {
 	if query == "" {
 		return entries
 	}
 
 	query = strings.ToLower(query)
-	var filtered []*models.EntryView
+	var filtered []*models.LogEntryView
 
 	for _, entry := range entries {
 		// Check if current entry matches
@@ -25,7 +25,7 @@ func FilterEntriesRecursive(entries []*models.EntryView, query string) []*models
 		// Include entry if it matches or has matching children
 		if entryMatches || len(filteredChildren) > 0 {
 			// Create a copy of the entry with filtered children
-			filteredEntry := &models.EntryView{
+			filteredEntry := &models.LogEntryView{
 				Data:       entry.Data,
 				DetailPage: entry.DetailPage,
 				Notes:      entry.Notes,

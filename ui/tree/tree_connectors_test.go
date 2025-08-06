@@ -8,13 +8,13 @@ import (
 
 func TestTreeConnectors(t *testing.T) {
 	// Create test entries with nested structure
-	entries := []*models.EntryView{
+	entries := []*models.LogEntryView{
 		{
 			Data: &models.LogEntry{
 				ID:   1,
 				Text: "Parent 1",
 			},
-			Children: []*models.EntryView{
+			Children: []*models.LogEntryView{
 				{
 					Data: &models.LogEntry{
 						ID:       2,
@@ -28,7 +28,7 @@ func TestTreeConnectors(t *testing.T) {
 						Text:     "Child 1.2",
 						ParentID: 1,
 					},
-					Children: []*models.EntryView{
+					Children: []*models.LogEntryView{
 						{
 							Data: &models.LogEntry{
 								ID:       4,
@@ -50,7 +50,7 @@ func TestTreeConnectors(t *testing.T) {
 
 	// Test the tree structure building logic by simulating what happens in the main app
 	type EntryWithDepth struct {
-		Entry       *models.EntryView
+		Entry       *models.LogEntryView
 		Index       int
 		Depth       int
 		IsLastChild []bool
@@ -59,8 +59,8 @@ func TestTreeConnectors(t *testing.T) {
 	var flatEntries []EntryWithDepth
 	entryIndex := 0
 
-	var addEntryRecursive func(entry *models.EntryView, depth int, ancestorIsLast []bool)
-	addEntryRecursive = func(entry *models.EntryView, depth int, ancestorIsLast []bool) {
+	var addEntryRecursive func(entry *models.LogEntryView, depth int, ancestorIsLast []bool)
+	addEntryRecursive = func(entry *models.LogEntryView, depth int, ancestorIsLast []bool) {
 		flatEntries = append(flatEntries, EntryWithDepth{
 			Entry:       entry,
 			Index:       entryIndex,
@@ -81,7 +81,7 @@ func TestTreeConnectors(t *testing.T) {
 	}
 
 	// Add top-level entries
-	topLevelEntries := make([]*models.EntryView, 0)
+	topLevelEntries := make([]*models.LogEntryView, 0)
 	for _, entry := range entries {
 		if entry.Data.ParentID == 0 {
 			topLevelEntries = append(topLevelEntries, entry)

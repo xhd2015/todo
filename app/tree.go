@@ -12,8 +12,7 @@ import (
 
 // EntryWithDepth represents a flattened entry with its depth and ancestor information
 type EntryWithDepth struct {
-	Entry       *models.EntryView
-	Index       int
+	Entry       *models.LogEntryView
 	Depth       int
 	IsLastChild []bool // For each depth level, whether this entry is the last child at that level
 }
@@ -21,17 +20,14 @@ type EntryWithDepth struct {
 // RenderEntryTree builds and renders the tree of entries as DOM nodes
 func RenderEntryTree(state *State) []*dom.Node {
 	var flatEntries []EntryWithDepth
-	entryIndex := 0
 
-	var addEntryRecursive func(entry *models.EntryView, depth int, ancestorIsLast []bool)
-	addEntryRecursive = func(entry *models.EntryView, depth int, ancestorIsLast []bool) {
+	var addEntryRecursive func(entry *models.LogEntryView, depth int, ancestorIsLast []bool)
+	addEntryRecursive = func(entry *models.LogEntryView, depth int, ancestorIsLast []bool) {
 		flatEntries = append(flatEntries, EntryWithDepth{
 			Entry:       entry,
-			Index:       entryIndex,
 			Depth:       depth,
 			IsLastChild: ancestorIsLast,
 		})
-		entryIndex++
 
 		// Add children recursively
 		for childIndex, child := range entry.Children {
@@ -51,7 +47,7 @@ func RenderEntryTree(state *State) []*dom.Node {
 	}
 
 	// Add top-level entries (ParentID == 0)
-	topLevelEntries := make([]*models.EntryView, 0)
+	topLevelEntries := make([]*models.LogEntryView, 0)
 	for _, entry := range entriesToRender {
 		if entry.Data.ParentID == 0 {
 			topLevelEntries = append(topLevelEntries, entry)
@@ -65,9 +61,8 @@ func RenderEntryTree(state *State) []*dom.Node {
 	var children []*dom.Node
 	for _, entryWithDepth := range flatEntries {
 		item := entryWithDepth.Entry
-		i := entryWithDepth.Index
 		depth := entryWithDepth.Depth
-		isSelected := state.SelectedEntryIndex == i
+		isSelected := state.SelectedEntryID == item.Data.ID
 
 		if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
 			children = append(children, dom.Input(dom.InputProps{
@@ -98,7 +93,6 @@ func RenderEntryTree(state *State) []*dom.Node {
 		// Always render the TodoItem
 		children = append(children, TodoItem(TodoItemProps{
 			Item:        item,
-			Index:       i,
 			Depth:       depth,
 			IsLastChild: entryWithDepth.IsLastChild,
 			IsSelected:  isSelected,
@@ -143,11 +137,13 @@ func RenderEntryTree(state *State) []*dom.Node {
 				DeleteText:     "[Delete]",
 				CancelText:     "[Cancel]",
 				OnDelete: func() {
+					next := state.Entries.FindNextOrLast(item.Data.ID)
 					state.OnDelete(item.Data.ID)
-					// move selection
-					if state.SelectedEntryIndex > len(state.Entries)-1 {
-						state.SelectedEntryIndex = len(state.Entries) - 1
+					var nextID int64
+					if next != nil {
+						nextID = next.Data.ID
 					}
+					state.SelectedEntryID = nextID
 					state.SelectedEntryMode = SelectedEntryMode_Default
 				},
 				OnCancel: func() {
@@ -168,9 +164,6 @@ func RenderEntryTree(state *State) []*dom.Node {
 				{Text: "Promote", OnSelect: func() {
 					state.OnPromote(item.Data.ID)
 					state.SelectedEntryMode = SelectedEntryMode_Default
-
-					// set selected to bottom
-					state.SelectedEntryIndex = len(state.Entries) - 1
 				}},
 				{Text: "No Highlight", OnSelect: func() {
 					state.OnUpdateHighlight(item.Data.ID, 0)

@@ -121,9 +121,7 @@ func Main(args []string) error {
 
 	var p *tea.Program
 	appState := app.State{
-		Entries:            logManager.Entries,
-		SelectedEntryIndex: -1,
-		EnteredEntryIndex:  -1,
+		Entries: logManager.Entries,
 		Input: models.InputState{
 			Focused: true,
 		},
@@ -175,7 +173,7 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 	}
 	appState.OnToggle = func(id int64) {
-		var foundEntry *models.EntryView
+		var foundEntry *models.LogEntryView
 		for _, entry := range logManager.Entries {
 			if entry.Data.ID == id {
 				foundEntry = entry

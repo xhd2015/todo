@@ -8,13 +8,13 @@ import (
 
 func TestSearchFunctionality(t *testing.T) {
 	// Create test entries
-	entries := []*models.EntryView{
+	entries := []*models.LogEntryView{
 		{
 			Data: &models.LogEntry{
 				ID:   1,
 				Text: "Buy groceries",
 			},
-			Children: []*models.EntryView{
+			Children: []*models.LogEntryView{
 				{
 					Data: &models.LogEntry{
 						ID:       2,
@@ -36,7 +36,7 @@ func TestSearchFunctionality(t *testing.T) {
 				ID:   4,
 				Text: "Work on project",
 			},
-			Children: []*models.EntryView{
+			Children: []*models.LogEntryView{
 				{
 					Data: &models.LogEntry{
 						ID:       5,

@@ -16,7 +16,7 @@ type InputProps struct {
 	onSearchDeactivate func()
 }
 
-func BindInput(props InputProps) *dom.Node {
+func SearchInput(props InputProps) *dom.Node {
 	return dom.Input(dom.InputProps{
 		Placeholder:    props.Placeholder,
 		Value:          props.State.Value,

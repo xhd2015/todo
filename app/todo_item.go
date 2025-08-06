@@ -11,8 +11,7 @@ import (
 )
 
 type TodoItemProps struct {
-	Item        *models.EntryView
-	Index       int
+	Item        *models.LogEntryView
 	Depth       int
 	IsLastChild []bool
 	IsSelected  bool
@@ -21,7 +20,6 @@ type TodoItemProps struct {
 
 func TodoItem(props TodoItemProps) *dom.Node {
 	item := props.Item
-	i := props.Index
 	depth := props.Depth
 	isLastChild := props.IsLastChild
 	isSelected := props.IsSelected
@@ -29,9 +27,6 @@ func TodoItem(props TodoItemProps) *dom.Node {
 
 	// Build tree connector prefix using common utility
 	treePrefix := tree.BuildTreePrefix(depth, isLastChild)
-	if depth > 0 {
-		// treePrefix = " " + treePrefix
-	}
 
 	return dom.Li(dom.ListItemProps{
 		Focusable: dom.Focusable(true),
@@ -47,19 +42,19 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			return prefix
 		}()),
 		OnFocus: func() {
-			state.SelectedEntryIndex = i
+			state.SelectedEntryID = item.Data.ID
 		},
 		OnBlur: func() {
-			state.SelectedEntryIndex = -1
+			state.SelectedEntryID = 0
 		},
 		OnKeyDown: func(e *dom.DOMEvent) {
 			switch e.Key {
 			case "/":
 				// focus to input
-				state.SelectedEntryIndex = -1
+				state.SelectedEntryID = 0
 				state.Input.Focused = true
 			case "?":
-				state.SelectedEntryIndex = -1
+				state.SelectedEntryID = 0
 				state.Input.Focused = true
 				if !strings.HasPrefix(state.Input.Value, "?") {
 					state.Input.Value = "?" + state.Input.Value
@@ -72,16 +67,20 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				state.SelectedInputState.CursorPosition = len(item.Data.Text) + 1
 			case "j":
 				// move down
-				state.SelectedEntryIndex = i + 1
-				if state.SelectedEntryIndex >= len(state.Entries) {
-					state.SelectedEntryIndex = len(state.Entries) - 1
+				next := state.Entries.FindNextOrLast(state.SelectedEntryID)
+				var nextID int64
+				if next != nil {
+					nextID = next.Data.ID
 				}
+				state.SelectedEntryID = nextID
 			case "k":
 				// move up
-				state.SelectedEntryIndex = i - 1
-				if state.SelectedEntryIndex < 0 {
-					state.SelectedEntryIndex = 0
+				prev := state.Entries.FindPrevOrFirst(state.SelectedEntryID)
+				var prevID int64
+				if prev != nil {
+					prevID = prev.Data.ID
 				}
+				state.SelectedEntryID = prevID
 			case "d":
 				state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
 				state.SelectedDeleteConfirmButton = 0
@@ -90,7 +89,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.SelectedEntryMode = SelectedEntryMode_Default
 					return
 				}
-				state.EnteredEntryIndex = i
+				state.EnteredEntryID = item.Data.ID
 
 				item.DetailPage.InputState.Value = ""
 				item.DetailPage.InputState.Focused = true
