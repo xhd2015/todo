@@ -214,6 +214,12 @@ func Main(args []string) error {
 		})
 		appState.Entries = logManager.Entries
 	}
+	appState.OnUpdateNote = func(entryID int64, noteID int64, text string) {
+		logManager.UpdateNote(entryID, noteID, models.NoteOptional{
+			Text: &text,
+		})
+		appState.Entries = logManager.Entries
+	}
 	appState.OnDeleteNote = func(entryID int64, noteID int64) {
 		logManager.DeleteNote(entryID, noteID)
 		appState.Entries = logManager.Entries

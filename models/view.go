@@ -11,6 +11,12 @@ func (c *InputState) Reset() {
 	c.CursorPosition = 0
 }
 
+func (c *InputState) FocusWithText(text string) {
+	c.Focused = true
+	c.Value = text
+	c.CursorPosition = len([]rune(text))
+}
+
 type LogEntryView struct {
 	Data *LogEntry
 
@@ -46,7 +52,7 @@ type EntryOnDetailPage struct {
 
 	SelectedNoteMode SelectedNoteMode
 
-	InputState *InputState
+	InputState InputState
 
 	EditInputState InputState
 

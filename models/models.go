@@ -88,3 +88,24 @@ type NoteOptional struct {
 	CreateTime *time.Time `json:"create_time"`
 	UpdateTime *time.Time `json:"update_time"`
 }
+
+func (c *Note) Update(optional *NoteOptional) {
+	if optional == nil {
+		return
+	}
+	if optional.ID != nil {
+		c.ID = *optional.ID
+	}
+	if optional.EntryID != nil {
+		c.EntryID = *optional.EntryID
+	}
+	if optional.Text != nil {
+		c.Text = *optional.Text
+	}
+	if optional.CreateTime != nil {
+		c.CreateTime = *optional.CreateTime
+	}
+	if optional.UpdateTime != nil {
+		c.UpdateTime = *optional.UpdateTime
+	}
+}

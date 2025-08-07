@@ -74,7 +74,7 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 			Notes:    notesView,
 			Children: []*models.LogEntryView{},
 			DetailPage: &models.EntryOnDetailPage{
-				InputState: &models.InputState{
+				InputState: models.InputState{
 					Value: entry.Text,
 				},
 			},
@@ -142,7 +142,7 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 		Notes:    []*models.NoteView{},
 		Children: []*models.LogEntryView{},
 		DetailPage: &models.EntryOnDetailPage{
-			InputState: &models.InputState{
+			InputState: models.InputState{
 				Value: entry.Text,
 			},
 		},
@@ -307,23 +307,16 @@ func (m *LogManager) DeleteNote(entryID int64, noteID int64) error {
 	return nil
 }
 
-func (m *LogManager) UpdateNote(entryID int64, noteID int64, note models.Note) error {
-	err := m.LogNoteService.Update(entryID, noteID, models.NoteOptional{
-		ID:         &noteID,
-		Text:       &note.Text,
-		CreateTime: &note.CreateTime,
-		UpdateTime: &note.UpdateTime,
-	})
+func (m *LogManager) UpdateNote(entryID int64, noteID int64, note models.NoteOptional) error {
+	err := m.LogNoteService.Update(entryID, noteID, note)
 	if err != nil {
 		return err
 	}
 	for _, entry := range m.Entries {
 		if entry.Data.ID == entryID {
-			for i, n := range entry.Notes {
+			for _, n := range entry.Notes {
 				if n.Data.ID == noteID {
-					entry.Notes[i] = &models.NoteView{
-						Data: &note,
-					}
+					n.Data.Update(&note)
 					return nil
 				}
 			}

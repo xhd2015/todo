@@ -89,6 +89,9 @@ func RenderEntryTree(state *State) []*dom.Node {
 						e.PreventDefault()
 					case dom.KeyTypeEsc:
 						state.SelectedEntryMode = SelectedEntryMode_Default
+					case dom.KeyTypeCtrlC:
+						state.SelectedEntryMode = SelectedEntryMode_Default
+						e.StopPropagation()
 					case dom.KeyTypeEnter:
 						state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
 						state.SelectedEntryMode = SelectedEntryMode_Default

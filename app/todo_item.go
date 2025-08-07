@@ -160,9 +160,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					}
 				case "e":
 					state.SelectedEntryMode = SelectedEntryMode_Editing
-					state.SelectedInputState.Value = item.Data.Text
-					state.SelectedInputState.Focused = true
-					state.SelectedInputState.CursorPosition = len(item.Data.Text) + 1
+					state.SelectedInputState.FocusWithText(item.Data.Text)
 				case "j":
 					// move down
 					next := state.Entries.FindNextOrLast(state.SelectedEntryID)
