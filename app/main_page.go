@@ -21,7 +21,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		maxEntries = 5
 	}
 
-	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.ZenMode, state.IsSearchActive, state.SearchQuery)
+	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.ZenMode, state.IsSearchActive, state.SearchQuery)
 
 	itemsHeight := len(computeResult.VisibleEntries)
 	if computeResult.EntriesAbove > 0 {
@@ -146,14 +146,6 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 						if len(computeResult.FullEntries) > 0 {
 							id := computeResult.FullEntries[0].Entry.Data.ID
 							state.SelectedEntryID = id
-
-							// adjust slice start to ensure visible
-							for i, entry := range state.Entries {
-								if entry.Data.ID == id {
-									state.SliceStart = i
-									break
-								}
-							}
 						}
 						return true
 					}
