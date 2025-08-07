@@ -19,8 +19,15 @@ type TodoItemProps struct {
 	IsSelected  bool
 	State       *State
 
-	OnNavigate   func(e *dom.DOMEvent, direction int)
-	OnGoToTop    func(e *dom.DOMEvent)
+	OnNavigate func(e *dom.DOMEvent, direction int)
+	// gg
+	OnGoToFirst func(e *dom.DOMEvent)
+	// G
+	OnGoToLast func(e *dom.DOMEvent)
+
+	// gt -> top
+	OnGoToTop func(e *dom.DOMEvent)
+	// gb -> bottom
 	OnGoToBottom func(e *dom.DOMEvent)
 }
 
@@ -94,10 +101,10 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			return prefix
 		}()),
 		OnFocus: func() {
-			state.SelectedEntryID = item.Data.ID
+			state.Select(item.Data.ID)
 		},
 		OnBlur: func() {
-			state.SelectedEntryID = 0
+			state.Deselect()
 		},
 		OnKeyDown: func(e *dom.DOMEvent) {
 			lastEvent := inputState.LastInputEvent
@@ -120,6 +127,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			case dom.KeyTypeEsc:
 				if state.IsSearchActive {
 					state.ClearSearch()
+				} else if state.ZenMode {
+					state.ZenMode = false
 				}
 				state.SelectedEntryMode = SelectedEntryMode_Default
 			case dom.KeyTypeUp:
@@ -166,11 +175,11 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				switch key {
 				case "/":
 					// focus to input
-					state.SelectedEntryID = 0
+					state.Deselect()
 					state.Input.Focused = true
 					state.LastSelectedEntryID = item.Data.ID
 				case "?":
-					state.SelectedEntryID = 0
+					state.Deselect()
 					state.Input.Focused = true
 					state.LastSelectedEntryID = item.Data.ID
 					if !strings.HasPrefix(state.Input.Value, "?") {
@@ -180,18 +189,30 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				case "e":
 					state.SelectedEntryMode = SelectedEntryMode_Editing
 					state.SelectedInputState.FocusWithText(item.Data.Text)
-				case "g":
+				case "g", "t", "b":
 					// go to top
 					// gg -> top
-					if props.OnGoToTop != nil {
-						if lastEvent != nil && lastEvent.KeydownEvent != nil && string(lastEvent.KeydownEvent.Runes) == "g" && time.Since(lastTime) < 500*time.Millisecond {
-							props.OnGoToTop(e)
+					if lastEvent != nil && lastEvent.KeydownEvent != nil && time.Since(lastTime) < 5000*time.Millisecond {
+						combined := string(lastEvent.KeydownEvent.Runes) + key
+						switch combined {
+						case "gg":
+							if props.OnGoToFirst != nil {
+								props.OnGoToFirst(e)
+							}
+						case "gt":
+							if props.OnGoToTop != nil {
+								props.OnGoToTop(e)
+							}
+						case "gb":
+							if props.OnGoToBottom != nil {
+								props.OnGoToBottom(e)
+							}
 						}
 					}
 				case "G":
 					// go to bottom
-					if props.OnGoToBottom != nil {
-						props.OnGoToBottom(e)
+					if props.OnGoToLast != nil {
+						props.OnGoToLast(e)
 					}
 				case "j":
 					// move down
@@ -216,6 +237,33 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.ChildInputState.Value = ""
 					state.ChildInputState.Focused = true
 					state.ChildInputState.CursorPosition = 0
+				case "x":
+					// cut
+					if state.CuttingEntryID == item.Data.ID {
+						// Cancel cutting if pressing x on the same item
+						state.CuttingEntryID = 0
+					} else {
+						// Start cutting this item
+						state.CuttingEntryID = item.Data.ID
+					}
+				case "p":
+					// paste
+					if state.CuttingEntryID == item.Data.ID {
+						// cancel
+						state.CuttingEntryID = 0
+						return
+					}
+					if state.CuttingEntryID != 0 && state.CuttingEntryID != item.Data.ID {
+						// Check if the target is not a descendant of the cutting item
+						if !state.IsDescendant(item.Data.ID, state.CuttingEntryID) {
+							// Move the cutting item to be a child of the current item
+							if state.OnMove != nil {
+								state.OnMove(state.CuttingEntryID, item.Data.ID)
+							}
+							// Clear the cutting state
+							state.CuttingEntryID = 0
+						}
+					}
 				}
 			}
 		},
@@ -234,6 +282,19 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				}(),
 				Strikethrough: item.Data.Done,
 			})
+		}(),
+		func() *dom.Node {
+			if state.CuttingEntryID == item.Data.ID {
+				return dom.Text("(cutting...)", styles.Style{
+					Color: func() string {
+						if isSelected {
+							return colors.GREEN_SUCCESS
+						}
+						return colors.GREY_TEXT
+					}(),
+				})
+			}
+			return nil
 		}(),
 	),
 	)

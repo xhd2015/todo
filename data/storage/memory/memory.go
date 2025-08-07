@@ -191,6 +191,21 @@ func (les *LogEntryMemoryStore) Update(id int64, update models.LogEntryOptional)
 	return nil
 }
 
+func (les *LogEntryMemoryStore) Move(id int64, newParentID int64) error {
+	les.mu.Lock()
+	defer les.mu.Unlock()
+
+	entry, exists := les.logEntries[id]
+	if !exists {
+		return fmt.Errorf("log entry with id %d not found", id)
+	}
+
+	entry.ParentID = newParentID
+	entry.UpdateTime = time.Now()
+	les.logEntries[id] = entry
+	return nil
+}
+
 // LogNote service methods
 func (lns *LogNoteMemoryStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	lns.mu.RLock()

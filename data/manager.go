@@ -324,3 +324,23 @@ func (m *LogManager) UpdateNote(entryID int64, noteID int64, note models.NoteOpt
 	}
 	return nil
 }
+
+func (m *LogManager) Move(id int64, newParentID int64) error {
+	err := m.LogEntryService.Move(id, newParentID)
+	if err != nil {
+		return err
+	}
+
+	// Update the in-memory representation
+	for _, entry := range m.Entries {
+		if entry.Data.ID == id {
+			entry.Data.ParentID = newParentID
+			entry.Data.UpdateTime = time.Now()
+			break
+		}
+	}
+
+	// Re-sort entries to ensure correct tree structure
+	sortEntries(m.Entries)
+	return nil
+}

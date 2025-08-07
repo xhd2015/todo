@@ -27,6 +27,7 @@ type State struct {
 
 	Input               models.InputState
 	SelectedEntryID     int64
+	SelectFromSearch    bool
 	LastSelectedEntryID int64
 	SelectedEntryMode   SelectedEntryMode
 	SelectedInputState  models.InputState
@@ -51,6 +52,9 @@ type State struct {
 	// Pagination
 	SliceStart int // Starting index for the slice of entries to display
 
+	// Cut/Paste functionality
+	CuttingEntryID int64 // ID of the entry currently being cut (0 if none)
+
 	Quit func()
 
 	Refresh func()
@@ -62,6 +66,7 @@ type State struct {
 	OnToggle          func(id int64)
 	OnPromote         func(id int64)
 	OnUpdateHighlight func(id int64, highlightLevel int)
+	OnMove            func(id int64, newParentID int64)
 
 	OnAddNote    func(id int64, text string)
 	OnUpdateNote func(entryID int64, noteID int64, text string)
@@ -76,6 +81,36 @@ func (state *State) ClearSearch() {
 	state.IsSearchActive = false
 	state.SearchQuery = ""
 	state.Input.Reset()
+}
+
+// IsDescendant checks if potentialChild is a descendant of potentialParent
+func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bool {
+	if potentialChild == potentialParent {
+		return true
+	}
+	
+	for _, entry := range state.Entries {
+		if entry.Data.ID == potentialChild {
+			if entry.Data.ParentID == potentialParent {
+				return true
+			}
+			if entry.Data.ParentID != 0 {
+				return state.IsDescendant(entry.Data.ParentID, potentialParent)
+			}
+			break
+		}
+	}
+	return false
+}
+
+func (state *State) Deselect() {
+	state.SelectedEntryID = 0
+	state.SelectFromSearch = false
+}
+
+func (state *State) Select(id int64) {
+	state.SelectedEntryID = id
+	state.SelectFromSearch = false
 }
 
 func App(state *State, window *dom.Window) *dom.Node {

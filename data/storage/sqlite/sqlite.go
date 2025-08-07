@@ -302,6 +302,24 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 	return nil
 }
 
+func (les *LogEntrySQLiteStore) Move(id int64, newParentID int64) error {
+	result, err := les.db.Exec("UPDATE log_entries SET parent_id = ?, update_time = ? WHERE id = ?", newParentID, formatTime(time.Now()), id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("log entry with id %d not found", id)
+	}
+
+	return nil
+}
+
 // LogNote service methods
 func (lns *LogNoteSQLiteStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	var whereClause []string

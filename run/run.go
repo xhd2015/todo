@@ -209,6 +209,10 @@ func Main(args []string) error {
 		})
 		appState.Entries = logManager.Entries
 	}
+	appState.OnMove = func(id int64, newParentID int64) {
+		logManager.Move(id, newParentID)
+		appState.Entries = logManager.Entries
+	}
 	appState.OnAddNote = func(id int64, text string) {
 		logManager.AddNote(id, models.Note{
 			Text: text,

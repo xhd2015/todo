@@ -13,7 +13,7 @@ type ComputeResult struct {
 	EffectiveSliceStart int
 }
 
-func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, zenMode bool, searchActive bool, query string) ComputeResult {
+func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, selectedFromSearch bool, zenMode bool, searchActive bool, query string) ComputeResult {
 	// Filter entries based on search query if active
 	entriesToRender := applyFilter(entries, zenMode, searchActive, query)
 
@@ -29,7 +29,7 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	for _, entry := range topLevelEntries {
 		flatEntries = addEntryRecursive(flatEntries, entry, 0, []bool{})
 	}
-	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart, selectedID)
+	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart, selectedID, selectedFromSearch)
 	return ComputeResult{
 		EntriesAbove:        entriesAbove,
 		EntriesBelow:        entriesBelow,
@@ -76,7 +76,7 @@ func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, que
 	return entriesToRender
 }
 
-func sliceEntries(entries []EntryWithDepth, maxEntries int, sliceStart int, selectedID int64) (int, int, []EntryWithDepth, int) {
+func sliceEntries(entries []EntryWithDepth, maxEntries int, sliceStart int, selectedID int64, selectedFromSearch bool) (int, int, []EntryWithDepth, int) {
 	if maxEntries <= 0 || len(entries) <= maxEntries {
 		if sliceStart == -1 {
 			sliceStart = 0
@@ -115,12 +115,21 @@ func sliceEntries(entries []EntryWithDepth, maxEntries int, sliceStart int, sele
 			}
 		}
 		if foundIndex != -1 {
-			if foundIndex < sliceStart {
+			if selectedFromSearch {
+				// on top
 				sliceStart = foundIndex
-				end = sliceStart + maxEntries
-			} else if foundIndex >= end {
-				sliceStart = foundIndex - maxEntries + 1
-				end = sliceStart + maxEntries
+				end = foundIndex + maxEntries
+				if end > totalEntries {
+					end = totalEntries
+				}
+			} else {
+				if foundIndex < sliceStart {
+					sliceStart = foundIndex
+					end = sliceStart + maxEntries
+				} else if foundIndex >= end {
+					sliceStart = foundIndex - maxEntries + 1
+					end = sliceStart + maxEntries
+				}
 			}
 		}
 	}

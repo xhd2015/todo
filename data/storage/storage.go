@@ -15,6 +15,7 @@ type LogEntryService interface {
 	Add(entry models.LogEntry) (int64, error)
 	Delete(id int64) error
 	Update(id int64, update models.LogEntryOptional) error
+	Move(id int64, newParentID int64) error
 }
 
 type LogNoteListOptions struct {

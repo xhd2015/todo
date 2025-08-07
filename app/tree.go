@@ -25,6 +25,8 @@ type RenderEntryTreeProps struct {
 	EntriesBelow int
 
 	OnNavigate   func(e *dom.DOMEvent, entryID int64, direction int)
+	OnGoToFirst  func(e *dom.DOMEvent)
+	OnGoToLast   func(e *dom.DOMEvent)
 	OnGoToTop    func(e *dom.DOMEvent)
 	OnGoToBottom func(e *dom.DOMEvent)
 }
@@ -115,6 +117,16 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 					props.OnNavigate(e, item.Data.ID, direction)
 				}
 			},
+			OnGoToFirst: func(e *dom.DOMEvent) {
+				if props.OnGoToFirst != nil {
+					props.OnGoToFirst(e)
+				}
+			},
+			OnGoToLast: func(e *dom.DOMEvent) {
+				if props.OnGoToLast != nil {
+					props.OnGoToLast(e)
+				}
+			},
 			OnGoToTop: func(e *dom.DOMEvent) {
 				if props.OnGoToTop != nil {
 					props.OnGoToTop(e)
@@ -172,7 +184,7 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 					if next != nil {
 						nextID = next.Data.ID
 					}
-					state.SelectedEntryID = nextID
+					state.Select(nextID)
 					state.SelectedEntryMode = SelectedEntryMode_Default
 				},
 				OnCancel: func() {

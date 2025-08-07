@@ -249,6 +249,23 @@ func (les *LogEntryFileStore) Update(id int64, update models.LogEntryOptional) e
 	return fmt.Errorf("log entry with id %d not found", id)
 }
 
+func (les *LogEntryFileStore) Move(id int64, newParentID int64) error {
+	fs := les.FileStore
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	for i, entry := range fs.data.LogEntries {
+		if entry.ID == id {
+			entry.ParentID = newParentID
+			entry.UpdateTime = time.Now()
+			fs.data.LogEntries[i] = entry
+			return fs.save()
+		}
+	}
+
+	return fmt.Errorf("log entry with id %d not found", id)
+}
+
 // LogNote service methods
 func (lns *LogNoteFileStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	fs := lns.FileStore
