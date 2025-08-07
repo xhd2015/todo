@@ -50,10 +50,26 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 			dom.Br(),
 		)
 	}
+
+	// auto select first
+	selectedID := state.SelectedEntryID
+	if selectedID != 0 && len(entries) > 0 {
+		var hasSelected bool
+		for _, entryWithDepth := range entries {
+			if entryWithDepth.Entry.Data.ID == selectedID {
+				hasSelected = true
+				break
+			}
+		}
+		if !hasSelected {
+			selectedID = entries[0].Entry.Data.ID
+		}
+	}
+
 	for _, entryWithDepth := range entries {
 		item := entryWithDepth.Entry
 		depth := entryWithDepth.Depth
-		isSelected := state.SelectedEntryID == item.Data.ID
+		isSelected := selectedID == item.Data.ID
 
 		if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
 			children = append(children, dom.Input(dom.InputProps{

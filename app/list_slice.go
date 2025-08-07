@@ -6,10 +6,11 @@ import (
 )
 
 type ComputeResult struct {
-	EntriesAbove   int
-	EntriesBelow   int
-	VisibleEntries []EntryWithDepth
-	FullEntries    []EntryWithDepth
+	EntriesAbove        int
+	EntriesBelow        int
+	VisibleEntries      []EntryWithDepth
+	FullEntries         []EntryWithDepth
+	EffectiveSliceStart int
 }
 
 func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, zenMode bool, searchActive bool, query string) ComputeResult {
@@ -28,12 +29,13 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	for _, entry := range topLevelEntries {
 		flatEntries = addEntryRecursive(flatEntries, entry, 0, []bool{})
 	}
-	entriesAbove, entriesBelow, visibleEntries := sliceEntries(flatEntries, maxEntries, sliceStart)
+	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart)
 	return ComputeResult{
-		EntriesAbove:   entriesAbove,
-		EntriesBelow:   entriesBelow,
-		VisibleEntries: visibleEntries,
-		FullEntries:    flatEntries,
+		EntriesAbove:        entriesAbove,
+		EntriesBelow:        entriesBelow,
+		VisibleEntries:      visibleEntries,
+		FullEntries:         flatEntries,
+		EffectiveSliceStart: effectiveSliceStart,
 	}
 }
 
@@ -74,13 +76,21 @@ func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, que
 	return entriesToRender
 }
 
-func sliceEntries(entries []EntryWithDepth, maxEntries int, sliceStart int) (int, int, []EntryWithDepth) {
+func sliceEntries(entries []EntryWithDepth, maxEntries int, sliceStart int) (int, int, []EntryWithDepth, int) {
 	if maxEntries <= 0 || len(entries) <= maxEntries {
-		return 0, 0, entries
+		if sliceStart == -1 {
+			sliceStart = 0
+		}
+		return 0, 0, entries, sliceStart
 	}
 	totalEntries := len(entries)
 	var visibleEntries []EntryWithDepth
 	// Ensure SliceStart is within bounds
+
+	// default to last N entries
+	if sliceStart == -1 {
+		sliceStart = totalEntries - maxEntries
+	}
 	if sliceStart < 0 {
 		sliceStart = 0
 	}
@@ -101,5 +111,5 @@ func sliceEntries(entries []EntryWithDepth, maxEntries int, sliceStart int) (int
 	// Calculate exact counts for indicators
 	entriesAbove := sliceStart
 	entriesBelow := totalEntries - end
-	return entriesAbove, entriesBelow, visibleEntries
+	return entriesAbove, entriesBelow, visibleEntries, sliceStart
 }

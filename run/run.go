@@ -125,6 +125,7 @@ func Main(args []string) error {
 		Input: models.InputState{
 			Focused: true,
 		},
+		SliceStart: -1,
 		Refresh: func() {
 			p.Send(cursor.Blink())
 		},

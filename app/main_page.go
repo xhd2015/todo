@@ -67,7 +67,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			}
 			e.PreventDefault()
 
-			sliceStart := state.SliceStart
+			sliceStart := computeResult.EffectiveSliceStart
 			sliceEnd := sliceStart + maxEntries
 
 			state.SelectedEntryID = computeResult.FullEntries[next].Entry.Data.ID
