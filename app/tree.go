@@ -24,7 +24,9 @@ type RenderEntryTreeProps struct {
 	EntriesAbove int
 	EntriesBelow int
 
-	OnNavigate func(e *dom.DOMEvent, entryID int64, direction int)
+	OnNavigate   func(e *dom.DOMEvent, entryID int64, direction int)
+	OnGoToTop    func(e *dom.DOMEvent)
+	OnGoToBottom func(e *dom.DOMEvent)
 }
 
 // RenderEntryTree builds and renders the tree of entries as DOM nodes
@@ -51,7 +53,7 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 		)
 	}
 
-	// auto select first
+	// auto select first if selected one is hidden
 	selectedID := state.SelectedEntryID
 	if selectedID != 0 && len(entries) > 0 {
 		var hasSelected bool
@@ -111,6 +113,16 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 			OnNavigate: func(e *dom.DOMEvent, direction int) {
 				if props.OnNavigate != nil {
 					props.OnNavigate(e, item.Data.ID, direction)
+				}
+			},
+			OnGoToTop: func(e *dom.DOMEvent) {
+				if props.OnGoToTop != nil {
+					props.OnGoToTop(e)
+				}
+			},
+			OnGoToBottom: func(e *dom.DOMEvent) {
+				if props.OnGoToBottom != nil {
+					props.OnGoToBottom(e)
 				}
 			},
 		}))

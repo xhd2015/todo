@@ -3,6 +3,7 @@ package app
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
@@ -18,7 +19,9 @@ type TodoItemProps struct {
 	IsSelected  bool
 	State       *State
 
-	OnNavigate func(e *dom.DOMEvent, direction int)
+	OnNavigate   func(e *dom.DOMEvent, direction int)
+	OnGoToTop    func(e *dom.DOMEvent)
+	OnGoToBottom func(e *dom.DOMEvent)
 }
 
 func TodoItem(props TodoItemProps) *dom.Node {
@@ -29,6 +32,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 	state := props.State
 	// Build tree connector prefix using common utility
 	treePrefix := tree.BuildTreePrefix(depth, isLastChild)
+
+	inputState := &state.Input
 
 	textColor := func() string {
 		if isSelected {
@@ -95,6 +100,11 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			state.SelectedEntryID = 0
 		},
 		OnKeyDown: func(e *dom.DOMEvent) {
+			lastEvent := inputState.LastInputEvent
+			lastTime := inputState.LastInputTime
+			inputState.LastInputEvent = e
+			inputState.LastInputTime = time.Now()
+
 			keyEvent := e.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEnter:
@@ -170,6 +180,19 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				case "e":
 					state.SelectedEntryMode = SelectedEntryMode_Editing
 					state.SelectedInputState.FocusWithText(item.Data.Text)
+				case "g":
+					// go to top
+					// gg -> top
+					if props.OnGoToTop != nil {
+						if lastEvent != nil && lastEvent.KeydownEvent != nil && string(lastEvent.KeydownEvent.Runes) == "g" && time.Since(lastTime) < 500*time.Millisecond {
+							props.OnGoToTop(e)
+						}
+					}
+				case "G":
+					// go to bottom
+					if props.OnGoToBottom != nil {
+						props.OnGoToBottom(e)
+					}
 				case "j":
 					// move down
 					if props.OnNavigate != nil {

@@ -77,6 +77,14 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 				state.SliceStart = next - maxEntries + 1
 			}
 		},
+		OnGoToTop: func(e *dom.DOMEvent) {
+			state.SliceStart = 0
+			state.SelectedEntryID = computeResult.FullEntries[0].Entry.Data.ID
+		},
+		OnGoToBottom: func(e *dom.DOMEvent) {
+			state.SliceStart = len(computeResult.FullEntries) - maxEntries
+			state.SelectedEntryID = computeResult.FullEntries[len(computeResult.FullEntries)-1].Entry.Data.ID
+		},
 	})
 
 	spaceHeight := height - HEADER_HEIGHT - itemsHeight - INPUT_HEIGHT - LINES_UNDER_INPUT
@@ -131,9 +139,22 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 
 					// Handle search mode
 					if state.IsSearchActive {
-						// In search mode, enter just exits search
 						state.IsSearchActive = false
 						state.SearchQuery = ""
+
+						// if any entry is match, select the first one
+						if len(computeResult.FullEntries) > 0 {
+							id := computeResult.FullEntries[0].Entry.Data.ID
+							state.SelectedEntryID = id
+
+							// adjust slice start to ensure visible
+							for i, entry := range state.Entries {
+								if entry.Data.ID == id {
+									state.SliceStart = i
+									break
+								}
+							}
+						}
 						return true
 					}
 

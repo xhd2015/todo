@@ -1,9 +1,17 @@
 package models
 
+import (
+	"time"
+
+	"github.com/xhd2015/go-dom-tui/dom"
+)
+
 type InputState struct {
 	Value          string
 	Focused        bool
 	CursorPosition int
+	LastInputEvent *dom.DOMEvent
+	LastInputTime  time.Time
 }
 
 func (c *InputState) Reset() {

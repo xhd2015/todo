@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/dom"
-	"github.com/xhd2015/go-dom-tui/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -69,7 +68,6 @@ func SearchInput(props InputProps) *dom.Node {
 				if props.State.Value == "" {
 					return
 				}
-				log.Logf("OnEnter: %q", props.State.Value)
 				if props.OnEnter(props.State.Value) {
 					props.State.Value = ""
 					props.State.CursorPosition = 0
