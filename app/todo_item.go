@@ -17,6 +17,8 @@ type TodoItemProps struct {
 	IsLastChild []bool
 	IsSelected  bool
 	State       *State
+
+	OnNavigate func(e *dom.DOMEvent, direction int)
 }
 
 func TodoItem(props TodoItemProps) *dom.Node {
@@ -25,7 +27,6 @@ func TodoItem(props TodoItemProps) *dom.Node {
 	isLastChild := props.IsLastChild
 	isSelected := props.IsSelected
 	state := props.State
-
 	// Build tree connector prefix using common utility
 	treePrefix := tree.BuildTreePrefix(depth, isLastChild)
 
@@ -111,8 +112,16 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.ClearSearch()
 				}
 				state.SelectedEntryMode = SelectedEntryMode_Default
-			case dom.KeyTypeUp, dom.KeyTypeDown:
-				state.SelectedEntryMode = SelectedEntryMode_Default
+			case dom.KeyTypeUp:
+				if props.OnNavigate != nil {
+					props.OnNavigate(e, -1)
+					return
+				}
+			case dom.KeyTypeDown:
+				if props.OnNavigate != nil {
+					props.OnNavigate(e, 1)
+					return
+				}
 			case dom.KeyTypeLeft, dom.KeyTypeRight:
 				switch state.SelectedEntryMode {
 				case SelectedEntryMode_DeleteConfirm:
@@ -163,20 +172,16 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.SelectedInputState.FocusWithText(item.Data.Text)
 				case "j":
 					// move down
-					next := state.Entries.FindNextOrLast(state.SelectedEntryID)
-					var nextID int64
-					if next != nil {
-						nextID = next.Data.ID
+					if props.OnNavigate != nil {
+						props.OnNavigate(e, 1)
+						return
 					}
-					state.SelectedEntryID = nextID
 				case "k":
 					// move up
-					prev := state.Entries.FindPrevOrFirst(state.SelectedEntryID)
-					var prevID int64
-					if prev != nil {
-						prevID = prev.Data.ID
+					if props.OnNavigate != nil {
+						props.OnNavigate(e, -1)
+						return
 					}
-					state.SelectedEntryID = prevID
 				case "z":
 					state.ZenMode = !state.ZenMode
 				case "d":

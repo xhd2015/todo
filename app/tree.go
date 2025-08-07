@@ -6,8 +6,8 @@ import (
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/models"
-	"github.com/xhd2015/todo/ui/search"
 )
 
 // EntryWithDepth represents a flattened entry with its depth and ancestor information
@@ -17,56 +17,40 @@ type EntryWithDepth struct {
 	IsLastChild []bool // For each depth level, whether this entry is the last child at that level
 }
 
+// RenderEntryTreeProps contains configuration for rendering the entry tree
+type RenderEntryTreeProps struct {
+	State        *State // The application state
+	Entries      []EntryWithDepth
+	EntriesAbove int
+	EntriesBelow int
+
+	OnNavigate func(e *dom.DOMEvent, entryID int64, direction int)
+}
+
 // RenderEntryTree builds and renders the tree of entries as DOM nodes
-func RenderEntryTree(state *State) []*dom.Node {
-	var flatEntries []EntryWithDepth
+func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
+	state := props.State
 
-	var addEntryRecursive func(entry *models.LogEntryView, depth int, ancestorIsLast []bool)
-	addEntryRecursive = func(entry *models.LogEntryView, depth int, ancestorIsLast []bool) {
-		flatEntries = append(flatEntries, EntryWithDepth{
-			Entry:       entry,
-			Depth:       depth,
-			IsLastChild: ancestorIsLast,
-		})
+	entriesAbove := props.EntriesAbove
+	entriesBelow := props.EntriesBelow
+	entries := props.Entries
 
-		// Add children recursively
-		for childIndex, child := range entry.Children {
-			isLastChild := (childIndex == len(entry.Children)-1)
-			// Create ancestor info for child: copy parent's info and add current level
-			childAncestorIsLast := make([]bool, depth+1)
-			copy(childAncestorIsLast, ancestorIsLast)
-			childAncestorIsLast[depth] = isLastChild
-			addEntryRecursive(child, depth+1, childAncestorIsLast)
-		}
-	}
-
-	// Filter entries based on search query if active
-	entriesToRender := state.Entries
-
-	if state.ZenMode {
-		entriesToRender = search.FilterEntries(state.Entries, func(entry *models.LogEntryView) bool {
-			return entry.Data.HighlightLevel > 0 && !entry.Data.Done
-		})
-	}
-
-	if state.IsSearchActive && state.SearchQuery != "" {
-		entriesToRender = search.FilterEntriesQuery(state.Entries, state.SearchQuery)
-	}
-
-	// Add top-level entries (ParentID == 0)
-	topLevelEntries := make([]*models.LogEntryView, 0)
-	for _, entry := range entriesToRender {
-		if entry.Data.ParentID == 0 {
-			topLevelEntries = append(topLevelEntries, entry)
-		}
-	}
-
-	for _, entry := range topLevelEntries {
-		addEntryRecursive(entry, 0, []bool{})
-	}
+	// Apply pagination to flatEntries
+	showUpIndicator := entriesAbove > 0
+	showDownIndicator := entriesBelow > 0
 
 	var children []*dom.Node
-	for _, entryWithDepth := range flatEntries {
+
+	// Add up indicator if needed
+	if showUpIndicator {
+		message := fmt.Sprintf("↑ %d more above", entriesAbove)
+		children = append(children, dom.Text(message, styles.Style{
+			Color: colors.GREY_TEXT,
+		}),
+			dom.Br(),
+		)
+	}
+	for _, entryWithDepth := range entries {
 		item := entryWithDepth.Entry
 		depth := entryWithDepth.Depth
 		isSelected := state.SelectedEntryID == item.Data.ID
@@ -108,6 +92,11 @@ func RenderEntryTree(state *State) []*dom.Node {
 			IsLastChild: entryWithDepth.IsLastChild,
 			IsSelected:  isSelected,
 			State:       state,
+			OnNavigate: func(e *dom.DOMEvent, direction int) {
+				if props.OnNavigate != nil {
+					props.OnNavigate(e, item.Data.ID, direction)
+				}
+			},
 		}))
 
 		// Render child input box under the item when in AddingChild mode
@@ -219,6 +208,16 @@ func RenderEntryTree(state *State) []*dom.Node {
 				},
 			}))
 		}
+	}
+
+	// Add down indicator if needed
+	if showDownIndicator {
+		message := fmt.Sprintf("↓ %d more below", entriesBelow)
+		children = append(children, dom.Text(message, styles.Style{
+			Color: colors.GREY_TEXT,
+		}),
+			dom.Br(),
+		)
 	}
 
 	return children

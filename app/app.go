@@ -48,6 +48,9 @@ type State struct {
 	SearchQuery    string // Current search query (without the ? prefix)
 	IsSearchActive bool   // Whether search mode is active
 
+	// Pagination
+	SliceStart int // Starting index for the slice of entries to display
+
 	Quit func()
 
 	Refresh func()

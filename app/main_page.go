@@ -7,21 +7,87 @@ import (
 )
 
 func MainPage(state *State, window *dom.Window) *dom.Node {
+	const HEADER_HEIGHT = 3
+	const INPUT_HEIGHT = 2
+	const LINES_UNDER_INPUT = 3
+	const RESERVE_ENTRY = 2
+	const SPACE_BETWEEN_LIST_AND_INPUT = 2
+
 	height := window.Height
-	availableHeight := height - 5 - len(state.Entries)
-	if availableHeight < 3 {
-		availableHeight = 3
+
+	maxEntries := height - HEADER_HEIGHT - RESERVE_ENTRY - SPACE_BETWEEN_LIST_AND_INPUT - INPUT_HEIGHT - LINES_UNDER_INPUT
+	// Minimum of 5 entries to ensure usability
+	if maxEntries < 5 {
+		maxEntries = 5
 	}
+
+	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.ZenMode, state.IsSearchActive, state.SearchQuery)
+
+	itemsHeight := len(computeResult.VisibleEntries)
+	if computeResult.EntriesAbove > 0 {
+		itemsHeight += 1
+	}
+	if computeResult.EntriesBelow > 0 {
+		itemsHeight += 1
+	}
+
+	// Render the tree of entries
+	children := RenderEntryTree(RenderEntryTreeProps{
+		State:        state,
+		EntriesAbove: computeResult.EntriesAbove,
+		EntriesBelow: computeResult.EntriesBelow,
+		Entries:      computeResult.VisibleEntries,
+		OnNavigate: func(e *dom.DOMEvent, entryID int64, direction int) {
+			// find index
+			index := -1
+			for i, entry := range computeResult.FullEntries {
+				if entry.Entry.Data.ID == entryID {
+					index = i
+					break
+				}
+			}
+			if index == -1 {
+				return
+			}
+
+			next := index + direction
+			if next < 0 || next >= len(computeResult.FullEntries) {
+				if e.KeydownEvent != nil {
+					if e.KeydownEvent.KeyType == dom.KeyTypeUp || e.KeydownEvent.KeyType == dom.KeyTypeDown {
+						// fallback to default behavior
+						return
+					}
+				}
+				// loop around
+				if next < 0 {
+					next = len(computeResult.FullEntries) - 1
+				} else if next >= len(computeResult.FullEntries) {
+					next = 0
+				}
+			}
+			e.PreventDefault()
+
+			sliceStart := state.SliceStart
+			sliceEnd := sliceStart + maxEntries
+
+			state.SelectedEntryID = computeResult.FullEntries[next].Entry.Data.ID
+			if next < sliceStart {
+				state.SliceStart = next
+			} else if next >= sliceEnd {
+				state.SliceStart = next - maxEntries + 1
+			}
+		},
+	})
+
+	spaceHeight := height - HEADER_HEIGHT - itemsHeight - INPUT_HEIGHT - LINES_UNDER_INPUT
 	var brs []*dom.Node
-	if availableHeight > 3 {
-		brs = make([]*dom.Node, availableHeight-3)
+	if spaceHeight > 0 {
+		brs = make([]*dom.Node, spaceHeight)
 		for i := range brs {
 			brs[i] = dom.Br()
 		}
 	}
 
-	// Render the tree of entries
-	children := RenderEntryTree(state)
 	return dom.Fragment(
 		dom.Ul(dom.DivProps{}, children...),
 		dom.Fragment(brs...),
