@@ -125,7 +125,7 @@ func isNewer(a *models.LogEntryView, b *models.LogEntryView) bool {
 	return a.Data.AdjustedTopTime > b.Data.AdjustedTopTime
 }
 
-func (m *LogManager) Add(entry models.LogEntry) error {
+func (m *LogManager) Add(entry models.LogEntry) (int64, error) {
 	if entry.CreateTime.IsZero() {
 		entry.CreateTime = time.Now()
 	}
@@ -134,7 +134,7 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 	}
 	id, err := m.LogEntryService.Add(entry)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	entry.ID = id
 	entryView := &models.LogEntryView{
@@ -159,7 +159,7 @@ func (m *LogManager) Add(entry models.LogEntry) error {
 	}
 
 	m.Entries = append(m.Entries, entryView)
-	return nil
+	return id, nil
 }
 
 func (m *LogManager) Update(id int64, entry models.LogEntryOptional) error {

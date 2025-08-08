@@ -19,7 +19,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		maxEntries = 5
 	}
 
-	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.SelectFromSearch, state.ZenMode, state.IsSearchActive, state.SearchQuery)
+	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.SelectFromSource, state.ZenMode, state.IsSearchActive, state.SearchQuery)
 
 	itemsHeight := len(computeResult.VisibleEntries)
 	if computeResult.EntriesAbove > 0 {
@@ -66,9 +66,16 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			e.PreventDefault()
 
 			sliceStart := computeResult.EffectiveSliceStart
+			if state.SliceStart == -1 {
+				state.SliceStart = sliceStart
+			}
 			sliceEnd := sliceStart + maxEntries
+			if sliceEnd > len(computeResult.FullEntries) {
+				sliceEnd = len(computeResult.FullEntries)
+			}
 
 			state.Select(computeResult.FullEntries[next].Entry.Data.ID)
+			state.SelectFromSource = SelectedSource_NavigateByKey
 			if next < sliceStart {
 				state.SliceStart = next
 			} else if next >= sliceEnd {

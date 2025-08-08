@@ -161,9 +161,15 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					case dom.KeyTypeEnter:
 						if strings.TrimSpace(state.ChildInputState.Value) != "" {
-							state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
+							id, err := state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
+							if err != nil {
+								// TODO: show error
+								panic(err)
+								return
+							}
 							state.ChildInputState.Value = ""
 							state.ChildInputState.CursorPosition = 0
+							state.Select(id)
 						}
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					}

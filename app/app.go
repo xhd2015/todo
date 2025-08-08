@@ -22,12 +22,20 @@ const (
 	SelectedEntryMode_AddingChild
 )
 
+type SelectedSource int
+
+const (
+	SelectedSource_Default SelectedSource = iota
+	SelectedSource_Search
+	SelectedSource_NavigateByKey
+)
+
 type State struct {
 	Entries models.LogEntryViews
 
 	Input               models.InputState
 	SelectedEntryID     int64
-	SelectFromSearch    bool
+	SelectFromSource    SelectedSource
 	LastSelectedEntryID int64
 	SelectedEntryMode   SelectedEntryMode
 	SelectedInputState  models.InputState
@@ -60,7 +68,7 @@ type State struct {
 	Refresh func()
 
 	OnAdd             func(string)
-	OnAddChild        func(parentID int64, text string)
+	OnAddChild        func(parentID int64, text string) (int64, error)
 	OnUpdate          func(id int64, text string)
 	OnDelete          func(id int64)
 	OnToggle          func(id int64)
@@ -88,7 +96,7 @@ func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bo
 	if potentialChild == potentialParent {
 		return true
 	}
-	
+
 	for _, entry := range state.Entries {
 		if entry.Data.ID == potentialChild {
 			if entry.Data.ParentID == potentialParent {
@@ -105,12 +113,12 @@ func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bo
 
 func (state *State) Deselect() {
 	state.SelectedEntryID = 0
-	state.SelectFromSearch = false
+	state.SelectFromSource = SelectedSource_Default
 }
 
 func (state *State) Select(id int64) {
 	state.SelectedEntryID = id
-	state.SelectFromSearch = false
+	state.SelectFromSource = SelectedSource_Default
 }
 
 func App(state *State, window *dom.Window) *dom.Node {

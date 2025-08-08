@@ -62,7 +62,7 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 						foundID = fullEntries[0].Entry.Data.ID
 					}
 					state.Select(foundID)
-					state.SelectFromSearch = true
+					state.SelectFromSource = SelectedSource_Search
 				}
 				return true
 			}

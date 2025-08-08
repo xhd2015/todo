@@ -152,16 +152,17 @@ func Main(args []string) error {
 		})
 		appState.Entries = logManager.Entries
 	}
-	appState.OnAddChild = func(parentID int64, text string) {
+	appState.OnAddChild = func(parentID int64, text string) (int64, error) {
 		text = strings.TrimSpace(text)
 		if text == "" {
-			return
+			return 0, nil
 		}
-		logManager.Add(models.LogEntry{
+		id, err := logManager.Add(models.LogEntry{
 			Text:     text,
 			ParentID: parentID,
 		})
 		appState.Entries = logManager.Entries
+		return id, err
 	}
 	appState.OnUpdate = func(id int64, text string) {
 		logManager.Update(id, models.LogEntryOptional{
