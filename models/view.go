@@ -65,6 +65,8 @@ type EntryOnDetailPage struct {
 	EditInputState InputState
 
 	ConfirmDeleteButton int
+
+	SelectedChildEntryID int64
 }
 
 func (list LogEntryViews) Get(id int64) *LogEntryView {

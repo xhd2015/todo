@@ -119,7 +119,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.SelectedEntryMode = SelectedEntryMode_Default
 					return
 				}
-				state.EnteredEntryID = item.Data.ID
+				state.EnteredEntryIDs.Push(item.Data.ID)
 
 				item.DetailPage.InputState.Value = ""
 				item.DetailPage.InputState.Focused = true

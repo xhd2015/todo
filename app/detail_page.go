@@ -2,10 +2,47 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/models"
 )
+
+type ChildNotesSection struct {
+	Entry *models.LogEntryView
+	Path  string
+	Notes []*models.NoteView
+}
+
+func collectChildrenNotes(entry *models.LogEntryView, path []string) []ChildNotesSection {
+	var sections []ChildNotesSection
+
+	var traverse func(*models.LogEntryView, []string)
+	traverse = func(e *models.LogEntryView, currentPath []string) {
+		if len(e.Notes) > 0 {
+			pathStr := strings.Join(currentPath, " / ")
+			sections = append(sections, ChildNotesSection{
+				Entry: e,
+				Path:  pathStr,
+				Notes: e.Notes,
+			})
+		}
+
+		for _, child := range e.Children {
+			childPath := append(currentPath, child.Data.Text)
+			traverse(child, childPath)
+		}
+	}
+
+	for _, child := range entry.Children {
+		childPath := append(path, child.Data.Text)
+		traverse(child, childPath)
+	}
+
+	return sections
+}
 
 func DetailPage(state *State, id int64) *dom.Node {
 	item := state.Entries.Get(id)
@@ -14,11 +51,13 @@ func DetailPage(state *State, id int64) *dom.Node {
 	}
 
 	return dom.Div(dom.DivProps{
-		OnKeyDown: func(d *dom.DOMEvent) {
-			keyEvent := d.KeydownEvent
+		OnKeyDown: func(e *dom.DOMEvent) {
+			keyEvent := e.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEsc:
-				state.EnteredEntryID = 0
+				if len(state.EnteredEntryIDs) > 0 {
+					state.EnteredEntryIDs.Pop()
+				}
 			}
 		},
 	},
@@ -127,5 +166,61 @@ func DetailPage(state *State, id int64) *dom.Node {
 				return true
 			},
 		}),
+
+		func() *dom.Node {
+			childrenSections := collectChildrenNotes(item, []string{})
+
+			if len(childrenSections) == 0 {
+				return dom.Fragment()
+			}
+
+			var children []*dom.Node
+			children = append(children, dom.H2(dom.DivProps{}, dom.Text("Children Notes")))
+
+			for _, section := range childrenSections {
+				id := section.Entry.Data.ID
+				selected := item.DetailPage.SelectedChildEntryID == id
+
+				children = append(children, dom.TextWithProps(section.Path+":", dom.TextNodeProps{
+					Focused:   selected,
+					Focusable: true,
+					Style: styles.Style{
+						Color: func() string {
+							if selected {
+								return colors.GREEN_SUCCESS
+							}
+							return ""
+						}(),
+					},
+					OnFocus: func() {
+						item.DetailPage.SelectedChildEntryID = id
+					},
+					OnBlur: func() {
+						item.DetailPage.SelectedChildEntryID = 0
+					},
+					OnKeyDown: func(d *dom.DOMEvent) {
+						keyEvent := d.KeydownEvent
+						switch keyEvent.KeyType {
+						case dom.KeyTypeEnter:
+							nextItem := state.Entries.Get(id)
+							if nextItem != nil {
+								state.EnteredEntryIDs.Push(id)
+								nextItem.DetailPage.InputState.Reset()
+							}
+						}
+					},
+				}))
+				children = append(children, dom.Br())
+
+				var noteNodes []*dom.Node
+				for _, note := range section.Notes {
+					noteNodes = append(noteNodes, dom.Li(dom.ListItemProps{}, dom.Text("  - "+note.Data.Text)))
+				}
+				children = append(children, dom.Ul(dom.DivProps{}, noteNodes...))
+				children = append(children, dom.Br())
+			}
+
+			return dom.Div(dom.DivProps{}, children...)
+		}(),
 	)
 }

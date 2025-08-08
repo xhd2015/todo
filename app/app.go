@@ -49,7 +49,7 @@ type State struct {
 
 	SelectedActionIndex int
 
-	EnteredEntryID int64
+	EnteredEntryIDs IDs
 
 	ShowHistory bool // Whether to show historical (done) todos from before today
 
@@ -83,6 +83,20 @@ type State struct {
 	OnRefreshEntries func() // Callback to refresh entries when ShowHistory changes
 
 	LastCtrlC time.Time
+}
+
+type IDs []int64
+
+func (ids *IDs) Pop() {
+	*ids = (*ids)[:len(*ids)-1]
+}
+
+func (ids *IDs) Push(id int64) {
+	*ids = append(*ids, id)
+}
+
+func (ids IDs) SetLast(id int64) {
+	ids[len(ids)-1] = id
 }
 
 func (state *State) ClearSearch() {
@@ -141,8 +155,8 @@ func App(state *State, window *dom.Window) *dom.Node {
 					state.Refresh()
 				}()
 			case dom.KeyTypeEsc:
-				if state.EnteredEntryID > 0 {
-					state.EnteredEntryID = 0
+				if len(state.EnteredEntryIDs) > 0 {
+					state.EnteredEntryIDs.Pop()
 				}
 			}
 		},
@@ -153,10 +167,10 @@ func App(state *State, window *dom.Window) *dom.Node {
 		})),
 
 		func() *dom.Node {
-			if state.EnteredEntryID == 0 {
+			if len(state.EnteredEntryIDs) == 0 {
 				return MainPage(state, window)
 			} else {
-				return DetailPage(state, state.EnteredEntryID)
+				return DetailPage(state, state.EnteredEntryIDs[len(state.EnteredEntryIDs)-1])
 			}
 		}(),
 		func() *dom.Node {
