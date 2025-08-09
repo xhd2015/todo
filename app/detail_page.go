@@ -57,6 +57,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 			case dom.KeyTypeEsc:
 				if len(state.EnteredEntryIDs) > 0 {
 					state.EnteredEntryIDs.Pop()
+					e.StopPropagation()
 				}
 			}
 		},
@@ -167,6 +168,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 			},
 		}),
 
+		// children notes
 		func() *dom.Node {
 			childrenSections := collectChildrenNotes(item, []string{})
 

@@ -99,6 +99,10 @@ func (ids IDs) SetLast(id int64) {
 	ids[len(ids)-1] = id
 }
 
+func (ids IDs) Last() int64 {
+	return ids[len(ids)-1]
+}
+
 func (state *State) ClearSearch() {
 	state.IsSearchActive = false
 	state.SearchQuery = ""
@@ -170,7 +174,7 @@ func App(state *State, window *dom.Window) *dom.Node {
 			if len(state.EnteredEntryIDs) == 0 {
 				return MainPage(state, window)
 			} else {
-				return DetailPage(state, state.EnteredEntryIDs[len(state.EnteredEntryIDs)-1])
+				return DetailPage(state, state.EnteredEntryIDs.Last())
 			}
 		}(),
 		func() *dom.Node {
