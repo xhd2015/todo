@@ -25,8 +25,8 @@ func TestBuildTreePrefix(t *testing.T) {
 
 	// Test grandchild with continuing vertical line
 	prefix = BuildTreePrefix(2, []bool{false, false})
-	if prefix != "│   ├─" {
-		t.Errorf("Grandchild with continuing line should have '│   ├─', got '%s'", prefix)
+	if prefix != "  │ ├─" {
+		t.Errorf("Grandchild with continuing line should have '  │ ├─', got '%s'", prefix)
 	}
 
 	// Test grandchild without continuing vertical line
@@ -37,13 +37,38 @@ func TestBuildTreePrefix(t *testing.T) {
 
 	// Test last grandchild with continuing vertical line
 	prefix = BuildTreePrefix(2, []bool{false, true})
-	if prefix != "│   └─" {
-		t.Errorf("Last grandchild with continuing line should have '│   └─', got '%s'", prefix)
+	if prefix != "  │ └─" {
+		t.Errorf("Last grandchild with continuing line should have '  │ └─', got '%s'", prefix)
 	}
 
 	// Test last grandchild without continuing vertical line
 	prefix = BuildTreePrefix(2, []bool{true, true})
 	if prefix != "    └─" {
 		t.Errorf("Last grandchild without continuing line should have '    └─', got '%s'", prefix)
+	}
+
+	// Test depth 3 cases - great-grandchildren
+	// All ancestors have siblings
+	prefix = BuildTreePrefix(3, []bool{false, false, false})
+	if prefix != "  │   │ ├─" {
+		t.Errorf("Great-grandchild with all ancestors having siblings should have '  │   │ ├─', got '%s'", prefix)
+	}
+
+	// Great-grandparent has siblings, others last
+	prefix = BuildTreePrefix(3, []bool{false, true, true})
+	if prefix != "  │     └─" {
+		t.Errorf("Great-grandchild with only great-grandparent having siblings should have '  │     └─', got '%s'", prefix)
+	}
+
+	// Only grandparent has siblings
+	prefix = BuildTreePrefix(3, []bool{true, false, false})
+	if prefix != "    │ ├─" {
+		t.Errorf("Great-grandchild with only grandparent having siblings should have '    │ ├─', got '%s'", prefix)
+	}
+
+	// No ancestors have siblings
+	prefix = BuildTreePrefix(3, []bool{true, true, true})
+	if prefix != "      └─" {
+		t.Errorf("Great-grandchild with no ancestors having siblings should have '      └─', got '%s'", prefix)
 	}
 }

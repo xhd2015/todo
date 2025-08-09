@@ -116,6 +116,21 @@ func preCommitCheck(noCommit bool, amend bool) error {
 		if file == "go-dom-tui" || strings.HasPrefix(file, "go-dom-tui/") {
 			return fmt.Errorf("attempting to commit go-dom-tui file: %s", file)
 		}
+		
+		// Check if go.mod file contains "replace " lines
+		if strings.HasSuffix(file, "go.mod") {
+			stagedContent, err := cmd.Dir(rootDir).Output("git", "show", ":"+file)
+			if err != nil {
+				return fmt.Errorf("failed to get staged content for %s: %w", file, err)
+			}
+			
+			lines := strings.Split(stagedContent, "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(strings.TrimSpace(line), "replace ") {
+					return fmt.Errorf("go.mod file %s contains replace directive in staged changes", file)
+				}
+			}
+		}
 	}
 
 	var affectedFiles []string
