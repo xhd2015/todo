@@ -268,3 +268,20 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 
 	return children
 }
+
+func getLines(SelectedEntryMode SelectedEntryMode) int {
+	switch SelectedEntryMode {
+	case SelectedEntryMode_Default:
+		return 1
+	case SelectedEntryMode_AddingChild:
+		return 2
+	case SelectedEntryMode_Editing:
+		return 2
+	case SelectedEntryMode_DeleteConfirm:
+		return 2
+	case SelectedEntryMode_ShowActions:
+		return 9
+	default:
+		return 1
+	}
+}

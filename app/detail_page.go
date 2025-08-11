@@ -55,8 +55,8 @@ func DetailPage(state *State, id int64) *dom.Node {
 			keyEvent := e.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEsc:
-				if len(state.EnteredEntryIDs) > 0 {
-					state.EnteredEntryIDs.Pop()
+				if len(state.Routes) > 0 {
+					state.Routes.Pop()
 					e.StopPropagation()
 				}
 			}
@@ -206,7 +206,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 						case dom.KeyTypeEnter:
 							nextItem := state.Entries.Get(id)
 							if nextItem != nil {
-								state.EnteredEntryIDs.Push(id)
+								state.Routes.Push(DetailRoute(id))
 								nextItem.DetailPage.InputState.Reset()
 							}
 						}

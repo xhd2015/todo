@@ -15,6 +15,7 @@ type InputProps struct {
 	onSearchActivate   func()
 	onSearchDeactivate func()
 	OnKeyDown          func(event *dom.DOMEvent) bool
+	InputType          string
 }
 
 func SearchInput(props InputProps) *dom.Node {
@@ -30,6 +31,7 @@ func SearchInput(props InputProps) *dom.Node {
 		OnBlur: func() {
 			props.State.Focused = false
 		},
+		InputType: props.InputType,
 		OnChange: func(value string) {
 			props.State.Value = value
 

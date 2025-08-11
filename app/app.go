@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/models"
@@ -49,7 +50,7 @@ type State struct {
 
 	SelectedActionIndex int
 
-	EnteredEntryIDs IDs
+	Routes Routes
 
 	ShowHistory bool // Whether to show historical (done) todos from before today
 
@@ -83,6 +84,13 @@ type State struct {
 	OnRefreshEntries func() // Callback to refresh entries when ShowHistory changes
 
 	LastCtrlC time.Time
+
+	StatusBar StatusBar
+}
+
+type StatusBar struct {
+	Error   string
+	Storage string
 }
 
 type IDs []int64
@@ -159,8 +167,8 @@ func App(state *State, window *dom.Window) *dom.Node {
 					state.Refresh()
 				}()
 			case dom.KeyTypeEsc:
-				if len(state.EnteredEntryIDs) > 0 {
-					state.EnteredEntryIDs.Pop()
+				if len(state.Routes) > 0 {
+					state.Routes.Pop()
 				}
 			}
 		},
@@ -171,10 +179,10 @@ func App(state *State, window *dom.Window) *dom.Node {
 		})),
 
 		func() *dom.Node {
-			if len(state.EnteredEntryIDs) == 0 {
+			if len(state.Routes) == 0 {
 				return MainPage(state, window)
 			} else {
-				return DetailPage(state, state.EnteredEntryIDs.Last())
+				return RenderRoute(state, state.Routes.Last())
 			}
 		}(),
 		func() *dom.Node {
@@ -185,6 +193,28 @@ func App(state *State, window *dom.Window) *dom.Node {
 				})
 			}
 			return dom.Text("type 'exit','quit' or 'q' to exit")
+		}(),
+		func() *dom.Node {
+			// a circle dot
+			var nodes []*dom.Node
+			dot := dom.Text("•", styles.Style{
+				Bold:  true,
+				Color: colors.GREEN_SUCCESS,
+			})
+			nodes = append(nodes, dot)
+			if state.StatusBar.Storage != "" {
+				nodes = append(nodes, dom.Text(state.StatusBar.Storage, styles.Style{
+					Bold:  true,
+					Color: colors.GREY_TEXT,
+				}))
+			}
+			if state.StatusBar.Error != "" {
+				nodes = append(nodes, dom.Text("  "+state.StatusBar.Error, styles.Style{
+					Bold:  true,
+					Color: colors.RED_ERROR,
+				}))
+			}
+			return dom.Div(dom.DivProps{}, nodes...)
 		}(),
 	)
 }

@@ -129,6 +129,9 @@ func Main(args []string) error {
 		Refresh: func() {
 			p.Send(cursor.Blink())
 		},
+		StatusBar: app.StatusBar{
+			Storage: storageType,
+		},
 	}
 	appState.OnRefreshEntries = func() {
 		// Run refresh asynchronously to avoid blocking the UI

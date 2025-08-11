@@ -39,6 +39,7 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 			return false
 		},
 		OnEnter: func(s string) bool {
+			state.StatusBar.Error = ""
 			if strings.TrimSpace(s) == "" {
 				return false
 			}
@@ -90,8 +91,13 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 				case "/zen":
 					state.ZenMode = !state.ZenMode
 					return true
+				case "/config":
+					// show config page
+					state.Routes.Push(ConfigRoute(ConfigPageState{}))
+					return true
 				default:
 					// Unknown command, do nothing
+					state.StatusBar.Error = "unknown command: " + s
 					return true
 				}
 			}

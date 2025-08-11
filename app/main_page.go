@@ -13,7 +13,9 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 
 	height := window.Height
 
-	maxEntries := height - HEADER_HEIGHT - RESERVE_ENTRY - SPACE_BETWEEN_LIST_AND_INPUT - INPUT_HEIGHT - LINES_UNDER_INPUT
+	extraLines := getLines(state.SelectedEntryMode)
+
+	maxEntries := height - HEADER_HEIGHT - RESERVE_ENTRY - SPACE_BETWEEN_LIST_AND_INPUT - INPUT_HEIGHT - LINES_UNDER_INPUT - extraLines
 	// Minimum of 5 entries to ensure usability
 	if maxEntries < 5 {
 		maxEntries = 5
@@ -98,7 +100,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		},
 	})
 
-	spaceHeight := height - HEADER_HEIGHT - itemsHeight - INPUT_HEIGHT - LINES_UNDER_INPUT
+	spaceHeight := height - HEADER_HEIGHT - itemsHeight - INPUT_HEIGHT - LINES_UNDER_INPUT - extraLines
 	var brs []*dom.Node
 	if spaceHeight > 0 {
 		brs = make([]*dom.Node, spaceHeight)
