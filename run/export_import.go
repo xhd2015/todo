@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/todo/internal/config"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -268,5 +269,17 @@ func handleImport(args []string) error {
 	}
 
 	fmt.Printf("Imported %d entries, skipped %d duplicates from %s\n", imported, skipped, jsonFile)
+	return nil
+}
+
+func handleConfig(args []string) error {
+	// print config path
+	configPath, err := config.GetConfigJSONFile()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(configPath)
+
 	return nil
 }

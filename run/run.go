@@ -55,6 +55,8 @@ func Main(args []string) error {
 			return handleExport(args[1:])
 		case "import":
 			return handleImport(args[1:])
+		case "config":
+			return handleConfig(args[1:])
 		}
 	}
 

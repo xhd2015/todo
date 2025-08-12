@@ -58,11 +58,20 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 	// Create a map for quick lookup
 	entryMap := make(map[int64]*models.LogEntryView)
 
+	// Collect all entry IDs for batch note loading
+	entryIDs := make([]int64, 0, len(filteredEntries))
 	for _, entry := range filteredEntries {
-		notes, _, err := noteSvc.List(entry.ID, storage.LogNoteListOptions{})
-		if err != nil {
-			return nil, err
-		}
+		entryIDs = append(entryIDs, entry.ID)
+	}
+
+	// Batch load all notes for all entries
+	allNotes, err := noteSvc.ListForEntries(entryIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range filteredEntries {
+		notes := allNotes[entry.ID] // Get notes for this entry
 		notesView := make([]*models.NoteView, 0, len(notes))
 		for _, note := range notes {
 			notesView = append(notesView, &models.NoteView{

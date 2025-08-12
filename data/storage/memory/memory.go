@@ -267,6 +267,33 @@ func (lns *LogNoteMemoryStore) List(entryID int64, options storage.LogNoteListOp
 	return notes, total, nil
 }
 
+func (lns *LogNoteMemoryStore) ListForEntries(entryIDs []int64) (map[int64][]models.Note, error) {
+	lns.mu.RLock()
+	defer lns.mu.RUnlock()
+
+	result := make(map[int64][]models.Note)
+
+	// Initialize empty slices for all requested entry IDs
+	for _, entryID := range entryIDs {
+		result[entryID] = []models.Note{}
+	}
+
+	// Create a set for faster lookup
+	entryIDSet := make(map[int64]bool)
+	for _, entryID := range entryIDs {
+		entryIDSet[entryID] = true
+	}
+
+	// Collect notes for requested entries
+	for _, note := range lns.notes {
+		if entryIDSet[note.EntryID] {
+			result[note.EntryID] = append(result[note.EntryID], note)
+		}
+	}
+
+	return result, nil
+}
+
 func (lns *LogNoteMemoryStore) Add(entryID int64, note models.Note) (int64, error) {
 	lns.mu.Lock()
 	defer lns.mu.Unlock()

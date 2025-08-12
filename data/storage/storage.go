@@ -28,6 +28,7 @@ type LogNoteListOptions struct {
 
 type LogNoteService interface {
 	List(entryID int64, options LogNoteListOptions) ([]models.Note, int64, error)
+	ListForEntries(entryIDs []int64) (map[int64][]models.Note, error)
 	Add(entryID int64, note models.Note) (int64, error)
 	Delete(entryID int64, noteID int64) error
 	Update(entryID int64, noteID int64, update models.NoteOptional) error

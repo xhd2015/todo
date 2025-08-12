@@ -395,6 +395,60 @@ func (lns *LogNoteSQLiteStore) List(entryID int64, options storage.LogNoteListOp
 	return notes, total, nil
 }
 
+func (lns *LogNoteSQLiteStore) ListForEntries(entryIDs []int64) (map[int64][]models.Note, error) {
+	if len(entryIDs) == 0 {
+		return make(map[int64][]models.Note), nil
+	}
+
+	result := make(map[int64][]models.Note)
+
+	// Initialize empty slices for all requested entry IDs
+	for _, entryID := range entryIDs {
+		result[entryID] = []models.Note{}
+	}
+
+	// Build IN clause with placeholders
+	placeholders := make([]string, len(entryIDs))
+	args := make([]interface{}, len(entryIDs))
+	for i, entryID := range entryIDs {
+		placeholders[i] = "?"
+		args[i] = entryID
+	}
+
+	query := fmt.Sprintf("SELECT id, entry_id, text, create_time, update_time FROM notes WHERE entry_id IN (%s) ORDER BY entry_id, id",
+		strings.Join(placeholders, ", "))
+
+	rows, err := lns.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var note models.Note
+		var createTime, updateTime string
+
+		if err := rows.Scan(&note.ID, &note.EntryID, &note.Text, &createTime, &updateTime); err != nil {
+			return nil, err
+		}
+
+		if note.CreateTime, err = tryParseTime(createTime); err != nil {
+			return nil, err
+		}
+		if note.UpdateTime, err = tryParseTime(updateTime); err != nil {
+			return nil, err
+		}
+
+		result[note.EntryID] = append(result[note.EntryID], note)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (lns *LogNoteSQLiteStore) Add(entryID int64, note models.Note) (int64, error) {
 	// Check if entry exists
 	var exists bool
