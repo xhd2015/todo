@@ -93,7 +93,8 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 					return true
 				case "/config":
 					// show config page
-					state.Routes.Push(ConfigRoute(ConfigPageState{}))
+					configState := loadConfigPageState()
+					state.Routes.Push(ConfigRoute(configState))
 					return true
 				default:
 					// Unknown command, do nothing

@@ -64,6 +64,12 @@ func (c *LogEntry) Update(optional *LogEntryOptional) {
 type Config struct {
 	LastInput  string `json:"last_input"`
 	RunningPID int    `json:"running_pid"`
+	// value: sqlite(default), file, server
+	StorageType string `json:"storage_type,omitempty"`
+
+	// server_addr and server_token are only used when storage_type is server
+	ServerAddr  string `json:"server_addr,omitempty"`
+	ServerToken string `json:"server_token,omitempty"`
 }
 
 type LogEntryLegacy struct {

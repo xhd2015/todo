@@ -37,9 +37,13 @@ type ExportNote struct {
 }
 
 func handleExport(args []string) error {
-	var storageType string = "sqlite"
+	var storageType string
+	var serverAddr string
+	var serverToken string
 
 	args, err := flags.String("--storage", &storageType).
+		String("--server-addr", &serverAddr).
+		String("--server-token", &serverToken).
 		Help("-h,--help", exportHelp).
 		Parse(args)
 	if err != nil {
@@ -50,14 +54,29 @@ func handleExport(args []string) error {
 		return fmt.Errorf("export requires exactly one argument: <json_file>")
 	}
 
+	// Apply config defaults
+	storageConfig, err := ApplyConfigDefaults(storageType, serverAddr, serverToken)
+	if err != nil {
+		return err
+	}
+	storageType = storageConfig.StorageType
+	serverAddr = storageConfig.ServerAddr
+	serverToken = storageConfig.ServerToken
+
+	// Validate server-addr is provided when storage type is server
+	if storageType == "server" && serverAddr == "" {
+		return fmt.Errorf("--server-addr is required when --storage=server")
+	}
+
 	jsonFile := args[0]
 
-	logManager, err := CreateLogManager(storageType)
+	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}
 
-	err = logManager.Init()
+	// Initialize with history to export all data including completed todos
+	err = logManager.InitWithHistory(true)
 	if err != nil {
 		return err
 	}
@@ -96,9 +115,13 @@ func handleExport(args []string) error {
 }
 
 func handleImport(args []string) error {
-	var storageType string = "sqlite"
+	var storageType string
+	var serverAddr string
+	var serverToken string
 
 	args, err := flags.String("--storage", &storageType).
+		String("--server-addr", &serverAddr).
+		String("--server-token", &serverToken).
 		Help("-h,--help", importHelp).
 		Parse(args)
 	if err != nil {
@@ -107,6 +130,20 @@ func handleImport(args []string) error {
 
 	if len(args) != 1 {
 		return fmt.Errorf("import requires exactly one argument: <json_file>")
+	}
+
+	// Apply config defaults
+	storageConfig, err := ApplyConfigDefaults(storageType, serverAddr, serverToken)
+	if err != nil {
+		return err
+	}
+	storageType = storageConfig.StorageType
+	serverAddr = storageConfig.ServerAddr
+	serverToken = storageConfig.ServerToken
+
+	// Validate server-addr is provided when storage type is server
+	if storageType == "server" && serverAddr == "" {
+		return fmt.Errorf("--server-addr is required when --storage=server")
 	}
 
 	jsonFile := args[0]
@@ -122,7 +159,7 @@ func handleImport(args []string) error {
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	logManager, err := CreateLogManager(storageType)
+	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}
@@ -138,29 +175,88 @@ func handleImport(args []string) error {
 		existingTexts[strings.TrimSpace(entry.Data.Text)] = true
 	}
 
+	// Map old entry IDs to new entry IDs for parent-child relationships
+	oldToNewIDMap := make(map[int64]int64)
+
+	// Sort entries to ensure parents are imported before children
+	sortedEntries := make([]ExportEntry, 0, len(importData.Entries))
+	entryMap := make(map[int64]ExportEntry)
+
+	// Build entry map and identify root entries (no parent)
+	var rootEntries []ExportEntry
+	for _, entry := range importData.Entries {
+		entryMap[entry.Data.ID] = entry
+		if entry.Data.ParentID == 0 {
+			rootEntries = append(rootEntries, entry)
+		}
+	}
+
+	// Recursively add entries in parent-first order
+	var addEntriesRecursively func(entries []ExportEntry)
+	addEntriesRecursively = func(entries []ExportEntry) {
+		for _, entry := range entries {
+			sortedEntries = append(sortedEntries, entry)
+			// Find children of this entry
+			var children []ExportEntry
+			for _, candidate := range importData.Entries {
+				if candidate.Data.ParentID == entry.Data.ID {
+					children = append(children, candidate)
+				}
+			}
+			if len(children) > 0 {
+				addEntriesRecursively(children)
+			}
+		}
+	}
+
+	addEntriesRecursively(rootEntries)
+
 	imported := 0
 	skipped := 0
 
-	for _, importEntry := range importData.Entries {
+	// Import entries in sorted order
+	for _, importEntry := range sortedEntries {
 		trimmedText := strings.TrimSpace(importEntry.Data.Text)
 		if existingTexts[trimmedText] {
 			skipped++
 			continue
 		}
 
-		// Add the entry
+		// Determine the new parent ID
+		var newParentID int64
+		if importEntry.Data.ParentID != 0 {
+			if mappedParentID, exists := oldToNewIDMap[importEntry.Data.ParentID]; exists {
+				newParentID = mappedParentID
+			} else {
+				// Parent not found, skip this entry or make it root
+				newParentID = 0
+			}
+		}
+
+		// Add the entry with all original fields preserved
 		entryID, err := logManager.LogEntryService.Add(models.LogEntry{
-			Text: importEntry.Data.Text,
-			Done: importEntry.Data.Done,
+			Text:            importEntry.Data.Text,
+			Done:            importEntry.Data.Done,
+			DoneTime:        importEntry.Data.DoneTime,
+			CreateTime:      importEntry.Data.CreateTime,
+			UpdateTime:      importEntry.Data.UpdateTime,
+			AdjustedTopTime: importEntry.Data.AdjustedTopTime,
+			HighlightLevel:  importEntry.Data.HighlightLevel,
+			ParentID:        newParentID,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to add entry: %w", err)
 		}
 
-		// Add notes
+		// Map old ID to new ID
+		oldToNewIDMap[importEntry.Data.ID] = entryID
+
+		// Add notes with all original fields preserved
 		for _, note := range importEntry.Notes {
 			_, err := logManager.LogNoteService.Add(entryID, models.Note{
-				Text: note.Data.Text,
+				Text:       note.Data.Text,
+				CreateTime: note.Data.CreateTime,
+				UpdateTime: note.Data.UpdateTime,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to add note: %w", err)

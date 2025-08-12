@@ -22,15 +22,26 @@ const help = `
 todo - A terminal-based todo list application
 
 Usage: todo [OPTIONS]
+       todo <cmd> [OPTIONS]
+
+Available sub commands:
+  list
+  export <file.json>
+  import <file.json>
+  config
 
 Options:
-  --storage <type>                 storage backend: sqlite (default) or file
+  --storage <type>                 storage backend: sqlite (default), file, or server
+  --server-addr <addr>             server address (required when --storage=server)
+  --server-token <token>           server authentication token (optional when --storage=server)
   --debug-log <file>               enable debug logging to specified file
   -h,--help                        show this help message
 
 Examples:
   todo                             run with SQLite storage (default)
   todo --storage=file              run with file storage (todos.json)
+  todo --storage=server --server-addr=http://localhost:8080  run with server storage
+  todo --storage=server --server-addr=http://localhost:8080 --server-token=abc123  run with server storage and auth
   todo --debug-log debug.log       run with debug logging enabled
 `
 
@@ -48,11 +59,15 @@ func Main(args []string) error {
 	}
 
 	var debugLogFile string
-	var storageType string = "sqlite" // default to sqlite
+	var storageType string
+	var serverAddr string
+	var serverToken string
 
 	var showPath bool
 
 	args, err := flags.String("--storage", &storageType).
+		String("--server-addr", &serverAddr).
+		String("--server-token", &serverToken).
 		String("--debug-log", &debugLogFile).
 		Bool("--show-path", &showPath).
 		Help("-h,--help", help).
@@ -63,6 +78,20 @@ func Main(args []string) error {
 
 	if len(args) > 0 {
 		return fmt.Errorf("unrecognized extra arguments: %s", strings.Join(args, " "))
+	}
+
+	// Apply config defaults
+	storageConfig, err := ApplyConfigDefaults(storageType, serverAddr, serverToken)
+	if err != nil {
+		return err
+	}
+	storageType = storageConfig.StorageType
+	serverAddr = storageConfig.ServerAddr
+	serverToken = storageConfig.ServerToken
+
+	// Validate server-addr is provided when storage type is server
+	if storageType == "server" && serverAddr == "" {
+		return fmt.Errorf("--server-addr is required when --storage=server")
 	}
 
 	confDir, err := config.GetConfigDir()
@@ -80,10 +109,12 @@ func Main(args []string) error {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
 
-	logManager, err := CreateLogManager(storageType)
+	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}
+
+	// Load config again to handle running PID (separate from storage config)
 	config, err := data.LoadConfig()
 	if err != nil {
 		return err

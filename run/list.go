@@ -18,8 +18,13 @@ list
 `
 
 func handleList(args []string) error {
-	var storageType string = "sqlite" // default to sqlite
+	var storageType string
+	var serverAddr string
+	var serverToken string
+
 	args, err := flags.String("--storage", &storageType).
+		String("--server-addr", &serverAddr).
+		String("--server-token", &serverToken).
 		Help("-h,--help", listHelp).
 		Parse(args)
 	if err != nil {
@@ -30,7 +35,21 @@ func handleList(args []string) error {
 		return fmt.Errorf("unrecognized extra argument: %s", strings.Join(args, " "))
 	}
 
-	logManager, err := CreateLogManager(storageType)
+	// Apply config defaults
+	storageConfig, err := ApplyConfigDefaults(storageType, serverAddr, serverToken)
+	if err != nil {
+		return err
+	}
+	storageType = storageConfig.StorageType
+	serverAddr = storageConfig.ServerAddr
+	serverToken = storageConfig.ServerToken
+
+	// Validate server-addr is provided when storage type is server
+	if storageType == "server" && serverAddr == "" {
+		return fmt.Errorf("--server-addr is required when --storage=server")
+	}
+
+	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}

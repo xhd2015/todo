@@ -6,7 +6,74 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/data"
+	"github.com/xhd2015/todo/models"
 )
+
+// loadConfigPageState loads the current config from file and converts to ConfigPageState
+func loadConfigPageState() ConfigPageState {
+	savedConfig, err := data.LoadConfig()
+	if err != nil || savedConfig == nil {
+		// Return default state if no config or error
+		return ConfigPageState{
+			ConfigPhase:         ConfigPhase_PickingStorageType,
+			SelectedStorageType: StorageType_LocalSqlite,
+			PickingStorageType:  StorageType_LocalSqlite,
+		}
+	}
+
+	// Convert storage type from config
+	var storageType StorageType
+	switch savedConfig.StorageType {
+	case "file":
+		storageType = StorageType_LocalFile
+	case "server":
+		storageType = StorageType_Server
+	default: // "sqlite" or empty
+		storageType = StorageType_LocalSqlite
+	}
+
+	return ConfigPageState{
+		ConfigPhase:         ConfigPhase_PickingStorageType,
+		SelectedStorageType: storageType,
+		PickingStorageType:  storageType,
+		ServerAddr: models.InputState{
+			Value: savedConfig.ServerAddr,
+		},
+		ServerAuthToken: models.InputState{
+			Value: savedConfig.ServerToken,
+		},
+	}
+}
+
+// saveConfigPageState saves the current ConfigPageState to file
+func saveConfigPageState(configState *ConfigPageState) error {
+	// Load existing config to preserve other fields
+	savedConfig, err := data.LoadConfig()
+	if err != nil {
+		return err
+	}
+	if savedConfig == nil {
+		savedConfig = &models.Config{}
+	}
+
+	// Convert storage type to string
+	switch configState.SelectedStorageType {
+	case StorageType_LocalFile:
+		savedConfig.StorageType = "file"
+	case StorageType_Server:
+		savedConfig.StorageType = "server"
+	default: // StorageType_LocalSqlite
+		savedConfig.StorageType = "sqlite"
+	}
+
+	// Update server settings
+	savedConfig.ServerAddr = configState.ServerAddr.Value
+	savedConfig.ServerToken = configState.ServerAuthToken.Value
+
+	// Save back to file
+	return data.SaveConfig(savedConfig)
+}
 
 func ConfigPage(state *State) *dom.Node {
 	configState := state.Routes.Last().ConfigPage
@@ -92,8 +159,20 @@ func ConfigPage(state *State) *dom.Node {
 						configState.ConfirmButtonFocused = true
 					},
 					OnKeyDown: func(d *dom.DOMEvent) {
-						if d.KeydownEvent.KeyType == dom.KeyTypeEnter {
-							// TODO: just saved
+						switch d.KeydownEvent.KeyType {
+						case dom.KeyTypeEnter:
+							// Save config to file
+							err := saveConfigPageState(configState)
+							if err != nil {
+								// TODO: Handle error properly - maybe show in status bar
+								fmt.Printf("Error saving config: %v\n", err)
+							}
+							// Go back to main page
+							state.Routes.Pop()
+						case dom.KeyTypeRight:
+							// Move focus to Cancel button
+							configState.ConfirmButtonFocused = false
+							configState.CancelButtonFocused = true
 						}
 					},
 				}),
@@ -112,8 +191,14 @@ func ConfigPage(state *State) *dom.Node {
 						configState.CancelButtonFocused = false
 					},
 					OnKeyDown: func(d *dom.DOMEvent) {
-						if d.KeydownEvent.KeyType == dom.KeyTypeEnter {
-							configState.ConfigPhase = ConfigPhase_PickingStorageType
+						switch d.KeydownEvent.KeyType {
+						case dom.KeyTypeEnter:
+							// Cancel - go back to main page without saving
+							state.Routes.Pop()
+						case dom.KeyTypeLeft:
+							// Move focus to Save button
+							configState.CancelButtonFocused = false
+							configState.ConfirmButtonFocused = true
 						}
 					},
 				}),
