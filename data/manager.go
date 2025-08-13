@@ -33,26 +33,15 @@ func (m *LogManager) InitWithHistory(showHistory bool) error {
 }
 
 func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, showHistory bool) ([]*models.LogEntryView, error) {
-	entries, _, err := svc.List(storage.LogEntryListOptions{})
+	entries, _, err := svc.List(storage.LogEntryListOptions{
+		IncludeHistory: showHistory,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var filteredEntries []models.LogEntry
-	if !showHistory {
-		// Filter out entries that are done and have done_time before today
-		today := time.Now().Truncate(24 * time.Hour)
-		for _, entry := range entries {
-			if entry.Done && entry.DoneTime != nil && entry.DoneTime.Before(today) {
-				// Skip entries that are done and have done_time before today
-				continue
-			}
-			filteredEntries = append(filteredEntries, entry)
-		}
-	} else {
-		// Show all entries including historical ones
-		filteredEntries = entries
-	}
+	// No need for manual filtering anymore - the storage layer handles it
+	filteredEntries := entries
 
 	var entriesView []*models.LogEntryView
 	// Create a map for quick lookup

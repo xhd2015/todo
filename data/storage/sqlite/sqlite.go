@@ -104,6 +104,12 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		args = append(args, "%"+options.Filter+"%")
 	}
 
+	// Handle history filtering
+	if !options.IncludeHistory {
+		// Filter out entries that are done and have done_time before today
+		whereClause = append(whereClause, "(done = 0 OR done_time IS NULL OR date(done_time) >= date('now'))")
+	}
+
 	where := ""
 	if len(whereClause) > 0 {
 		where = "WHERE " + strings.Join(whereClause, " AND ")

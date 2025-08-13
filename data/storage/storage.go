@@ -3,11 +3,13 @@ package storage
 import "github.com/xhd2015/todo/models"
 
 type LogEntryListOptions struct {
-	Filter    string
-	SortBy    string
-	SortOrder string
-	Limit     int
-	Offset    int
+	Filter         string
+	SortBy         string
+	SortOrder      string
+	Limit          int
+	Offset         int
+	Status         string
+	IncludeHistory bool
 }
 
 type LogEntryService interface {

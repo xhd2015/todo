@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/dom"
@@ -75,6 +76,24 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 
 			// Handle special commands starting with /
 			if strings.HasPrefix(s, "/") {
+				// Handle /export command with filename
+				if filename, found := strings.CutPrefix(s, "/export "); found {
+					filename = strings.TrimSpace(filename)
+					if filename == "" {
+						state.StatusBar.Error = "export requires a filename: /export <filename.json>"
+						return true
+					}
+
+					// Export visible entries
+					err := ExportVisibleEntries(filename, fullEntries)
+					if err != nil {
+						state.StatusBar.Error = fmt.Sprintf("export failed: %v", err)
+					} else {
+						state.StatusBar.Error = fmt.Sprintf("exported %d entries to %s", len(fullEntries), filename)
+					}
+					return true
+				}
+
 				switch s {
 				case "/history":
 					// Toggle ShowHistory and refresh entries

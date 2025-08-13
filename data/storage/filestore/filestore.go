@@ -109,6 +109,18 @@ func (les *LogEntryFileStore) List(options storage.LogEntryListOptions) ([]model
 				continue
 			}
 		}
+
+		// Handle history filtering
+		if !options.IncludeHistory {
+			// Filter out entries that are done and have done_time before today
+			if entry.Done && entry.DoneTime != nil {
+				today := time.Now().Truncate(24 * time.Hour)
+				if entry.DoneTime.Before(today) {
+					continue
+				}
+			}
+		}
+
 		entries = append(entries, entry)
 	}
 
