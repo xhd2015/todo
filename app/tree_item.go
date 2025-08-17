@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -163,7 +164,10 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				}
 			case dom.KeyTypeSpace:
 				// toggle status
-				state.OnToggle(item.Data.ID)
+				state.Enqueue(func(ctx context.Context) error {
+					state.OnToggle(item.Data.ID)
+					return nil
+				})
 			case dom.KeyTypeCtrlC:
 				if state.IsSearchActive {
 					state.ClearSearch()

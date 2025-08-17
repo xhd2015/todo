@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"github.com/xhd2015/go-dom-tui/colors"
@@ -11,6 +13,7 @@ import (
 
 const (
 	CtrlCExitDelayMs = 1000
+	UIWidth          = 50 // Shared width for status bar and input components
 )
 
 type SelectedEntryMode int
@@ -85,6 +88,10 @@ type State struct {
 
 	LastCtrlC time.Time
 
+	// Action queue for tracking ongoing operations
+	actionQueueMutex sync.RWMutex
+	activeActions    int
+
 	StatusBar StatusBar
 }
 
@@ -147,6 +154,41 @@ func (state *State) Select(id int64) {
 	state.SelectFromSource = SelectedSource_Default
 }
 
+// Enqueue schedules an action to run in a goroutine and tracks its status
+func (state *State) Enqueue(action func(ctx context.Context) error) {
+	state.actionQueueMutex.Lock()
+	state.activeActions++
+	state.actionQueueMutex.Unlock()
+
+	go func() {
+		defer func() {
+			state.actionQueueMutex.Lock()
+			state.activeActions--
+			state.actionQueueMutex.Unlock()
+
+			// Trigger refresh to update UI
+			if state.Refresh != nil {
+				state.Refresh()
+			}
+		}()
+
+		ctx := context.Background()
+		if err := action(ctx); err != nil {
+			// Set error in status bar
+			state.actionQueueMutex.Lock()
+			state.StatusBar.Error = err.Error()
+			state.actionQueueMutex.Unlock()
+		}
+	}()
+}
+
+// Requesting returns true if there are ongoing actions
+func (state *State) Requesting() bool {
+	state.actionQueueMutex.RLock()
+	defer state.actionQueueMutex.RUnlock()
+	return state.activeActions > 0
+}
+
 func App(state *State, window *dom.Window) *dom.Node {
 	return dom.Div(dom.DivProps{
 		OnKeyDown: func(event *dom.DOMEvent) {
@@ -195,13 +237,14 @@ func App(state *State, window *dom.Window) *dom.Node {
 			return dom.Text("type 'exit','quit' or 'q' to exit")
 		}(),
 		func() *dom.Node {
-			// a circle dot
+			// Build status bar nodes
 			var nodes []*dom.Node
-			dot := dom.Text("•", styles.Style{
+
+			// Left side: dot, storage, error, requesting
+			nodes = append(nodes, dom.Text("•", styles.Style{
 				Bold:  true,
 				Color: colors.GREEN_SUCCESS,
-			})
-			nodes = append(nodes, dot)
+			}))
 			if state.StatusBar.Storage != "" {
 				nodes = append(nodes, dom.Text(state.StatusBar.Storage, styles.Style{
 					Bold:  true,
@@ -214,7 +257,41 @@ func App(state *State, window *dom.Window) *dom.Node {
 					Color: colors.RED_ERROR,
 				}))
 			}
-			return dom.Div(dom.DivProps{}, nodes...)
+			if state.Requesting() {
+				nodes = append(nodes, dom.Text("  •", styles.Style{
+					Bold:  true,
+					Color: colors.GREEN_SUCCESS,
+				}))
+				nodes = append(nodes, dom.Text("Request...", styles.Style{
+					Bold:  true,
+					Color: colors.GREEN_SUCCESS,
+				}))
+			}
+
+			// Spacer to push modes to the right
+			hasRightContent := state.ZenMode || state.ShowHistory
+			if hasRightContent {
+				nodes = append(nodes, dom.Spacer())
+
+				// Right side: modes
+				if state.ZenMode {
+					nodes = append(nodes, dom.Text("zen", styles.Style{
+						Bold:  true,
+						Color: colors.GREY_TEXT,
+					}))
+				}
+				if state.ShowHistory {
+					if state.ZenMode {
+						nodes = append(nodes, dom.Text(" ", styles.Style{}))
+					}
+					nodes = append(nodes, dom.Text("history", styles.Style{
+						Bold:  true,
+						Color: colors.GREY_TEXT,
+					}))
+				}
+			}
+
+			return dom.Div(dom.DivProps{Width: UIWidth}, nodes...)
 		}(),
 	)
 }

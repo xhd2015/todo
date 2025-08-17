@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -99,12 +100,18 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 					// Toggle ShowHistory and refresh entries
 					state.ShowHistory = !state.ShowHistory
 					if state.OnRefreshEntries != nil {
-						state.OnRefreshEntries()
+						state.Enqueue(func(ctx context.Context) error {
+							state.OnRefreshEntries()
+							return nil
+						})
 					}
 					return true
 				case "/reload":
 					if state.OnRefreshEntries != nil {
-						state.OnRefreshEntries()
+						state.Enqueue(func(ctx context.Context) error {
+							state.OnRefreshEntries()
+							return nil
+						})
 					}
 					return true
 				case "/zen":

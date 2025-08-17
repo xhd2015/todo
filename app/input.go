@@ -25,6 +25,7 @@ func SearchInput(props InputProps) *dom.Node {
 		Focused:        props.State.Focused,
 		CursorPosition: props.State.CursorPosition,
 		Focusable:      dom.Focusable(true),
+		Width:          UIWidth,
 		OnFocus: func() {
 			props.State.Focused = true
 		},
