@@ -247,11 +247,15 @@ func Main(args []string) error {
 		logManager.Move(id, newParentID)
 		appState.Entries = logManager.Entries
 	}
-	appState.OnAddNote = func(id int64, text string) {
-		logManager.AddNote(id, models.Note{
+	appState.OnAddNote = func(id int64, text string) error {
+		err := logManager.AddNote(id, models.Note{
 			Text: text,
 		})
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
 	appState.OnUpdateNote = func(entryID int64, noteID int64, text string) {
 		logManager.UpdateNote(entryID, noteID, models.NoteOptional{

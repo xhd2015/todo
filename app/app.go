@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -80,7 +82,7 @@ type State struct {
 	OnUpdateHighlight func(id int64, highlightLevel int)
 	OnMove            func(id int64, newParentID int64)
 
-	OnAddNote    func(id int64, text string)
+	OnAddNote    func(id int64, text string) error
 	OnUpdateNote func(entryID int64, noteID int64, text string)
 	OnDeleteNote func(entryID int64, noteID int64)
 
@@ -163,6 +165,11 @@ func (state *State) Enqueue(action func(ctx context.Context) error) {
 
 	go func() {
 		defer func() {
+			e := recover()
+			if e != nil {
+				stack := debug.Stack()
+				state.StatusBar.Error = fmt.Sprintf("panic: %v\n%s", e, string(stack))
+			}
 			state.actionQueueMutex.Lock()
 			state.activeActions--
 			state.actionQueueMutex.Unlock()

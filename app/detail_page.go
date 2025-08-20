@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -163,7 +164,13 @@ func DetailPage(state *State, id int64) *dom.Node {
 			Placeholder: "add note",
 			State:       &item.DetailPage.InputState,
 			OnEnter: func(value string) bool {
-				state.OnAddNote(item.Data.ID, value)
+				val := strings.TrimSpace(value)
+				if val == "" {
+					return true
+				}
+				state.Enqueue(func(ctx context.Context) error {
+					return state.OnAddNote(item.Data.ID, val)
+				})
 				return true
 			},
 		}),

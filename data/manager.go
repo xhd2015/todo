@@ -305,6 +305,11 @@ func (m *LogManager) deleteEntry(id int64) *models.LogEntryView {
 }
 
 func (m *LogManager) AddNote(entryID int64, note models.Note) error {
+	entry, err := m.Get(entryID)
+	if err != nil {
+		return err
+	}
+
 	if note.CreateTime.IsZero() {
 		note.CreateTime = time.Now()
 	}
@@ -316,48 +321,49 @@ func (m *LogManager) AddNote(entryID int64, note models.Note) error {
 		return err
 	}
 	note.ID = id
-	for _, entry := range m.Entries {
-		if entry.Data.ID == entryID {
-			entry.Notes = append(entry.Notes, &models.NoteView{
-				Data: &note,
-			})
-			return nil
-		}
-	}
+
+	entry.Notes = append(entry.Notes, &models.NoteView{
+		Data: &note,
+	})
+
 	return nil
 }
 
 func (m *LogManager) DeleteNote(entryID int64, noteID int64) error {
-	err := m.LogNoteService.Delete(entryID, noteID)
+	entry, err := m.Get(entryID)
 	if err != nil {
 		return err
 	}
-	for _, entry := range m.Entries {
-		if entry.Data.ID == entryID {
-			for i, n := range entry.Notes {
-				if n.Data.ID == noteID {
-					entry.Notes = append(entry.Notes[:i], entry.Notes[i+1:]...)
-					return nil
-				}
-			}
+
+	err = m.LogNoteService.Delete(entryID, noteID)
+	if err != nil {
+		return err
+	}
+
+	for i, n := range entry.Notes {
+		if n.Data.ID == noteID {
+			entry.Notes = append(entry.Notes[:i], entry.Notes[i+1:]...)
+			break
 		}
 	}
 	return nil
 }
 
 func (m *LogManager) UpdateNote(entryID int64, noteID int64, note models.NoteOptional) error {
-	err := m.LogNoteService.Update(entryID, noteID, note)
+	entry, err := m.Get(entryID)
 	if err != nil {
 		return err
 	}
-	for _, entry := range m.Entries {
-		if entry.Data.ID == entryID {
-			for _, n := range entry.Notes {
-				if n.Data.ID == noteID {
-					n.Data.Update(&note)
-					return nil
-				}
-			}
+
+	err = m.LogNoteService.Update(entryID, noteID, note)
+	if err != nil {
+		return err
+	}
+
+	for _, n := range entry.Notes {
+		if n.Data.ID == noteID {
+			n.Data.Update(&note)
+			return nil
 		}
 	}
 	return nil
