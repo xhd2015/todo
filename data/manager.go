@@ -181,29 +181,41 @@ func (m *LogManager) Add(entry models.LogEntry) (int64, error) {
 	return id, nil
 }
 
+func (m *LogManager) Get(id int64) (*models.LogEntryView, error) {
+	var result *models.LogEntryView
+	var traverse func(entries []*models.LogEntryView) bool
+	traverse = func(entries []*models.LogEntryView) bool {
+		for _, e := range entries {
+			if e.Data.ID == id {
+				result = e
+				return true
+			}
+			if traverse(e.Children) {
+				return true
+			}
+		}
+		return false
+	}
+	traverse(m.Entries)
+	if result == nil {
+		return nil, fmt.Errorf("entry with id %d not found", id)
+	}
+	return result, nil
+}
+
 func (m *LogManager) Update(id int64, entry models.LogEntryOptional) error {
 	if entry.UpdateTime == nil {
 		t := time.Now()
 		entry.UpdateTime = &t
 	}
 
-	var targetEntry *models.LogEntryView
-	var oldParentID int64
-
-	// Find the target entry and remember its old parent
-	for _, e := range m.Entries {
-		if e.Data.ID == id {
-			targetEntry = e
-			oldParentID = e.Data.ParentID
-			break
-		}
+	targetEntry, err := m.Get(id)
+	if err != nil {
+		return err
 	}
+	oldParentID := targetEntry.Data.ParentID
 
-	if targetEntry == nil {
-		return fmt.Errorf("entry with id %d not found", id)
-	}
-
-	err := m.LogEntryService.Update(id, entry)
+	err = m.LogEntryService.Update(id, entry)
 	if err != nil {
 		return err
 	}

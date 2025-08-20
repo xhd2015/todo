@@ -212,16 +212,12 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 	}
 	appState.OnToggle = func(id int64) {
-		var foundEntry *models.LogEntryView
-		for _, entry := range logManager.Entries {
-			if entry.Data.ID == id {
-				foundEntry = entry
-				break
-			}
-		}
-		if foundEntry == nil {
+		foundEntry, err := logManager.Get(id)
+		if err != nil {
+			appState.StatusBar.Error = err.Error()
 			return
 		}
+
 		done := !foundEntry.Data.Done
 		var doneTime *time.Time
 		if done {
