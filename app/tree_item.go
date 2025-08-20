@@ -194,23 +194,39 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.SelectedEntryMode = SelectedEntryMode_Editing
 					state.SelectedInputState.FocusWithText(item.Data.Text)
 				case "g", "t", "b":
-					// go to top
-					// gg -> top
+					// Handle combinations first
 					if lastEvent != nil && lastEvent.KeydownEvent != nil && time.Since(lastTime) < 5000*time.Millisecond {
 						combined := string(lastEvent.KeydownEvent.Runes) + key
 						switch combined {
 						case "gg":
+							// go to top
+							// gg -> top
 							if props.OnGoToFirst != nil {
 								props.OnGoToFirst(e)
 							}
+							return
 						case "gt":
 							if props.OnGoToTop != nil {
 								props.OnGoToTop(e)
 							}
+							return
 						case "gb":
 							if props.OnGoToBottom != nil {
 								props.OnGoToBottom(e)
 							}
+							return
+						}
+					}
+
+					// Handle standalone "t" for top command
+					if key == "t" {
+						if state.OnShowTop != nil {
+							// Default duration is 30 minutes
+							duration := 30 * time.Minute
+							state.Enqueue(func(ctx context.Context) error {
+								state.OnShowTop(item.Data.ID, item.Data.Text, duration)
+								return nil
+							})
 						}
 					}
 				case "G":
@@ -262,10 +278,13 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						if !state.IsDescendant(item.Data.ID, state.CuttingEntryID) {
 							// Move the cutting item to be a child of the current item
 							if state.OnMove != nil {
-								state.OnMove(state.CuttingEntryID, item.Data.ID)
+								state.Enqueue(func(ctx context.Context) error {
+									state.OnMove(state.CuttingEntryID, item.Data.ID)
+									// Clear the cutting state
+									state.CuttingEntryID = 0
+									return nil
+								})
 							}
-							// Clear the cutting state
-							state.CuttingEntryID = 0
 						}
 					}
 				}

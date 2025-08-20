@@ -81,17 +81,21 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 		entriesView = append(entriesView, entryView)
 	}
 
-	// Build parent-child relationships
+	// Build parent-child relationships and filter root entries
+	var rootEntries []*models.LogEntryView
 	for _, entryView := range entriesView {
 		if entryView.Data.ParentID != 0 {
 			if parent, exists := entryMap[entryView.Data.ParentID]; exists {
 				parent.Children = append(parent.Children, entryView)
 			}
+		} else {
+			// Only add root entries (ParentID == 0) to the result
+			rootEntries = append(rootEntries, entryView)
 		}
 	}
 
-	sortEntries(entriesView)
-	return entriesView, nil
+	sortEntries(rootEntries)
+	return rootEntries, nil
 }
 
 // Init initializes with default behavior (no history)
@@ -100,6 +104,13 @@ func (m *LogManager) Init() error {
 }
 
 func sortEntries(entries []*models.LogEntryView) {
+	flatSortEntries(entries)
+	for _, entry := range entries {
+		sortEntries(entry.Children)
+	}
+}
+
+func flatSortEntries(entries []*models.LogEntryView) {
 	sort.Slice(entries, func(i, j int) bool {
 		return !isNewer(entries[i], entries[j])
 	})
@@ -148,15 +159,25 @@ func (m *LogManager) Add(entry models.LogEntry) (int64, error) {
 
 	// If this entry has a parent, add it to parent's children
 	if entry.ParentID != 0 {
-		for _, existingEntry := range m.Entries {
-			if existingEntry.Data.ID == entry.ParentID {
-				existingEntry.Children = append(existingEntry.Children, entryView)
-				break
+		var findAndAddToParent func(entries []*models.LogEntryView) bool
+		findAndAddToParent = func(entries []*models.LogEntryView) bool {
+			for _, existingEntry := range entries {
+				if existingEntry.Data.ID == entry.ParentID {
+					existingEntry.Children = append(existingEntry.Children, entryView)
+					return true
+				}
+				if findAndAddToParent(existingEntry.Children) {
+					return true
+				}
 			}
+			return false
 		}
+		findAndAddToParent(m.Entries)
+	} else {
+		// Only add root entries (ParentID == 0) to the top-level entries
+		m.Entries = append(m.Entries, entryView)
 	}
 
-	m.Entries = append(m.Entries, entryView)
 	return id, nil
 }
 
@@ -239,7 +260,13 @@ func (m *LogManager) Delete(id int64) error {
 		return err
 	}
 
+	m.deleteEntry(id)
+	return nil
+}
+
+func (m *LogManager) deleteEntry(id int64) *models.LogEntryView {
 	// bread-first search
+	var foundEntry *models.LogEntryView
 	var traverse func(entries []*models.LogEntryView) ([]*models.LogEntryView, bool)
 	traverse = func(entries []*models.LogEntryView) ([]*models.LogEntryView, bool) {
 		for i, e := range entries {
@@ -247,6 +274,7 @@ func (m *LogManager) Delete(id int64) error {
 				newEntries := make([]*models.LogEntryView, len(entries)-1)
 				copy(newEntries, entries[:i])
 				copy(newEntries[i:], entries[i+1:])
+				foundEntry = e
 				return newEntries, true
 			}
 		}
@@ -261,7 +289,7 @@ func (m *LogManager) Delete(id int64) error {
 	}
 
 	m.Entries, _ = traverse(m.Entries)
-	return nil
+	return foundEntry
 }
 
 func (m *LogManager) AddNote(entryID int64, note models.Note) error {
@@ -329,16 +357,34 @@ func (m *LogManager) Move(id int64, newParentID int64) error {
 		return err
 	}
 
-	// Update the in-memory representation
+	// first, remove from old parent
+	moved := m.deleteEntry(id)
+	if moved == nil {
+		return nil
+	}
+
+	// then, add to new parent
+	var traverse func(entry *models.LogEntryView) bool
+	traverse = func(entry *models.LogEntryView) bool {
+		if entry.Data.ID == newParentID {
+			moved.Data.ParentID = newParentID
+			moved.Data.UpdateTime = time.Now()
+			entry.Children = append(entry.Children, moved)
+			flatSortEntries(entry.Children)
+			return true
+		}
+		for _, child := range entry.Children {
+			if traverse(child) {
+				return true
+			}
+		}
+		return false
+	}
 	for _, entry := range m.Entries {
-		if entry.Data.ID == id {
-			entry.Data.ParentID = newParentID
-			entry.Data.UpdateTime = time.Now()
+		if traverse(entry) {
 			break
 		}
 	}
 
-	// Re-sort entries to ensure correct tree structure
-	sortEntries(m.Entries)
 	return nil
 }

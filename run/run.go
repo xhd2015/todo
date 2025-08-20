@@ -14,6 +14,7 @@ import (
 	"github.com/xhd2015/todo/app"
 	"github.com/xhd2015/todo/data"
 	"github.com/xhd2015/todo/internal/config"
+	"github.com/xhd2015/todo/internal/macos"
 	"github.com/xhd2015/todo/internal/process"
 	"github.com/xhd2015/todo/models"
 )
@@ -265,6 +266,14 @@ func Main(args []string) error {
 	appState.OnDeleteNote = func(entryID int64, noteID int64) {
 		logManager.DeleteNote(entryID, noteID)
 		appState.Entries = logManager.Entries
+	}
+	appState.OnShowTop = func(id int64, text string, duration time.Duration) {
+		// Send command to macOS app to show floating progress bar
+		err := macos.SendTopCommand(id, text, duration)
+		if err != nil {
+			// Set error in status bar if command fails
+			appState.StatusBar.Error = fmt.Sprintf("Failed to show top: %v", err)
+		}
 	}
 
 	model := &Model{

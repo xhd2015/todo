@@ -84,7 +84,8 @@ type State struct {
 	OnUpdateNote func(entryID int64, noteID int64, text string)
 	OnDeleteNote func(entryID int64, noteID int64)
 
-	OnRefreshEntries func() // Callback to refresh entries when ShowHistory changes
+	OnRefreshEntries func()                                              // Callback to refresh entries when ShowHistory changes
+	OnShowTop        func(id int64, text string, duration time.Duration) // Callback to show todo in macOS floating bar
 
 	LastCtrlC time.Time
 
