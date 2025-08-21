@@ -287,6 +287,14 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							}
 						}
 					}
+				case "v":
+					// toggle visibility of all children including history
+					if state.OnToggleVisibility != nil {
+						state.Enqueue(func(ctx context.Context) error {
+							state.OnToggleVisibility(item.Data.ID)
+							return nil
+						})
+					}
 				}
 			}
 		},
@@ -305,6 +313,19 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				}(),
 				Strikethrough: item.Data.Done,
 			})
+		}(),
+		func() *dom.Node {
+			if item.ChildrenVisible {
+				return dom.Text(" (*)", styles.Style{
+					Color: func() string {
+						if isSelected {
+							return colors.GREEN_SUCCESS
+						}
+						return colors.GREY_TEXT
+					}(),
+				})
+			}
+			return nil
 		}(),
 		func() *dom.Node {
 			if state.CuttingEntryID == item.Data.ID {

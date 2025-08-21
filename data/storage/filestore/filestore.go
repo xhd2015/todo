@@ -278,6 +278,46 @@ func (les *LogEntryFileStore) Move(id int64, newParentID int64) error {
 	return fmt.Errorf("log entry with id %d not found", id)
 }
 
+func (les *LogEntryFileStore) LoadAll(rootID int64) ([]models.LogEntry, error) {
+	fs := les.FileStore
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	// Find all descendants of the root entry using a recursive approach
+	var result []models.LogEntry
+	entryMap := make(map[int64]models.LogEntry)
+
+	// Create a map for quick lookup
+	for _, entry := range fs.data.LogEntries {
+		entryMap[entry.ID] = entry
+	}
+
+	// Find the root entry first
+	rootEntry, exists := entryMap[rootID]
+	if !exists {
+		return nil, fmt.Errorf("root entry with id %d not found", rootID)
+	}
+
+	// Recursive function to collect all descendants
+	var collectDescendants func(parentID int64)
+	collectDescendants = func(parentID int64) {
+		for _, entry := range fs.data.LogEntries {
+			if entry.ParentID == parentID {
+				result = append(result, entry)
+				collectDescendants(entry.ID)
+			}
+		}
+	}
+
+	// Add root entry first
+	result = append(result, rootEntry)
+
+	// Collect all descendants
+	collectDescendants(rootID)
+
+	return result, nil
+}
+
 // LogNote service methods
 func (lns *LogNoteFileStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	fs := lns.FileStore

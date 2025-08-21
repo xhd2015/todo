@@ -218,6 +218,39 @@ func (les *LogEntryMemoryStore) Move(id int64, newParentID int64) error {
 	return nil
 }
 
+func (les *LogEntryMemoryStore) LoadAll(rootID int64) ([]models.LogEntry, error) {
+	les.mu.RLock()
+	defer les.mu.RUnlock()
+
+	// Find all descendants of the root entry using a recursive approach
+	var result []models.LogEntry
+
+	// Find the root entry first
+	rootEntry, exists := les.logEntries[rootID]
+	if !exists {
+		return nil, fmt.Errorf("root entry with id %d not found", rootID)
+	}
+
+	// Recursive function to collect all descendants
+	var collectDescendants func(parentID int64)
+	collectDescendants = func(parentID int64) {
+		for _, entry := range les.logEntries {
+			if entry.ParentID == parentID {
+				result = append(result, entry)
+				collectDescendants(entry.ID)
+			}
+		}
+	}
+
+	// Add root entry first
+	result = append(result, rootEntry)
+
+	// Collect all descendants
+	collectDescendants(rootID)
+
+	return result, nil
+}
+
 // LogNote service methods
 func (lns *LogNoteMemoryStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	lns.mu.RLock()

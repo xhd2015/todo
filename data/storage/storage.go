@@ -18,6 +18,8 @@ type LogEntryService interface {
 	Delete(id int64) error
 	Update(id int64, update models.LogEntryOptional) error
 	Move(id int64, newParentID int64) error
+	// LoadAll loads all descendants of a given root ID, including history entries
+	LoadAll(rootID int64) ([]models.LogEntry, error)
 }
 
 type LogNoteListOptions struct {

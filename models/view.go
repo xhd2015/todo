@@ -34,6 +34,10 @@ type LogEntryView struct {
 
 	Notes    []*NoteView
 	Children LogEntryViews
+
+	// ChildrenVisible controls whether all children (including history) are shown
+	// When true, shows (*) indicator and displays all children including history
+	ChildrenVisible bool
 }
 
 type MatchText struct {

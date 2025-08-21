@@ -8,10 +8,10 @@ func BuildTreePrefix(depth int, ancestorIsLast []bool) string {
 	if depth == 0 {
 		return ""
 	}
-	
+
 	// Build tree connector prefix
 	treePrefix := ""
-	
+
 	// Special case for depth 1: always starts with 2 spaces
 	if depth == 1 {
 		treePrefix = "  "
@@ -24,11 +24,16 @@ func BuildTreePrefix(depth int, ancestorIsLast []bool) string {
 					// First ancestor (top-level) has siblings: start with 2 spaces + │
 					treePrefix += "  │ "
 				} else if d == depth-2 {
-					// This is the immediate parent level: align vertical line with siblings  
-					treePrefix += "  │ "
+					// This is the immediate parent level: check if we need compact spacing
+					// Use compact spacing only for deep nesting (depth >= 6) to fix alignment issues
+					if depth >= 6 {
+						treePrefix += "│ "
+					} else {
+						treePrefix += "  │ "
+					}
 				} else {
-					// This is a middle ancestor level
-					treePrefix += "│ "
+					// This is a middle ancestor level: use consistent spacing
+					treePrefix += "  │ "
 				}
 			} else {
 				// This ancestor is the last child, add spacing

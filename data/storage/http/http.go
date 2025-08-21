@@ -134,6 +134,23 @@ func (s *LogEntryHttpService) Move(id int64, newParentID int64) error {
 	return nil
 }
 
+func (s *LogEntryHttpService) LoadAll(rootID int64) ([]models.LogEntry, error) {
+	var response struct {
+		Entries []models.LogEntry `json:"entries"`
+	}
+
+	params := struct {
+		ID int64 `json:"id"`
+	}{ID: rootID}
+
+	err := s.client.makeRequest("/entries/loadAll", params, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load all entries: %w", err)
+	}
+
+	return response.Entries, nil
+}
+
 // LogNoteHttpService implements storage.LogNoteService
 type LogNoteHttpService struct {
 	client *Client

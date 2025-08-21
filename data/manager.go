@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -405,4 +406,78 @@ func (m *LogManager) Move(id int64, newParentID int64) error {
 	}
 
 	return nil
+}
+
+// LoadAll loads all descendants of a given root ID, including history entries
+// Returns a single LogEntryView containing all children including history children
+func (m *LogManager) LoadAll(ctx context.Context, rootID int64) (*models.LogEntryView, error) {
+	// Load all entries for the root and its descendants
+	entries, err := m.LogEntryService.LoadAll(rootID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("entry with id %d not found", rootID)
+	}
+
+	// Collect all entry IDs for batch note loading
+	entryIDs := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		entryIDs = append(entryIDs, entry.ID)
+	}
+
+	// Batch load all notes for all entries
+	allNotes, err := m.LogNoteService.ListForEntries(entryIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a map for quick lookup
+	entryMap := make(map[int64]*models.LogEntryView)
+
+	// Convert entries to LogEntryView
+	for _, entry := range entries {
+		notes := allNotes[entry.ID] // Get notes for this entry
+		notesView := make([]*models.NoteView, 0, len(notes))
+		for _, note := range notes {
+			notesView = append(notesView, &models.NoteView{
+				Data: &note,
+			})
+		}
+		entryView := &models.LogEntryView{
+			Data:     &entry,
+			Notes:    notesView,
+			Children: []*models.LogEntryView{},
+			DetailPage: &models.EntryOnDetailPage{
+				InputState: models.InputState{
+					Value: entry.Text,
+				},
+			},
+			ChildrenVisible: false, // Default to not visible
+		}
+		entryMap[entry.ID] = entryView
+	}
+
+	// Build parent-child relationships
+	var rootEntry *models.LogEntryView
+	for _, entryView := range entryMap {
+		if entryView.Data.ID == rootID {
+			rootEntry = entryView
+		}
+		if entryView.Data.ParentID != 0 {
+			if parent, exists := entryMap[entryView.Data.ParentID]; exists {
+				parent.Children = append(parent.Children, entryView)
+			}
+		}
+	}
+
+	if rootEntry == nil {
+		return nil, fmt.Errorf("root entry with id %d not found", rootID)
+	}
+
+	// Sort children recursively
+	sortEntries([]*models.LogEntryView{rootEntry})
+
+	return rootEntry, nil
 }

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -274,6 +275,45 @@ func Main(args []string) error {
 			// Set error in status bar if command fails
 			appState.StatusBar.Error = fmt.Sprintf("Failed to show top: %v", err)
 		}
+	}
+	appState.OnToggleVisibility = func(id int64) {
+		targetEntry, err := logManager.Get(id)
+		if err != nil {
+			appState.StatusBar.Error = err.Error()
+			return
+		}
+
+		// Toggle visibility state
+		targetEntry.ChildrenVisible = !targetEntry.ChildrenVisible
+
+		if targetEntry.ChildrenVisible {
+			// Load all children including history
+			ctx := context.Background()
+			fullEntry, err := logManager.LoadAll(ctx, id)
+			if err != nil {
+				appState.StatusBar.Error = fmt.Sprintf("Failed to load all children: %v", err)
+				return
+			}
+
+			// Replace the entry's children with the full loaded children
+			targetEntry.Children = fullEntry.Children
+			// Only the target entry should show the (*) indicator, not its children
+			// Children should have ChildrenVisible = false by default
+		} else {
+			// When hiding, we could either keep the children or clear them
+			// For now, let's keep them but mark as not visible
+			var setChildrenNotVisible func(entry *models.LogEntryView)
+			setChildrenNotVisible = func(entry *models.LogEntryView) {
+				entry.ChildrenVisible = false
+				for _, child := range entry.Children {
+					setChildrenNotVisible(child)
+				}
+			}
+			setChildrenNotVisible(targetEntry)
+		}
+
+		// Update the app state entries
+		appState.Entries = logManager.Entries
 	}
 
 	model := &Model{

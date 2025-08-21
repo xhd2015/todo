@@ -326,6 +326,67 @@ func (les *LogEntrySQLiteStore) Move(id int64, newParentID int64) error {
 	return nil
 }
 
+func (les *LogEntrySQLiteStore) LoadAll(rootID int64) ([]models.LogEntry, error) {
+	// Use recursive CTE to get all descendants of the root entry
+	query := `
+		WITH RECURSIVE descendants AS (
+			-- Base case: the root entry
+			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+			FROM log_entries 
+			WHERE id = ?
+			
+			UNION ALL
+			
+			-- Recursive case: children of entries already in the result
+			SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.parent_id
+			FROM log_entries e
+			INNER JOIN descendants d ON e.parent_id = d.id
+		)
+		SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+		FROM descendants
+		ORDER BY parent_id, id
+	`
+
+	rows, err := les.db.Query(query, rootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []models.LogEntry
+	for rows.Next() {
+		var entry models.LogEntry
+		var createTime, updateTime string
+		var doneTime *string
+
+		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &doneTime, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel, &entry.ParentID); err != nil {
+			return nil, err
+		}
+
+		if entry.CreateTime, err = tryParseTime(createTime); err != nil {
+			return nil, err
+		}
+		if entry.UpdateTime, err = tryParseTime(updateTime); err != nil {
+			return nil, err
+		}
+		if doneTime != nil {
+			if parsedDoneTime, err := tryParseTime(*doneTime); err != nil {
+				return nil, err
+			} else {
+				entry.DoneTime = &parsedDoneTime
+			}
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return entries, nil
+}
+
 // LogNote service methods
 func (lns *LogNoteSQLiteStore) List(entryID int64, options storage.LogNoteListOptions) ([]models.Note, int64, error) {
 	var whereClause []string
