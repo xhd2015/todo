@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/xhd2015/todo/models"
 	"github.com/xhd2015/todo/ui/search"
+	"github.com/xhd2015/todo/ui/tree"
 )
 
 type ComputeResult struct {
@@ -26,8 +27,9 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	}
 
 	var flatEntries []EntryWithDepth
-	for _, entry := range topLevelEntries {
-		flatEntries = addEntryRecursive(flatEntries, entry, 0, []bool{})
+	for i, entry := range topLevelEntries {
+		isLast := i == len(topLevelEntries)-1
+		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast)
 	}
 	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart, selectedID, selectedSource)
 	return ComputeResult{
@@ -39,21 +41,20 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	}
 }
 
-func addEntryRecursive(flatEntries []EntryWithDepth, entry *models.LogEntryView, depth int, ancestorIsLast []bool) []EntryWithDepth {
+func addEntryRecursive(flatEntries []EntryWithDepth, entry *models.LogEntryView, depth int, prefix string, isLast bool) []EntryWithDepth {
+	// Add this entry
 	flatEntries = append(flatEntries, EntryWithDepth{
-		Entry:       entry,
-		Depth:       depth,
-		IsLastChild: ancestorIsLast,
+		Entry:  entry,
+		Prefix: prefix,
+		IsLast: isLast,
 	})
 
 	// Add children recursively
 	for childIndex, child := range entry.Children {
 		isLastChild := (childIndex == len(entry.Children)-1)
-		// Create ancestor info for child: copy parent's info and add current level
-		childAncestorIsLast := make([]bool, depth+1)
-		copy(childAncestorIsLast, ancestorIsLast)
-		childAncestorIsLast[depth] = isLastChild
-		flatEntries = addEntryRecursive(flatEntries, child, depth+1, childAncestorIsLast)
+		// Calculate child prefix using the common utility function
+		childPrefix := tree.CalculateChildPrefix(prefix, isLast)
+		flatEntries = addEntryRecursive(flatEntries, child, depth+1, childPrefix, isLastChild)
 	}
 
 	return flatEntries

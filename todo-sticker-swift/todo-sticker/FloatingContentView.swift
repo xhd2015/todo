@@ -160,12 +160,8 @@ struct FloatingContentView: View {
     
     private func dismissFloatingBar() {
         stopTimer()
-        // Hide all floating windows
-        DispatchQueue.main.async {
-            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-                appDelegate.hideAllFloatingBars()
-            }
-        }
+        print("DEBUG FloatingContentView: Dismiss button clicked, calling onComplete")
+        onComplete?()
     }
 }
 

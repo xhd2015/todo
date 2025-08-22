@@ -10,11 +10,11 @@ import (
 	"github.com/xhd2015/todo/models"
 )
 
-// EntryWithDepth represents a flattened entry with its depth and ancestor information
+// EntryWithDepth represents a flattened entry with its prefix and position information
 type EntryWithDepth struct {
-	Entry       *models.LogEntryView
-	Depth       int
-	IsLastChild []bool // For each depth level, whether this entry is the last child at that level
+	Entry  *models.LogEntryView
+	Prefix string
+	IsLast bool
 }
 
 // RenderEntryTreeProps contains configuration for rendering the entry tree
@@ -72,7 +72,6 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 
 	for _, entryWithDepth := range entries {
 		item := entryWithDepth.Entry
-		depth := entryWithDepth.Depth
 		isSelected := selectedID == item.Data.ID
 
 		if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
@@ -107,11 +106,11 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 
 		// Always render the TodoItem
 		children = append(children, TodoItem(TodoItemProps{
-			Item:        item,
-			Depth:       depth,
-			IsLastChild: entryWithDepth.IsLastChild,
-			IsSelected:  isSelected,
-			State:       state,
+			Item:       item,
+			Prefix:     entryWithDepth.Prefix,
+			IsLast:     entryWithDepth.IsLast,
+			IsSelected: isSelected,
+			State:      state,
 			OnNavigate: func(e *dom.DOMEvent, direction int) {
 				if props.OnNavigate != nil {
 					props.OnNavigate(e, item.Data.ID, direction)
@@ -165,7 +164,6 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 							if err != nil {
 								// TODO: show error
 								panic(err)
-								return
 							}
 							state.ChildInputState.Value = ""
 							state.ChildInputState.CursorPosition = 0

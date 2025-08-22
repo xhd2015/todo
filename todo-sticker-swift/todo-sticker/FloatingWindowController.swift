@@ -11,27 +11,7 @@ import SwiftUI
 class FloatingWindow: NSWindow {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
-    
-    private var initialLocation: NSPoint = NSPoint.zero
-    
-    override func mouseDown(with event: NSEvent) {
-        // Store the initial click location in window coordinates
-        initialLocation = event.locationInWindow
-    }
-    
-    override func mouseDragged(with event: NSEvent) {
-        // Get the current mouse location in screen coordinates
-        let currentLocation = NSEvent.mouseLocation
-        
-        // Calculate the new window origin
-        let newOrigin = NSPoint(
-            x: currentLocation.x - initialLocation.x,
-            y: currentLocation.y - initialLocation.y
-        )
-        
-        // Move the window to the new position
-        self.setFrameOrigin(newOrigin)
-    }
+    override var acceptsFirstResponder: Bool { false }
 }
 
 class FloatingWindowController: NSWindowController {
@@ -82,8 +62,8 @@ class FloatingWindowController: NSWindowController {
             window.setFrame(NSRect(x: x, y: y, width: windowWidth, height: windowHeight), display: true)
         }
         
-        // Make window appear in all spaces
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        // Make window appear in all spaces and prevent activation
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
     }
     
     func setPosition(_ position: NSPoint) {
@@ -93,8 +73,8 @@ class FloatingWindowController: NSWindowController {
     }
     
     func showFloatingBar() {
+        // Show window without making it key to prevent focus switching
         window?.orderFrontRegardless()
-        window?.makeKeyAndOrderFront(nil)
     }
     
     func hideFloatingBar() {

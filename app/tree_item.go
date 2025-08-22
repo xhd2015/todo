@@ -14,11 +14,11 @@ import (
 )
 
 type TodoItemProps struct {
-	Item        *models.LogEntryView
-	Depth       int
-	IsLastChild []bool
-	IsSelected  bool
-	State       *State
+	Item       *models.LogEntryView
+	Prefix     string
+	IsLast     bool
+	IsSelected bool
+	State      *State
 
 	OnNavigate func(e *dom.DOMEvent, direction int)
 	// gg
@@ -34,12 +34,12 @@ type TodoItemProps struct {
 
 func TodoItem(props TodoItemProps) *dom.Node {
 	item := props.Item
-	depth := props.Depth
-	isLastChild := props.IsLastChild
+	prefix := props.Prefix
+	isLast := props.IsLast
 	isSelected := props.IsSelected
 	state := props.State
 	// Build tree connector prefix using common utility
-	treePrefix := tree.BuildTreePrefix(depth, isLastChild)
+	treePrefix := tree.BuildTreePrefix(prefix, isLast)
 
 	inputState := &state.Input
 

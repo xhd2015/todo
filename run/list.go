@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/data"
 	"github.com/xhd2015/todo/models"
@@ -117,59 +116,12 @@ func handleList(args []string) error {
 
 // renderEntries renders a list of entries with proper tree connectors
 func renderEntries(out io.Writer, isTTY bool, entries []*models.LogEntryView, showID bool) {
-	strikethroughStyle := lipgloss.NewStyle().Strikethrough(true)
-
-	// Recursive function to render entries with proper tree connectors
-	var renderEntryRecursive func(entry *models.LogEntryView, depth int, ancestorIsLast []bool)
-	renderEntryRecursive = func(entry *models.LogEntryView, depth int, ancestorIsLast []bool) {
-		// Build tree connector prefix using common utility
-		treePrefix := tree.BuildTreePrefix(depth, ancestorIsLast)
-
-		// Choose bullet based on completion status
-		bullet := "•"
-		if entry.Data.Done {
-			bullet = "✓"
-		}
-
-		// Apply styling
-		text := entry.Data.Text
-		if entry.Data.Done && isTTY {
-			text = strikethroughStyle.Render(text)
-		}
-
-		// Add visibility indicator if children are visible
-		visibilityIndicator := ""
-		if entry.ChildrenVisible {
-			visibilityIndicator = " (*)"
-		}
-
-		// Print the entry with tree connectors
-		if showID {
-			fmt.Fprintf(out, "%s%s %s (%d)%s\n", treePrefix, bullet, text, entry.Data.ID, visibilityIndicator)
-		} else {
-			fmt.Fprintf(out, "%s%s %s%s\n", treePrefix, bullet, text, visibilityIndicator)
-		}
-
-		// Recursively render children
-		for childIndex, child := range entry.Children {
-			isLastChild := (childIndex == len(entry.Children)-1)
-			// Create ancestor info for child: copy parent's info and add current level
-			childAncestorIsLast := make([]bool, depth+1)
-			copy(childAncestorIsLast, ancestorIsLast)
-			childAncestorIsLast[depth] = isLastChild
-			renderEntryRecursive(child, depth+1, childAncestorIsLast)
-		}
-	}
-
-	// Render only top-level entries (ParentID == 0) and their children
-	for _, entry := range entries {
-		if entry.Data.ParentID == 0 {
-			renderEntryRecursive(entry, 0, []bool{})
-		}
-	}
+	tree.RenderEntries(entries, func(prefix string, connector string, entry *models.LogEntryView) {
+		io.WriteString(out, prefix+connector+tree.RenderItem(entry, showID, isTTY)+"\n")
+	})
 }
 
-func renderToString(entries []*models.LogEntryView, showID bool, simulateTTY bool) string {
+func RenderToString(entries []*models.LogEntryView, showID bool, simulateTTY bool) string {
 	var b bytes.Buffer
 	renderEntries(&b, simulateTTY, entries, showID)
 	return b.String()
