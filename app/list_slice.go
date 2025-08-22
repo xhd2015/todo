@@ -29,7 +29,7 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	var flatEntries []EntryWithDepth
 	for i, entry := range topLevelEntries {
 		isLast := i == len(topLevelEntries)-1
-		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast)
+		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false)
 	}
 	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart, selectedID, selectedSource)
 	return ComputeResult{
@@ -41,7 +41,7 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	}
 }
 
-func addEntryRecursive(flatEntries []EntryWithDepth, entry *models.LogEntryView, depth int, prefix string, isLast bool) []EntryWithDepth {
+func addEntryRecursive(flatEntries []EntryWithDepth, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool) []EntryWithDepth {
 	// Add this entry
 	flatEntries = append(flatEntries, EntryWithDepth{
 		Entry:  entry,
@@ -53,8 +53,8 @@ func addEntryRecursive(flatEntries []EntryWithDepth, entry *models.LogEntryView,
 	for childIndex, child := range entry.Children {
 		isLastChild := (childIndex == len(entry.Children)-1)
 		// Calculate child prefix using the common utility function
-		childPrefix := tree.CalculateChildPrefix(prefix, isLast)
-		flatEntries = addEntryRecursive(flatEntries, child, depth+1, childPrefix, isLastChild)
+		childPrefix, childHasVerticalLine := tree.CalculateChildPrefix(prefix, isLast, hasVerticalLine)
+		flatEntries = addEntryRecursive(flatEntries, child, depth+1, childPrefix, isLastChild, childHasVerticalLine)
 	}
 
 	return flatEntries
