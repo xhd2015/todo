@@ -11,7 +11,15 @@ import SwiftData
 struct MainContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var items: [Item]
-    @StateObject private var commandMonitor = HTTPCommandMonitor()
+    @EnvironmentObject var appDelegate: AppDelegate
+    
+    private var serverInfo: ServerInfo {
+        ServerInfo(
+            status: appDelegate.serverStatus,
+            port: appDelegate.serverPort,
+            receivedCommands: appDelegate.receivedCommands
+        )
+    }
     
     var body: some View {
         NavigationSplitView {
@@ -22,16 +30,16 @@ struct MainContentView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text(commandMonitor.serverStatus)
+                    Text(serverInfo.status)
                         .font(.caption)
-                        .foregroundColor(commandMonitor.serverStatus.contains("running") ? .green : .red)
+                        .foregroundColor(serverInfo.status.contains("running") ? .green : .red)
                 }
                 .padding(.horizontal)
                 
                 Divider()
                 
                 // Received Commands Section
-                if !commandMonitor.receivedCommands.isEmpty {
+                if !serverInfo.receivedCommands.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Received Commands")
@@ -40,14 +48,14 @@ struct MainContentView: View {
                             Spacer()
                             
                             Button("Clear") {
-                                commandMonitor.clearCommands()
+                                appDelegate.clearReceivedCommands()
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
                         .padding(.horizontal)
                         
-                        List(commandMonitor.receivedCommands, id: \.id) { command in
+                        List(serverInfo.receivedCommands, id: \.id) { command in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(command.text)
                                     .font(.body)
@@ -98,8 +106,7 @@ struct MainContentView: View {
             Text("Select an item")
         }
         .onAppear {
-            print("DEBUG MainContentView: Starting command monitoring for main window")
-            commandMonitor.startMonitoring()
+            print("DEBUG MainContentView: Main window appeared - server is managed by AppDelegate")
         }
     }
     
@@ -122,4 +129,5 @@ struct MainContentView: View {
 #Preview {
     MainContentView()
         .modelContainer(for: Item.self, inMemory: true)
+        .environmentObject(AppDelegate())
 }

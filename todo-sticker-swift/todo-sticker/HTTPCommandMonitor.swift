@@ -19,7 +19,6 @@ class HTTPCommandMonitor: ObservableObject, CommandMonitorProtocol {
     private var timer: Timer?
     private var httpServer: HTTPServer?
     private var totalDuration: TimeInterval = 0
-    
     init() {
         httpServer = HTTPServer()
     }

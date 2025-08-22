@@ -15,6 +15,7 @@ struct FloatingContentView: View {
     @State private var timeRemaining: TimeInterval = 0
     @State private var timer: Timer?
     @State private var isPaused: Bool = false
+    @State private var currentRound: Int = 1
     
     init(command: TopCommand? = nil, queueInfo: QueueInfo? = nil, onComplete: (() -> Void)? = nil) {
         self.command = command
@@ -29,7 +30,23 @@ struct FloatingContentView: View {
     private var timeString: String {
         let minutes = Int(timeRemaining) / 60
         let seconds = Int(timeRemaining) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+        
+        // Format as "29m1s" style
+        let timeStr: String
+        if minutes > 0 && seconds > 0 {
+            timeStr = "\(minutes)m\(seconds)s"
+        } else if minutes > 0 {
+            timeStr = "\(minutes)m"
+        } else {
+            timeStr = "\(seconds)s"
+        }
+        
+        // Show round number only after the first round
+        if currentRound > 1 {
+            return "\(timeStr)/\(currentRound)"
+        } else {
+            return timeStr
+        }
     }
     
     var body: some View {
@@ -128,6 +145,7 @@ struct FloatingContentView: View {
         timeRemaining = command.durationInSeconds
         progress = 1.0
         isPaused = false
+        currentRound = 1  // Reset to first round when starting fresh
         
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] _ in
             // Only update if not paused
@@ -153,9 +171,21 @@ struct FloatingContentView: View {
     }
     
     private func completeCommand() {
-        stopTimer()
-        print("DEBUG FloatingContentView: Command completed, calling onComplete")
-        onComplete?()
+        // Start a new round instead of completing
+        currentRound += 1
+        print("DEBUG FloatingContentView: Round \(currentRound - 1) completed, starting round \(currentRound)")
+        startNewRound()
+    }
+    
+    private func startNewRound() {
+        guard let command = command else { return }
+        
+        // Reset timer for new round
+        timeRemaining = command.durationInSeconds
+        progress = 1.0
+        
+        // Timer continues running, no need to recreate it
+        print("DEBUG FloatingContentView: Started round \(currentRound) with \(command.durationInSeconds) seconds")
     }
     
     private func dismissFloatingBar() {
