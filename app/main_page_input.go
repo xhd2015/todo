@@ -99,18 +99,16 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 				case "/history":
 					// Toggle ShowHistory and refresh entries
 					state.ShowHistory = !state.ShowHistory
-					if state.OnRefreshEntries != nil {
+					if state.RefreshEntries != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							state.OnRefreshEntries()
-							return nil
+							return state.RefreshEntries(ctx)
 						})
 					}
 					return true
 				case "/reload":
-					if state.OnRefreshEntries != nil {
+					if state.RefreshEntries != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							state.OnRefreshEntries()
-							return nil
+							return state.RefreshEntries(ctx)
 						})
 					}
 					return true

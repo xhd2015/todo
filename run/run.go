@@ -179,12 +179,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 	}
 
-	appState.OnRefreshEntries = func() {
+	appState.RefreshEntries = func(ctx context.Context) error {
 		// Run refresh asynchronously to avoid blocking the UI
-		go func() {
-			refreshEntries()
-			p.Send(cursor.Blink()) // Trigger UI refresh
-		}()
+		refreshEntries()
+		return nil
 	}
 	appState.OnAdd = func(value string) {
 		value = strings.TrimSpace(value)
