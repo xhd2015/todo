@@ -134,7 +134,9 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 				}
 			}
 
-			state.OnAdd(s)
+			state.Enqueue(func(ctx context.Context) error {
+				return state.OnAdd(s)
+			})
 			return true
 		},
 		onSearchChange: func(query string) {

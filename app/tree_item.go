@@ -170,8 +170,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			case dom.KeyTypeSpace:
 				// toggle status
 				state.Enqueue(func(ctx context.Context) error {
-					state.OnToggle(item.Data.ID)
-					return nil
+					return state.OnToggle(item.Data.ID)
 				})
 			case dom.KeyTypeCtrlC:
 				if state.IsSearchActive {
@@ -284,7 +283,10 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							// Move the cutting item to be a child of the current item
 							if state.OnMove != nil {
 								state.Enqueue(func(ctx context.Context) error {
-									state.OnMove(state.CuttingEntryID, item.Data.ID)
+									err := state.OnMove(state.CuttingEntryID, item.Data.ID)
+									if err != nil {
+										return err
+									}
 									// Clear the cutting state
 									state.CuttingEntryID = 0
 									return nil
@@ -296,7 +298,10 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					// toggle history inclusion for children
 					if state.OnToggleVisibility != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							state.OnToggleVisibility(item.Data.ID)
+							err := state.OnToggleVisibility(item.Data.ID)
+							if err != nil {
+								return err
+							}
 							return nil
 						})
 					}

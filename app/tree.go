@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -96,7 +97,9 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 						state.SelectedEntryMode = SelectedEntryMode_Default
 						e.StopPropagation()
 					case dom.KeyTypeEnter:
-						state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
+						state.Enqueue(func(ctx context.Context) error {
+							return state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
+						})
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					}
 				},
@@ -160,14 +163,17 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					case dom.KeyTypeEnter:
 						if strings.TrimSpace(state.ChildInputState.Value) != "" {
-							id, err := state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
-							if err != nil {
-								// TODO: show error
-								panic(err)
-							}
-							state.ChildInputState.Value = ""
-							state.ChildInputState.CursorPosition = 0
-							state.Select(id)
+							state.Enqueue(func(ctx context.Context) error {
+								id, err := state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
+								if err != nil {
+									return err
+								}
+
+								state.ChildInputState.Value = ""
+								state.ChildInputState.CursorPosition = 0
+								state.Select(id)
+								return nil
+							})
 						}
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					}
@@ -183,13 +189,19 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 				CancelText:     "[Cancel]",
 				OnDelete: func() {
 					next := state.Entries.FindNextOrLast(item.Data.ID)
-					state.OnDelete(item.Data.ID)
-					var nextID int64
-					if next != nil {
-						nextID = next.Data.ID
-					}
-					state.Select(nextID)
-					state.SelectedEntryMode = SelectedEntryMode_Default
+					state.Enqueue(func(ctx context.Context) error {
+						err := state.OnDelete(item.Data.ID)
+						if err != nil {
+							return err
+						}
+						var nextID int64
+						if next != nil {
+							nextID = next.Data.ID
+						}
+						state.Select(nextID)
+						state.SelectedEntryMode = SelectedEntryMode_Default
+						return nil
+					})
 				},
 				OnCancel: func() {
 					state.SelectedEntryMode = SelectedEntryMode_Default
@@ -206,14 +218,24 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 		if state.SelectedEntryMode == SelectedEntryMode_ShowActions && isSelected {
 			HIGHLIGHTS := 5
 			items := []MenuItem{
-				{Text: "Promote", OnSelect: func() {
-					state.OnPromote(item.Data.ID)
-					state.SelectedEntryMode = SelectedEntryMode_Default
-				}},
-				{Text: "No Highlight", OnSelect: func() {
-					state.OnUpdateHighlight(item.Data.ID, 0)
-					state.SelectedEntryMode = SelectedEntryMode_Default
-				}},
+				{
+					Text: "Promote",
+					OnSelect: func() {
+						state.Enqueue(func(ctx context.Context) error {
+							err := state.OnPromote(item.Data.ID)
+							if err != nil {
+								return err
+							}
+							state.SelectedEntryMode = SelectedEntryMode_Default
+							return nil
+						})
+					}},
+				{
+					Text: "No Highlight",
+					OnSelect: func() {
+						state.OnUpdateHighlight(item.Data.ID, 0)
+						state.SelectedEntryMode = SelectedEntryMode_Default
+					}},
 			}
 			colors := []string{
 				colors.DARK_RED_1,

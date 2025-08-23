@@ -184,15 +184,19 @@ func Main(args []string) error {
 		refreshEntries()
 		return nil
 	}
-	appState.OnAdd = func(value string) {
+	appState.OnAdd = func(value string) error {
 		value = strings.TrimSpace(value)
 		if value == "" {
-			return
+			return nil
 		}
-		logManager.Add(models.LogEntry{
+		_, err := logManager.Add(models.LogEntry{
 			Text: value,
 		})
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
 	appState.OnAddChild = func(parentID int64, text string) (int64, error) {
 		text = strings.TrimSpace(text)
@@ -206,21 +210,28 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return id, err
 	}
-	appState.OnUpdate = func(id int64, text string) {
-		logManager.Update(id, models.LogEntryOptional{
+	appState.OnUpdate = func(id int64, text string) error {
+		err := logManager.Update(id, models.LogEntryOptional{
 			Text: &text,
 		})
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
-	appState.OnDelete = func(id int64) {
-		logManager.Delete(id)
+	appState.OnDelete = func(id int64) error {
+		err := logManager.Delete(id)
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
-	appState.OnToggle = func(id int64) {
+	appState.OnToggle = func(id int64) error {
 		foundEntry, err := logManager.Get(id)
 		if err != nil {
-			appState.StatusBar.Error = err.Error()
-			return
+			return err
 		}
 
 		done := !foundEntry.Data.Done
@@ -229,18 +240,26 @@ func Main(args []string) error {
 			now := time.Now()
 			doneTime = &now
 		}
-		logManager.Update(id, models.LogEntryOptional{
+		err = logManager.Update(id, models.LogEntryOptional{
 			Done:     &done,
 			DoneTime: &doneTime,
 		})
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
-	appState.OnPromote = func(id int64) {
+	appState.OnPromote = func(id int64) error {
 		currentTime := time.Now().UnixMilli()
-		logManager.Update(id, models.LogEntryOptional{
+		err := logManager.Update(id, models.LogEntryOptional{
 			AdjustedTopTime: &currentTime,
 		})
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
 	appState.OnUpdateHighlight = func(id int64, highlightLevel int) {
 		logManager.Update(id, models.LogEntryOptional{
@@ -248,9 +267,13 @@ func Main(args []string) error {
 		})
 		appState.Entries = logManager.Entries
 	}
-	appState.OnMove = func(id int64, newParentID int64) {
-		logManager.Move(id, newParentID)
+	appState.OnMove = func(id int64, newParentID int64) error {
+		err := logManager.Move(id, newParentID)
+		if err != nil {
+			return err
+		}
 		appState.Entries = logManager.Entries
+		return nil
 	}
 	appState.OnAddNote = func(id int64, text string) error {
 		err := logManager.AddNote(id, models.Note{
@@ -273,18 +296,28 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 	}
 	appState.OnShowTop = func(id int64, text string, duration time.Duration) {
+		// first make highlight level 5
+		highlightLevel := 5
+		err := logManager.Update(id, models.LogEntryOptional{
+			HighlightLevel: &highlightLevel,
+		})
+		if err != nil {
+			appState.StatusBar.Error = err.Error()
+			return
+		}
+		appState.Entries = logManager.Entries
+
 		// Send command to macOS app to show floating progress bar
-		err := macos.SendTopCommand(id, text, duration)
+		err = macos.SendTopCommand(id, text, duration)
 		if err != nil {
 			// Set error in status bar if command fails
 			appState.StatusBar.Error = fmt.Sprintf("Failed to show top: %v", err)
 		}
 	}
-	appState.OnToggleVisibility = func(id int64) {
+	appState.OnToggleVisibility = func(id int64) error {
 		targetEntry, err := logManager.Get(id)
 		if err != nil {
-			appState.StatusBar.Error = err.Error()
-			return
+			return err
 		}
 
 		// Toggle history inclusion state
@@ -294,14 +327,14 @@ func Main(args []string) error {
 		ctx := context.Background()
 		fullEntry, err := logManager.GetTree(ctx, id, targetEntry.IncludeHistory)
 		if err != nil {
-			appState.StatusBar.Error = fmt.Sprintf("Failed to load children: %v", err)
-			return
+			return fmt.Errorf("load children: %w", err)
 		}
 		// Replace with loaded children (with or without history based on setting)
 		targetEntry.Children = fullEntry.Children
 
 		// Update the app state entries
 		appState.Entries = logManager.Entries
+		return nil
 	}
 
 	model := &Model{

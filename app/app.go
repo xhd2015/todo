@@ -73,14 +73,14 @@ type State struct {
 
 	Refresh func()
 
-	OnAdd             func(string)
+	OnAdd             func(string) error
 	OnAddChild        func(parentID int64, text string) (int64, error)
-	OnUpdate          func(id int64, text string)
-	OnDelete          func(id int64)
-	OnToggle          func(id int64)
-	OnPromote         func(id int64)
+	OnUpdate          func(id int64, text string) error
+	OnDelete          func(id int64) error
+	OnToggle          func(id int64) error
+	OnPromote         func(id int64) error
 	OnUpdateHighlight func(id int64, highlightLevel int)
-	OnMove            func(id int64, newParentID int64)
+	OnMove            func(id int64, newParentID int64) error
 
 	OnAddNote    func(id int64, text string) error
 	OnUpdateNote func(entryID int64, noteID int64, text string)
@@ -88,7 +88,7 @@ type State struct {
 
 	RefreshEntries     func(ctx context.Context) error                     // Callback to refresh entries when ShowHistory changes
 	OnShowTop          func(id int64, text string, duration time.Duration) // Callback to show todo in macOS floating bar
-	OnToggleVisibility func(id int64)                                      // Callback to toggle visibility of all children including history
+	OnToggleVisibility func(id int64) error                                // Callback to toggle visibility of all children including history
 
 	LastCtrlC time.Time
 
