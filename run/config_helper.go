@@ -2,6 +2,8 @@ package run
 
 import "github.com/xhd2015/todo/data"
 
+const DEFAULT_STORAGE = "file"
+
 // StorageConfig holds storage-related configuration values
 type StorageConfig struct {
 	StorageType string
@@ -30,7 +32,7 @@ func ApplyConfigDefaults(storageType, serverAddr, serverToken string) (StorageCo
 
 	// Apply final default for storage type if still empty
 	if storageType == "" {
-		storageType = "sqlite"
+		storageType = DEFAULT_STORAGE
 	}
 
 	return StorageConfig{

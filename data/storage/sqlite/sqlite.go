@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -326,28 +327,51 @@ func (les *LogEntrySQLiteStore) Move(id int64, newParentID int64) error {
 	return nil
 }
 
-func (les *LogEntrySQLiteStore) LoadAll(rootID int64) ([]models.LogEntry, error) {
+func (les *LogEntrySQLiteStore) GetTree(ctx context.Context, id int64, includeHistory bool) ([]models.LogEntry, error) {
 	// Use recursive CTE to get all descendants of the root entry
-	query := `
-		WITH RECURSIVE descendants AS (
-			-- Base case: the root entry
+	var query string
+	if includeHistory {
+		query = `
+			WITH RECURSIVE descendants AS (
+				-- Base case: the root entry
+				SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+				FROM log_entries 
+				WHERE id = ?
+				
+				UNION ALL
+				
+				-- Recursive case: children of entries already in the result
+				SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.parent_id
+				FROM log_entries e
+				INNER JOIN descendants d ON e.parent_id = d.id
+			)
 			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
-			FROM log_entries 
-			WHERE id = ?
-			
-			UNION ALL
-			
-			-- Recursive case: children of entries already in the result
-			SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.parent_id
-			FROM log_entries e
-			INNER JOIN descendants d ON e.parent_id = d.id
-		)
-		SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
-		FROM descendants
-		ORDER BY parent_id, id
-	`
+			FROM descendants
+			ORDER BY parent_id, id
+		`
+	} else {
+		query = `
+			WITH RECURSIVE descendants AS (
+				-- Base case: the root entry
+				SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+				FROM log_entries 
+				WHERE id = ?
+				
+				UNION ALL
+				
+				-- Recursive case: children of entries already in the result (excluding done entries)
+				SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.parent_id
+				FROM log_entries e
+				INNER JOIN descendants d ON e.parent_id = d.id
+				WHERE NOT (e.done = 1 AND e.done_time IS NOT NULL)
+			)
+			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+			FROM descendants
+			ORDER BY parent_id, id
+		`
+	}
 
-	rows, err := les.db.Query(query, rootID)
+	rows, err := les.db.Query(query, id)
 	if err != nil {
 		return nil, err
 	}

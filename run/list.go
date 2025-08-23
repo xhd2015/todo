@@ -176,13 +176,13 @@ func applyToggleExpansion(logManager *data.LogManager, toggleID int64) error {
 		return err
 	}
 
-	// Toggle visibility state (simulate 'v' command)
-	targetEntry.ChildrenVisible = !targetEntry.ChildrenVisible
+	// Toggle history inclusion state (simulate 'v' command)
+	targetEntry.IncludeHistory = !targetEntry.IncludeHistory
 
-	if targetEntry.ChildrenVisible {
+	if targetEntry.IncludeHistory {
 		// Load all children including history
 		ctx := context.Background()
-		fullEntry, err := logManager.LoadAll(ctx, toggleID)
+		fullEntry, err := logManager.GetTree(ctx, toggleID, true)
 		if err != nil {
 			return fmt.Errorf("failed to load all children: %v", err)
 		}
@@ -190,17 +190,17 @@ func applyToggleExpansion(logManager *data.LogManager, toggleID int64) error {
 		// Replace the entry's children with the full loaded children
 		targetEntry.Children = fullEntry.Children
 		// Only the target entry should show the (*) indicator, not its children
-		// Children should have ChildrenVisible = false by default
+		// Children should have IncludeHistory = false by default
 	} else {
-		// When hiding, mark all children as not visible
-		var setChildrenNotVisible func(entry *models.LogEntryView)
-		setChildrenNotVisible = func(entry *models.LogEntryView) {
-			entry.ChildrenVisible = false
+		// When hiding history, mark all children as not including history
+		var setChildrenNoHistory func(entry *models.LogEntryView)
+		setChildrenNoHistory = func(entry *models.LogEntryView) {
+			entry.IncludeHistory = false
 			for _, child := range entry.Children {
-				setChildrenNotVisible(child)
+				setChildrenNoHistory(child)
 			}
 		}
-		setChildrenNotVisible(targetEntry)
+		setChildrenNoHistory(targetEntry)
 	}
 
 	return nil

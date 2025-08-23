@@ -120,6 +120,11 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.SelectedEntryMode = SelectedEntryMode_Default
 					return
 				}
+				// If search mode is active, clear search instead of entering detail page
+				if state.IsSearchActive {
+					state.ClearSearch()
+					return
+				}
 				state.Routes.Push(DetailRoute(item.Data.ID))
 
 				item.DetailPage.InputState.Value = ""
@@ -288,7 +293,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						}
 					}
 				case "v":
-					// toggle visibility of all children including history
+					// toggle history inclusion for children
 					if state.OnToggleVisibility != nil {
 						state.Enqueue(func(ctx context.Context) error {
 							state.OnToggleVisibility(item.Data.ID)
@@ -315,7 +320,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			})
 		}(),
 		func() *dom.Node {
-			if item.ChildrenVisible {
+			if item.IncludeHistory {
 				return dom.Text(" (*)", styles.Style{
 					Color: func() string {
 						if isSelected {

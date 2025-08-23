@@ -408,17 +408,17 @@ func (m *LogManager) Move(id int64, newParentID int64) error {
 	return nil
 }
 
-// LoadAll loads all descendants of a given root ID, including history entries
-// Returns a single LogEntryView containing all children including history children
-func (m *LogManager) LoadAll(ctx context.Context, rootID int64) (*models.LogEntryView, error) {
+// GetTree loads all descendants of a given root ID, with optional history entries
+// Returns a single LogEntryView containing all children
+func (m *LogManager) GetTree(ctx context.Context, id int64, includeHistory bool) (*models.LogEntryView, error) {
 	// Load all entries for the root and its descendants
-	entries, err := m.LogEntryService.LoadAll(rootID)
+	entries, err := m.LogEntryService.GetTree(ctx, id, includeHistory)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(entries) == 0 {
-		return nil, fmt.Errorf("entry with id %d not found", rootID)
+		return nil, fmt.Errorf("entry with id %d not found", id)
 	}
 
 	// Collect all entry IDs for batch note loading
@@ -454,7 +454,7 @@ func (m *LogManager) LoadAll(ctx context.Context, rootID int64) (*models.LogEntr
 					Value: entry.Text,
 				},
 			},
-			ChildrenVisible: false, // Default to not visible
+			IncludeHistory: false, // Default to not visible
 		}
 		entryMap[entry.ID] = entryView
 	}
@@ -462,7 +462,7 @@ func (m *LogManager) LoadAll(ctx context.Context, rootID int64) (*models.LogEntr
 	// Build parent-child relationships
 	var rootEntry *models.LogEntryView
 	for _, entryView := range entryMap {
-		if entryView.Data.ID == rootID {
+		if entryView.Data.ID == id {
 			rootEntry = entryView
 		}
 		if entryView.Data.ParentID != 0 {
@@ -473,7 +473,7 @@ func (m *LogManager) LoadAll(ctx context.Context, rootID int64) (*models.LogEntr
 	}
 
 	if rootEntry == nil {
-		return nil, fmt.Errorf("root entry with id %d not found", rootID)
+		return nil, fmt.Errorf("root entry with id %d not found", id)
 	}
 
 	// Sort children recursively

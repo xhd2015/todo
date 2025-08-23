@@ -21,9 +21,9 @@ func RenderItem(entry *models.LogEntryView, showID bool, renderStrikeThrough boo
 		text = strikethroughStyle.Render(text)
 	}
 
-	// Add visibility indicator if children are visible
+	// Add visibility indicator if history is included
 	visibilityIndicator := ""
-	if entry.ChildrenVisible {
+	if entry.IncludeHistory {
 		visibilityIndicator = " (*)"
 	}
 

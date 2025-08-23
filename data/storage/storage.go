@@ -1,6 +1,10 @@
 package storage
 
-import "github.com/xhd2015/todo/models"
+import (
+	"context"
+
+	"github.com/xhd2015/todo/models"
+)
 
 type LogEntryListOptions struct {
 	Filter         string
@@ -18,8 +22,8 @@ type LogEntryService interface {
 	Delete(id int64) error
 	Update(id int64, update models.LogEntryOptional) error
 	Move(id int64, newParentID int64) error
-	// LoadAll loads all descendants of a given root ID, including history entries
-	LoadAll(rootID int64) ([]models.LogEntry, error)
+	// GetTree loads all descendants of a given root ID, with optional history entries
+	GetTree(ctx context.Context, id int64, includeHistory bool) ([]models.LogEntry, error)
 }
 
 type LogNoteListOptions struct {

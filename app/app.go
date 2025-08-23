@@ -128,6 +128,22 @@ func (state *State) ClearSearch() {
 	state.Input.Reset()
 }
 
+// ResetAllChildrenVisibility resets all IncludeHistory states to false
+// This is used when /history is toggled off to reset all 'v' command states
+func (state *State) ResetAllChildrenVisibility() {
+	var resetVisibility func(entry *models.LogEntryView)
+	resetVisibility = func(entry *models.LogEntryView) {
+		entry.IncludeHistory = false
+		for _, child := range entry.Children {
+			resetVisibility(child)
+		}
+	}
+
+	for _, entry := range state.Entries {
+		resetVisibility(entry)
+	}
+}
+
 // IsDescendant checks if potentialChild is a descendant of potentialParent
 func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bool {
 	if potentialChild == potentialParent {

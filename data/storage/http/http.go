@@ -134,18 +134,19 @@ func (s *LogEntryHttpService) Move(id int64, newParentID int64) error {
 	return nil
 }
 
-func (s *LogEntryHttpService) LoadAll(rootID int64) ([]models.LogEntry, error) {
+func (s *LogEntryHttpService) GetTree(ctx context.Context, id int64, includeHistory bool) ([]models.LogEntry, error) {
 	var response struct {
 		Entries []models.LogEntry `json:"entries"`
 	}
 
 	params := struct {
-		ID int64 `json:"id"`
-	}{ID: rootID}
+		ID             int64 `json:"id"`
+		IncludeHistory bool  `json:"include_history"`
+	}{ID: id, IncludeHistory: includeHistory}
 
-	err := s.client.makeRequest("/entries/loadAll", params, &response)
+	err := s.client.makeRequest("/entries/getTree", params, &response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load all entries: %w", err)
+		return nil, fmt.Errorf("failed to get tree entries: %w", err)
 	}
 
 	return response.Entries, nil

@@ -49,8 +49,10 @@ struct todo_stickerApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private var activeFloatingWindows: [Int64: FloatingWindowController] = [:]
+    private var windowPositions: [Int64: NSPoint] = [:] // Track original positions
     private let windowHeight: CGFloat = 60
     private let windowSpacing: CGFloat = 10
+    private var nextWindowIndex: Int = 0 // Track next available position index
     
     // HTTP server instance (private, managed internally)
     private var commandMonitor: HTTPCommandMonitor
@@ -138,9 +140,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         // Create new floating window controller
         let windowController = FloatingWindowController()
         
-        // Calculate position for this window
-        let position = calculateWindowPosition(for: activeFloatingWindows.count)
+        // Calculate and store fixed position for this window
+        let position = calculateWindowPosition(for: nextWindowIndex)
         windowController.setPosition(position)
+        windowPositions[command.id] = position
+        nextWindowIndex += 1
         
         // Create content view with completion callback
         let contentView = FloatingContentView(
@@ -167,8 +171,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             windowController.hideFloatingBar()
         }
         
-        // Reposition remaining windows
-        repositionAllWindows()
+        // Remove stored position for this window
+        windowPositions.removeValue(forKey: commandId)
+        
+        // Note: We intentionally do NOT reposition remaining windows to avoid visual disruption
+        // Each window maintains its original position when others are dismissed
         
         print("DEBUG AppDelegate: Now showing \(activeFloatingWindows.count) floating windows")
     }
@@ -186,14 +193,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         return NSPoint(x: x, y: y)
     }
     
-    private func repositionAllWindows() {
-        let sortedWindows = activeFloatingWindows.sorted { $0.key < $1.key }
-        
-        for (index, (_, windowController)) in sortedWindows.enumerated() {
-            let newPosition = calculateWindowPosition(for: index)
-            windowController.setPosition(newPosition)
-        }
-    }
+
     
     func hideAllFloatingBars() {
         print("DEBUG AppDelegate: Hiding all floating windows")
@@ -202,5 +202,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             windowController.hideFloatingBar()
         }
         activeFloatingWindows.removeAll()
+        windowPositions.removeAll()
+        nextWindowIndex = 0 // Reset position index for future windows
     }
 }

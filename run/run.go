@@ -33,15 +33,15 @@ Available sub commands:
   config
 
 Options:
-  --storage <type>                 storage backend: sqlite (default), file, or server
+  --storage <type>                 storage backend: file (default), sqlite, or server
   --server-addr <addr>             server address (required when --storage=server)
   --server-token <token>           server authentication token (optional when --storage=server)
   --debug-log <file>               enable debug logging to specified file
   -h,--help                        show this help message
 
 Examples:
-  todo                             run with SQLite storage (default)
-  todo --storage=file              run with file storage (todos.json)
+  todo                             run with file storage (default)
+  todo --storage=sqlite            run with SQLite storage
   todo --storage=server --server-addr=http://localhost:8080  run with server storage
   todo --storage=server --server-addr=http://localhost:8080 --server-token=abc123  run with server storage and auth
   todo --debug-log debug.log       run with debug logging enabled
@@ -287,27 +287,18 @@ func Main(args []string) error {
 			return
 		}
 
-		// Toggle visibility state
-		targetEntry.ChildrenVisible = !targetEntry.ChildrenVisible
+		// Toggle history inclusion state
+		targetEntry.IncludeHistory = !targetEntry.IncludeHistory
 
-		if !targetEntry.ChildrenVisible {
-			// reload the whole list
-			refreshEntries()
-			return
-		}
-
-		// Load all children including history
+		// Load children based on history inclusion setting
 		ctx := context.Background()
-		fullEntry, err := logManager.LoadAll(ctx, id)
+		fullEntry, err := logManager.GetTree(ctx, id, targetEntry.IncludeHistory)
 		if err != nil {
-			appState.StatusBar.Error = fmt.Sprintf("Failed to load all children: %v", err)
+			appState.StatusBar.Error = fmt.Sprintf("Failed to load children: %v", err)
 			return
 		}
-
-		// Replace the entry's children with the full loaded children
+		// Replace with loaded children (with or without history based on setting)
 		targetEntry.Children = fullEntry.Children
-		// Only the target entry should show the (*) indicator, not its children
-		// Children should have ChildrenVisible = false by default
 
 		// Update the app state entries
 		appState.Entries = logManager.Entries

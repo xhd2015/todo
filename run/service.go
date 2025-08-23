@@ -39,15 +39,13 @@ func createLogServices(storageType string, serverAddr string, serverToken string
 			return nil, nil, err
 		}
 
-		filestoreStore, err := filestore.New(recordFile)
+		logEntryService, err = filestore.NewLogEntryService(recordFile)
 		if err != nil {
 			return nil, nil, err
 		}
-		logEntryService = &filestore.LogEntryFileStore{
-			FileStore: filestoreStore,
-		}
-		logNoteService = &filestore.LogNoteFileStore{
-			FileStore: filestoreStore,
+		logNoteService, err = filestore.NewLogNoteService(recordFile)
+		if err != nil {
+			return nil, nil, err
 		}
 	case "server":
 		if serverAddr == "" {

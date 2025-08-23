@@ -98,7 +98,14 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 				switch s {
 				case "/history":
 					// Toggle ShowHistory and refresh entries
+					wasShowingHistory := state.ShowHistory
 					state.ShowHistory = !state.ShowHistory
+
+					// If we're turning off history mode, reset all v states
+					if wasShowingHistory && !state.ShowHistory {
+						state.ResetAllChildrenVisibility()
+					}
+
 					if state.RefreshEntries != nil {
 						state.Enqueue(func(ctx context.Context) error {
 							return state.RefreshEntries(ctx)
