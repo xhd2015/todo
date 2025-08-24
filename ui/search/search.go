@@ -29,6 +29,7 @@ func FilterEntries(entries []*models.LogEntryView, fn func(entry *models.LogEntr
 }
 
 // FilterEntriesQuery filters entries and their children based on search query
+// Also searches within notes and highlights matched parts
 func FilterEntriesQuery(entries []*models.LogEntryView, query string) []*models.LogEntryView {
 	if query == "" {
 		return entries
@@ -37,23 +38,49 @@ func FilterEntriesQuery(entries []*models.LogEntryView, query string) []*models.
 	query = strings.ToLower(query)
 
 	return FilterEntries(entries, func(entry *models.LogEntryView) bool {
-		idx := strings.Index(strings.ToLower(entry.Data.Text), query)
+		// Search in entry text
+		entryTextIdx := strings.Index(strings.ToLower(entry.Data.Text), query)
 		var matchTexts []models.MatchText
-		if idx >= 0 {
+		if entryTextIdx >= 0 {
 			matchTexts = []models.MatchText{
 				{
-					Text: entry.Data.Text[:idx],
+					Text: entry.Data.Text[:entryTextIdx],
 				},
 				{
-					Text:  entry.Data.Text[idx : idx+len(query)],
+					Text:  entry.Data.Text[entryTextIdx : entryTextIdx+len(query)],
 					Match: true,
 				},
 				{
-					Text: entry.Data.Text[idx+len(query):],
+					Text: entry.Data.Text[entryTextIdx+len(query):],
 				},
 			}
 		}
 		entry.MatchTexts = matchTexts
-		return idx >= 0
+
+		// Search in notes
+		hasNoteMatch := false
+		for _, note := range entry.Notes {
+			noteTextIdx := strings.Index(strings.ToLower(note.Data.Text), query)
+			var noteMatchTexts []models.MatchText
+			if noteTextIdx >= 0 {
+				noteMatchTexts = []models.MatchText{
+					{
+						Text: note.Data.Text[:noteTextIdx],
+					},
+					{
+						Text:  note.Data.Text[noteTextIdx : noteTextIdx+len(query)],
+						Match: true,
+					},
+					{
+						Text: note.Data.Text[noteTextIdx+len(query):],
+					},
+				}
+				hasNoteMatch = true
+			}
+			note.MatchTexts = noteMatchTexts
+		}
+
+		// Return true if either entry text or any note matches
+		return entryTextIdx >= 0 || hasNoteMatch
 	})
 }

@@ -305,6 +305,17 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							return nil
 						})
 					}
+				case "n":
+					// toggle notes display for this entry and its subtree
+					if state.OnToggleNotesDisplay != nil {
+						state.Enqueue(func(ctx context.Context) error {
+							err := state.OnToggleNotesDisplay(item.Data.ID)
+							if err != nil {
+								return err
+							}
+							return nil
+						})
+					}
 				}
 			}
 		},
@@ -352,4 +363,107 @@ func TodoItem(props TodoItemProps) *dom.Node {
 		}(),
 	),
 	)
+}
+
+type TodoNoteProps struct {
+	Note       *models.NoteView
+	EntryID    int64 // ID of the entry that owns this note
+	Prefix     string
+	IsLast     bool
+	IsSelected bool
+	State      *State
+
+	OnNavigate func(e *dom.DOMEvent, direction int)
+}
+
+func TodoNote(props TodoNoteProps) *dom.Node {
+	note := props.Note
+	prefix := props.Prefix
+	isLast := props.IsLast
+	isSelected := props.IsSelected
+
+	// Build tree connector prefix using common utility
+	treePrefix := tree.BuildTreePrefix(prefix, isLast)
+
+	textColor := func() string {
+		if isSelected {
+			return colors.GREEN_SUCCESS
+		}
+		return colors.GREY_TEXT
+	}()
+
+	// Create text node with highlighting support
+	var noteTextNode *dom.Node
+	if props.State.IsSearchActive && len(note.MatchTexts) > 0 {
+		nodes := make([]*dom.Node, 0, len(note.MatchTexts))
+		for _, matchText := range note.MatchTexts {
+			if matchText.Text == "" {
+				continue
+			}
+			color := textColor
+			if matchText.Match {
+				color = colors.GREEN_SUCCESS
+			}
+			node := dom.Text(matchText.Text, styles.Style{
+				Color: color,
+			})
+			nodes = append(nodes, node)
+		}
+		noteTextNode = dom.Fragment(nodes...)
+	} else {
+		noteTextNode = dom.Text(note.Data.Text, styles.Style{
+			Color: textColor,
+		})
+	}
+
+	return dom.Li(dom.ListItemProps{
+		Focusable: dom.Focusable(true),
+		Selected:  isSelected,
+		Focused:   isSelected,
+		ItemPrefix: dom.String(func() string {
+			prefix := treePrefix
+			prefix += "📝 " // Note icon with extra space
+			return prefix
+		}()),
+		OnFocus: func() {
+			props.State.SelectNote(note.Data.ID, props.EntryID)
+		},
+		OnBlur: func() {
+			props.State.Deselect()
+		},
+		OnKeyDown: func(e *dom.DOMEvent) {
+			keyEvent := e.KeydownEvent
+			switch keyEvent.KeyType {
+			case dom.KeyTypeEnter:
+				// Navigate to the detail page of the entry that owns this note
+				props.State.Routes.Push(DetailRoute(props.EntryID))
+			case dom.KeyTypeUp:
+				if props.OnNavigate != nil {
+					props.OnNavigate(e, -1)
+					return
+				}
+			case dom.KeyTypeDown:
+				if props.OnNavigate != nil {
+					props.OnNavigate(e, 1)
+					return
+				}
+			default:
+				key := string(keyEvent.Runes)
+				switch key {
+				case "j":
+					// move down
+					if props.OnNavigate != nil {
+						props.OnNavigate(e, 1)
+						return
+					}
+				case "k":
+					// move up
+					if props.OnNavigate != nil {
+						props.OnNavigate(e, -1)
+						return
+					}
+				}
+			}
+		},
+	}, noteTextNode)
 }

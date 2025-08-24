@@ -8,7 +8,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 )
 
-func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
+func MainInput(state *State, fullEntries []WrapperEntry) *dom.Node {
 	placeholder := "add todo"
 	if state.IsSearchActive {
 		placeholder = "search todos (ESC to exit search)"
@@ -55,14 +55,22 @@ func MainInput(state *State, fullEntries []EntryWithDepth) *dom.Node {
 				if len(fullEntries) > 0 {
 					// first match
 					var foundID int64
-					for _, entry := range fullEntries {
-						if len(entry.Entry.MatchTexts) > 0 {
-							foundID = entry.Entry.Data.ID
-							break
+					for _, wrapperEntry := range fullEntries {
+						if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
+							if len(wrapperEntry.TreeEntry.Entry.MatchTexts) > 0 {
+								foundID = wrapperEntry.TreeEntry.Entry.Data.ID
+								break
+							}
 						}
 					}
 					if foundID == 0 {
-						foundID = fullEntries[0].Entry.Data.ID
+						// Find first log entry
+						for _, wrapperEntry := range fullEntries {
+							if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
+								foundID = wrapperEntry.TreeEntry.Entry.Data.ID
+								break
+							}
+						}
 					}
 					state.Select(foundID)
 					state.SelectFromSource = SelectedSource_Search

@@ -11,17 +11,38 @@ import (
 	"github.com/xhd2015/todo/models"
 )
 
-// EntryWithDepth represents a flattened entry with its prefix and position information
-type EntryWithDepth struct {
-	Entry  *models.LogEntryView
-	Prefix string
-	IsLast bool
+// TreeEntry represents a flattened log entry
+type TreeEntry struct {
+	Entry *models.LogEntryView
 }
 
-// RenderEntryTreeProps contains configuration for rendering the entry tree
-type RenderEntryTreeProps struct {
+// TreeNote represents a flattened note
+type TreeNote struct {
+	Note    *models.NoteView
+	EntryID int64 // ID of the entry that owns this note
+}
+
+// WrapperEntryType represents the type of entry in a WrapperEntry
+type WrapperEntryType string
+
+const (
+	WrapperEntryType_Log  WrapperEntryType = "Log"
+	WrapperEntryType_Note WrapperEntryType = "Note"
+)
+
+// WrapperEntry wraps either a log entry or a note for unified tree rendering
+type WrapperEntry struct {
+	Type      WrapperEntryType
+	Prefix    string
+	IsLast    bool
+	TreeEntry *TreeEntry
+	TreeNote  *TreeNote
+}
+
+// TreeProps contains configuration for rendering the entry tree
+type TreeProps struct {
 	State        *State // The application state
-	Entries      []EntryWithDepth
+	Entries      []WrapperEntry
 	EntriesAbove int
 	EntriesBelow int
 
@@ -32,8 +53,8 @@ type RenderEntryTreeProps struct {
 	OnGoToBottom func(e *dom.DOMEvent)
 }
 
-// RenderEntryTree builds and renders the tree of entries as DOM nodes
-func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
+// Tree builds and renders the tree of entries as DOM nodes
+func Tree(props TreeProps) []*dom.Node {
 	state := props.State
 
 	entriesAbove := props.EntriesAbove
@@ -60,217 +81,241 @@ func RenderEntryTree(props RenderEntryTreeProps) []*dom.Node {
 	selectedID := state.SelectedEntryID
 	if selectedID != 0 && len(entries) > 0 {
 		var hasSelected bool
-		for _, entryWithDepth := range entries {
-			if entryWithDepth.Entry.Data.ID == selectedID {
+		for _, wrapperEntry := range entries {
+			if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil && wrapperEntry.TreeEntry.Entry.Data.ID == selectedID {
 				hasSelected = true
 				break
 			}
 		}
-		if !hasSelected {
-			selectedID = entries[0].Entry.Data.ID
+		if !hasSelected && len(entries) > 0 && entries[0].Type == WrapperEntryType_Log && entries[0].TreeEntry != nil {
+			selectedID = entries[0].TreeEntry.Entry.Data.ID
 		}
 	}
 
-	for _, entryWithDepth := range entries {
-		item := entryWithDepth.Entry
-		isSelected := selectedID == item.Data.ID
+	for _, wrapperEntry := range entries {
+		if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
+			entry := wrapperEntry.TreeEntry
+			item := entry.Entry
+			isSelected := selectedID == item.Data.ID
 
-		if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
-			children = append(children, dom.Input(dom.InputProps{
-				Value:          state.SelectedInputState.Value,
-				Focused:        state.SelectedInputState.Focused,
-				CursorPosition: state.SelectedInputState.CursorPosition,
-				OnCursorMove: func(position int) {
-					state.SelectedInputState.CursorPosition = position
-				},
-				OnChange: func(value string) {
-					state.SelectedInputState.Value = value
-				},
-				OnKeyDown: func(e *dom.DOMEvent) {
-					keyEvent := e.KeydownEvent
-					switch keyEvent.KeyType {
-					case dom.KeyTypeUp, dom.KeyTypeDown:
-						e.PreventDefault()
-					case dom.KeyTypeEsc:
-						state.SelectedEntryMode = SelectedEntryMode_Default
-					case dom.KeyTypeCtrlC:
-						state.SelectedEntryMode = SelectedEntryMode_Default
-						e.StopPropagation()
-					case dom.KeyTypeEnter:
-						state.Enqueue(func(ctx context.Context) error {
-							return state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
-						})
-						state.SelectedEntryMode = SelectedEntryMode_Default
-					}
-				},
-			}))
-			continue
-		}
-
-		// Always render the TodoItem
-		children = append(children, TodoItem(TodoItemProps{
-			Item:       item,
-			Prefix:     entryWithDepth.Prefix,
-			IsLast:     entryWithDepth.IsLast,
-			IsSelected: isSelected,
-			State:      state,
-			OnNavigate: func(e *dom.DOMEvent, direction int) {
-				if props.OnNavigate != nil {
-					props.OnNavigate(e, item.Data.ID, direction)
-				}
-			},
-			OnGoToFirst: func(e *dom.DOMEvent) {
-				if props.OnGoToFirst != nil {
-					props.OnGoToFirst(e)
-				}
-			},
-			OnGoToLast: func(e *dom.DOMEvent) {
-				if props.OnGoToLast != nil {
-					props.OnGoToLast(e)
-				}
-			},
-			OnGoToTop: func(e *dom.DOMEvent) {
-				if props.OnGoToTop != nil {
-					props.OnGoToTop(e)
-				}
-			},
-			OnGoToBottom: func(e *dom.DOMEvent) {
-				if props.OnGoToBottom != nil {
-					props.OnGoToBottom(e)
-				}
-			},
-		}))
-
-		// Render child input box under the item when in AddingChild mode
-		if state.SelectedEntryMode == SelectedEntryMode_AddingChild && isSelected {
-			children = append(children, dom.Input(dom.InputProps{
-				Placeholder:    "add breakdown",
-				Value:          state.ChildInputState.Value,
-				Focused:        state.ChildInputState.Focused,
-				CursorPosition: state.ChildInputState.CursorPosition,
-				OnCursorMove: func(position int) {
-					state.ChildInputState.CursorPosition = position
-				},
-				OnChange: func(value string) {
-					state.ChildInputState.Value = value
-				},
-				OnKeyDown: func(e *dom.DOMEvent) {
-					keyEvent := e.KeydownEvent
-					switch keyEvent.KeyType {
-					case dom.KeyTypeUp, dom.KeyTypeDown:
-						e.PreventDefault()
-					case dom.KeyTypeEsc:
-						state.SelectedEntryMode = SelectedEntryMode_Default
-					case dom.KeyTypeEnter:
-						if strings.TrimSpace(state.ChildInputState.Value) != "" {
+			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
+				children = append(children, dom.Input(dom.InputProps{
+					Value:          state.SelectedInputState.Value,
+					Focused:        state.SelectedInputState.Focused,
+					CursorPosition: state.SelectedInputState.CursorPosition,
+					OnCursorMove: func(position int) {
+						state.SelectedInputState.CursorPosition = position
+					},
+					OnChange: func(value string) {
+						state.SelectedInputState.Value = value
+					},
+					OnKeyDown: func(e *dom.DOMEvent) {
+						keyEvent := e.KeydownEvent
+						switch keyEvent.KeyType {
+						case dom.KeyTypeUp, dom.KeyTypeDown:
+							e.PreventDefault()
+						case dom.KeyTypeEsc:
+							state.SelectedEntryMode = SelectedEntryMode_Default
+						case dom.KeyTypeCtrlC:
+							state.SelectedEntryMode = SelectedEntryMode_Default
+							e.StopPropagation()
+						case dom.KeyTypeEnter:
 							state.Enqueue(func(ctx context.Context) error {
-								id, err := state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
-								if err != nil {
-									return err
-								}
-
-								state.ChildInputState.Value = ""
-								state.ChildInputState.CursorPosition = 0
-								state.Select(id)
-								return nil
+								return state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
 							})
+							state.SelectedEntryMode = SelectedEntryMode_Default
 						}
-						state.SelectedEntryMode = SelectedEntryMode_Default
+					},
+				}))
+				continue
+			}
+
+			// Always render the TodoItem
+			children = append(children, TodoItem(TodoItemProps{
+				Item:       item,
+				Prefix:     wrapperEntry.Prefix,
+				IsLast:     wrapperEntry.IsLast,
+				IsSelected: isSelected,
+				State:      state,
+				OnNavigate: func(e *dom.DOMEvent, direction int) {
+					if props.OnNavigate != nil {
+						props.OnNavigate(e, item.Data.ID, direction)
+					}
+				},
+				OnGoToFirst: func(e *dom.DOMEvent) {
+					if props.OnGoToFirst != nil {
+						props.OnGoToFirst(e)
+					}
+				},
+				OnGoToLast: func(e *dom.DOMEvent) {
+					if props.OnGoToLast != nil {
+						props.OnGoToLast(e)
+					}
+				},
+				OnGoToTop: func(e *dom.DOMEvent) {
+					if props.OnGoToTop != nil {
+						props.OnGoToTop(e)
+					}
+				},
+				OnGoToBottom: func(e *dom.DOMEvent) {
+					if props.OnGoToBottom != nil {
+						props.OnGoToBottom(e)
 					}
 				},
 			}))
-		}
 
-		if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm && isSelected {
-			children = append(children, ConfirmDialog(ConfirmDialogProps{
-				SelectedButton: state.SelectedDeleteConfirmButton,
-				PromptText:     "Delete todo?",
-				DeleteText:     "[Delete]",
-				CancelText:     "[Cancel]",
-				OnDelete: func() {
-					next := state.Entries.FindNextOrLast(item.Data.ID)
-					state.Enqueue(func(ctx context.Context) error {
-						err := state.OnDelete(item.Data.ID)
-						if err != nil {
-							return err
-						}
-						var nextID int64
-						if next != nil {
-							nextID = next.Data.ID
-						}
-						state.Select(nextID)
-						state.SelectedEntryMode = SelectedEntryMode_Default
-						return nil
-					})
-				},
-				OnCancel: func() {
-					state.SelectedEntryMode = SelectedEntryMode_Default
-				},
-				OnNavigateRight: func() {
-					state.SelectedDeleteConfirmButton = 1
-				},
-				OnNavigateLeft: func() {
-					state.SelectedDeleteConfirmButton = 0
-				},
-			}))
-		}
+			// Render child input box under the item when in AddingChild mode
+			if state.SelectedEntryMode == SelectedEntryMode_AddingChild && isSelected {
+				children = append(children, dom.Input(dom.InputProps{
+					Placeholder:    "add breakdown",
+					Value:          state.ChildInputState.Value,
+					Focused:        state.ChildInputState.Focused,
+					CursorPosition: state.ChildInputState.CursorPosition,
+					OnCursorMove: func(position int) {
+						state.ChildInputState.CursorPosition = position
+					},
+					OnChange: func(value string) {
+						state.ChildInputState.Value = value
+					},
+					OnKeyDown: func(e *dom.DOMEvent) {
+						keyEvent := e.KeydownEvent
+						switch keyEvent.KeyType {
+						case dom.KeyTypeUp, dom.KeyTypeDown:
+							e.PreventDefault()
+						case dom.KeyTypeEsc:
+							state.SelectedEntryMode = SelectedEntryMode_Default
+						case dom.KeyTypeEnter:
+							if strings.TrimSpace(state.ChildInputState.Value) != "" {
+								state.Enqueue(func(ctx context.Context) error {
+									id, err := state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
+									if err != nil {
+										return err
+									}
 
-		if state.SelectedEntryMode == SelectedEntryMode_ShowActions && isSelected {
-			HIGHLIGHTS := 5
-			items := []MenuItem{
-				{
-					Text: "Promote",
-					OnSelect: func() {
+									state.ChildInputState.Value = ""
+									state.ChildInputState.CursorPosition = 0
+									state.Select(id)
+									return nil
+								})
+							}
+							state.SelectedEntryMode = SelectedEntryMode_Default
+						}
+					},
+				}))
+			}
+
+			if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm && isSelected {
+				children = append(children, ConfirmDialog(ConfirmDialogProps{
+					SelectedButton: state.SelectedDeleteConfirmButton,
+					PromptText:     "Delete todo?",
+					DeleteText:     "[Delete]",
+					CancelText:     "[Cancel]",
+					OnDelete: func() {
+						next := state.Entries.FindNextOrLast(item.Data.ID)
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnPromote(item.Data.ID)
+							err := state.OnDelete(item.Data.ID)
 							if err != nil {
 								return err
 							}
+							var nextID int64
+							if next != nil {
+								nextID = next.Data.ID
+							}
+							state.Select(nextID)
 							state.SelectedEntryMode = SelectedEntryMode_Default
 							return nil
 						})
-					}},
-				{
-					Text: "No Highlight",
-					OnSelect: func() {
-						state.OnUpdateHighlight(item.Data.ID, 0)
-						state.SelectedEntryMode = SelectedEntryMode_Default
-					}},
-			}
-			colors := []string{
-				colors.DARK_RED_1,
-				colors.DARK_RED_2,
-				colors.DARK_RED_3,
-				colors.DARK_RED_4,
-				colors.DARK_RED_5,
-			}
-			for i := 0; i < HIGHLIGHTS; i++ {
-				items = append(items, MenuItem{
-					Text:  fmt.Sprintf("Highlight-%d", i+1),
-					Color: colors[i],
-					OnSelect: func() {
-						state.OnUpdateHighlight(item.Data.ID, i+1)
+					},
+					OnCancel: func() {
 						state.SelectedEntryMode = SelectedEntryMode_Default
 					},
-				})
+					OnNavigateRight: func() {
+						state.SelectedDeleteConfirmButton = 1
+					},
+					OnNavigateLeft: func() {
+						state.SelectedDeleteConfirmButton = 0
+					},
+				}))
 			}
 
-			children = append(children, Menu(MenuProps{
-				Title:         "Promote",
-				SelectedIndex: state.SelectedActionIndex,
-				OnSelect: func(index int) {
-					state.SelectedActionIndex = index
-				},
-				Items: items,
-				OnKeyDown: func(e *dom.DOMEvent) {
-					keyEvent := e.KeydownEvent
-					switch keyEvent.KeyType {
-					case dom.KeyTypeUp, dom.KeyTypeDown:
-						e.PreventDefault()
+			if state.SelectedEntryMode == SelectedEntryMode_ShowActions && isSelected {
+				HIGHLIGHTS := 5
+				items := []MenuItem{
+					{
+						Text: "Promote",
+						OnSelect: func() {
+							state.Enqueue(func(ctx context.Context) error {
+								err := state.OnPromote(item.Data.ID)
+								if err != nil {
+									return err
+								}
+								state.SelectedEntryMode = SelectedEntryMode_Default
+								return nil
+							})
+						}},
+					{
+						Text: "No Highlight",
+						OnSelect: func() {
+							state.OnUpdateHighlight(item.Data.ID, 0)
+							state.SelectedEntryMode = SelectedEntryMode_Default
+						}},
+				}
+				colors := []string{
+					colors.DARK_RED_1,
+					colors.DARK_RED_2,
+					colors.DARK_RED_3,
+					colors.DARK_RED_4,
+					colors.DARK_RED_5,
+				}
+				for i := 0; i < HIGHLIGHTS; i++ {
+					items = append(items, MenuItem{
+						Text:  fmt.Sprintf("Highlight-%d", i+1),
+						Color: colors[i],
+						OnSelect: func() {
+							state.OnUpdateHighlight(item.Data.ID, i+1)
+							state.SelectedEntryMode = SelectedEntryMode_Default
+						},
+					})
+				}
+
+				children = append(children, Menu(MenuProps{
+					Title:         "Promote",
+					SelectedIndex: state.SelectedActionIndex,
+					OnSelect: func(index int) {
+						state.SelectedActionIndex = index
+					},
+					Items: items,
+					OnKeyDown: func(e *dom.DOMEvent) {
+						keyEvent := e.KeydownEvent
+						switch keyEvent.KeyType {
+						case dom.KeyTypeUp, dom.KeyTypeDown:
+							e.PreventDefault()
+						}
+					},
+					OnDismiss: func() {
+						state.SelectedEntryMode = SelectedEntryMode_Default
+					},
+				}))
+			}
+		} else if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil {
+			// Handle note rendering
+			noteEntry := wrapperEntry.TreeNote
+			note := noteEntry.Note
+			isSelected := state.SelectedNoteID == note.Data.ID
+
+			children = append(children, TodoNote(TodoNoteProps{
+				Note:       note,
+				EntryID:    noteEntry.EntryID,
+				Prefix:     wrapperEntry.Prefix,
+				IsLast:     wrapperEntry.IsLast,
+				IsSelected: isSelected,
+				State:      state,
+				OnNavigate: func(e *dom.DOMEvent, direction int) {
+					if props.OnNavigate != nil {
+						// For notes, we need to pass the note ID in a special way
+						// We'll use a negative ID to distinguish notes from entries
+						props.OnNavigate(e, -note.Data.ID, direction)
 					}
-				},
-				OnDismiss: func() {
-					state.SelectedEntryMode = SelectedEntryMode_Default
 				},
 			}))
 		}

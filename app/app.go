@@ -41,6 +41,8 @@ type State struct {
 
 	Input               models.InputState
 	SelectedEntryID     int64
+	SelectedNoteID      int64 // ID of the selected note (0 if none)
+	SelectedNoteEntryID int64 // ID of the entry that owns the selected note
 	SelectFromSource    SelectedSource
 	LastSelectedEntryID int64
 	SelectedEntryMode   SelectedEntryMode
@@ -86,9 +88,10 @@ type State struct {
 	OnUpdateNote func(entryID int64, noteID int64, text string)
 	OnDeleteNote func(entryID int64, noteID int64)
 
-	RefreshEntries     func(ctx context.Context) error                     // Callback to refresh entries when ShowHistory changes
-	OnShowTop          func(id int64, text string, duration time.Duration) // Callback to show todo in macOS floating bar
-	OnToggleVisibility func(id int64) error                                // Callback to toggle visibility of all children including history
+	RefreshEntries       func(ctx context.Context) error                     // Callback to refresh entries when ShowHistory changes
+	OnShowTop            func(id int64, text string, duration time.Duration) // Callback to show todo in macOS floating bar
+	OnToggleVisibility   func(id int64) error                                // Callback to toggle visibility of all children including history
+	OnToggleNotesDisplay func(id int64) error                                // Callback to toggle notes display for entry and its subtree
 
 	LastCtrlC time.Time
 
@@ -166,11 +169,22 @@ func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bo
 
 func (state *State) Deselect() {
 	state.SelectedEntryID = 0
+	state.SelectedNoteID = 0
+	state.SelectedNoteEntryID = 0
 	state.SelectFromSource = SelectedSource_Default
 }
 
 func (state *State) Select(id int64) {
 	state.SelectedEntryID = id
+	state.SelectedNoteID = 0
+	state.SelectedNoteEntryID = 0
+	state.SelectFromSource = SelectedSource_Default
+}
+
+func (state *State) SelectNote(noteID int64, entryID int64) {
+	state.SelectedEntryID = 0
+	state.SelectedNoteID = noteID
+	state.SelectedNoteEntryID = entryID
 	state.SelectFromSource = SelectedSource_Default
 }
 

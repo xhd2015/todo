@@ -26,7 +26,7 @@ type ExportNote struct {
 }
 
 // ExportVisibleEntries exports the currently visible entries to a JSON file
-func ExportVisibleEntries(filename string, visibleEntries []EntryWithDepth) error {
+func ExportVisibleEntries(filename string, visibleEntries []WrapperEntry) error {
 	// Validate filename
 	if strings.TrimSpace(filename) == "" {
 		return fmt.Errorf("filename cannot be empty")
@@ -43,22 +43,25 @@ func ExportVisibleEntries(filename string, visibleEntries []EntryWithDepth) erro
 	}
 
 	// Convert visible entries to export format
-	for _, entryWithDepth := range visibleEntries {
-		entry := entryWithDepth.Entry
+	for _, wrapperEntry := range visibleEntries {
+		if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
+			entry := wrapperEntry.TreeEntry.Entry
 
-		exportEntry := ExportEntry{
-			Data:  entry.Data,
-			Notes: make([]ExportNote, 0, len(entry.Notes)),
+			exportEntry := ExportEntry{
+				Data:  entry.Data,
+				Notes: make([]ExportNote, 0, len(entry.Notes)),
+			}
+
+			// Add notes
+			for _, note := range entry.Notes {
+				exportEntry.Notes = append(exportEntry.Notes, ExportNote{
+					Data: note.Data,
+				})
+			}
+
+			exportData.Entries = append(exportData.Entries, exportEntry)
 		}
-
-		// Add notes
-		for _, note := range entry.Notes {
-			exportEntry.Notes = append(exportEntry.Notes, ExportNote{
-				Data: note.Data,
-			})
-		}
-
-		exportData.Entries = append(exportData.Entries, exportEntry)
+		// Note: We could also export notes separately if needed in the future
 	}
 
 	// Marshal to JSON with indentation

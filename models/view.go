@@ -38,6 +38,10 @@ type LogEntryView struct {
 	// IncludeHistory controls whether history children are included
 	// When true, shows (*) indicator and displays all children including history
 	IncludeHistory bool
+
+	// IncludeNotes controls whether notes are shown for this entry and its subtree
+	// When true, shows notes for this entry and all its descendants
+	IncludeNotes bool
 }
 
 type MatchText struct {
@@ -48,7 +52,8 @@ type MatchText struct {
 type LogEntryViews []*LogEntryView
 
 type NoteView struct {
-	Data *Note
+	Data       *Note
+	MatchTexts []MatchText
 }
 
 type SelectedNoteMode int
