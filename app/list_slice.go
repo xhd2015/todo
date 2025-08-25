@@ -9,8 +9,8 @@ import (
 type ComputeResult struct {
 	EntriesAbove        int
 	EntriesBelow        int
-	VisibleEntries      []WrapperEntry
-	FullEntries         []WrapperEntry
+	VisibleEntries      []TreeEntry
+	FullEntries         []TreeEntry
 	EffectiveSliceStart int
 }
 
@@ -26,7 +26,7 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 		}
 	}
 
-	var flatEntries []WrapperEntry
+	var flatEntries []TreeEntry
 	for i, entry := range topLevelEntries {
 		isLast := i == len(topLevelEntries)-1
 		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false)
@@ -41,17 +41,17 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	}
 }
 
-func addEntryRecursive(flatEntries []WrapperEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool) []WrapperEntry {
+func addEntryRecursive(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool) []TreeEntry {
 	return addEntryRecursiveWithHistory(flatEntries, entry, depth, prefix, isLast, hasVerticalLine, entry.IncludeHistory, entry.IncludeNotes)
 }
 
-func addEntryRecursiveWithHistory(flatEntries []WrapperEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool) []WrapperEntry {
+func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool) []TreeEntry {
 	// Add this entry
-	flatEntries = append(flatEntries, WrapperEntry{
-		Type:   WrapperEntryType_Log,
+	flatEntries = append(flatEntries, TreeEntry{
+		Type:   TreeEntryType_Log,
 		Prefix: prefix,
 		IsLast: isLast,
-		TreeEntry: &TreeEntry{
+		Log: &TreeLog{
 			Entry: entry,
 		},
 	})
@@ -85,11 +85,11 @@ func addEntryRecursiveWithHistory(flatEntries []WrapperEntry, entry *models.LogE
 			}
 
 			isLastNote := i == len(notesToShow)-1 && len(entry.Children) == 0
-			flatEntries = append(flatEntries, WrapperEntry{
-				Type:   WrapperEntryType_Note,
+			flatEntries = append(flatEntries, TreeEntry{
+				Type:   TreeEntryType_Note,
 				Prefix: notePrefix,
 				IsLast: isLastNote,
-				TreeNote: &TreeNote{
+				Note: &TreeNote{
 					Note:    note,
 					EntryID: entry.Data.ID,
 				},
@@ -129,7 +129,7 @@ func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, que
 	return entriesToRender
 }
 
-func sliceEntries(entries []WrapperEntry, maxEntries int, sliceStart int, selectedID int64, selectedFromSource SelectedSource) (int, int, []WrapperEntry, int) {
+func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedID int64, selectedFromSource SelectedSource) (int, int, []TreeEntry, int) {
 	if maxEntries <= 0 || len(entries) <= maxEntries {
 		if sliceStart == -1 {
 			sliceStart = 0
@@ -137,7 +137,7 @@ func sliceEntries(entries []WrapperEntry, maxEntries int, sliceStart int, select
 		return 0, 0, entries, sliceStart
 	}
 	totalEntries := len(entries)
-	var visibleEntries []WrapperEntry
+	var visibleEntries []TreeEntry
 	// Ensure SliceStart is within bounds
 
 	// default to last N entries
@@ -162,7 +162,7 @@ func sliceEntries(entries []WrapperEntry, maxEntries int, sliceStart int, select
 	if selectedID != 0 {
 		var foundIndex int = -1
 		for i, wrapperEntry := range entries {
-			if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil && wrapperEntry.TreeEntry.Entry.Data.ID == selectedID {
+			if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil && wrapperEntry.Log.Entry.Data.ID == selectedID {
 				foundIndex = i
 				break
 			}

@@ -8,7 +8,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 )
 
-func MainInput(state *State, fullEntries []WrapperEntry) *dom.Node {
+func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 	placeholder := "add todo"
 	if state.IsSearchActive {
 		placeholder = "search todos (ESC to exit search)"
@@ -56,9 +56,9 @@ func MainInput(state *State, fullEntries []WrapperEntry) *dom.Node {
 					// first match
 					var foundID int64
 					for _, wrapperEntry := range fullEntries {
-						if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-							if len(wrapperEntry.TreeEntry.Entry.MatchTexts) > 0 {
-								foundID = wrapperEntry.TreeEntry.Entry.Data.ID
+						if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+							if len(wrapperEntry.Log.Entry.MatchTexts) > 0 {
+								foundID = wrapperEntry.Log.Entry.Data.ID
 								break
 							}
 						}
@@ -66,8 +66,8 @@ func MainInput(state *State, fullEntries []WrapperEntry) *dom.Node {
 					if foundID == 0 {
 						// Find first log entry
 						for _, wrapperEntry := range fullEntries {
-							if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-								foundID = wrapperEntry.TreeEntry.Entry.Data.ID
+							if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+								foundID = wrapperEntry.Log.Entry.Data.ID
 								break
 							}
 						}

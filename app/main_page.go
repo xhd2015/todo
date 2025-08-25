@@ -46,7 +46,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 				// Looking for a note (entryID is negative note ID)
 				noteID := -entryID
 				for i, wrapperEntry := range computeResult.FullEntries {
-					if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil && wrapperEntry.TreeNote.Note.Data.ID == noteID {
+					if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil && wrapperEntry.Note.Note.Data.ID == noteID {
 						index = i
 						break
 					}
@@ -54,7 +54,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			} else {
 				// Looking for a log entry
 				for i, wrapperEntry := range computeResult.FullEntries {
-					if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil && wrapperEntry.TreeEntry.Entry.Data.ID == entryID {
+					if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil && wrapperEntry.Log.Entry.Data.ID == entryID {
 						index = i
 						break
 					}
@@ -85,8 +85,8 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 
 				// Check if this item is selectable (both log entries and notes are selectable)
 				nextEntry := computeResult.FullEntries[next]
-				if (nextEntry.Type == WrapperEntryType_Log && nextEntry.TreeEntry != nil) ||
-					(nextEntry.Type == WrapperEntryType_Note && nextEntry.TreeNote != nil) {
+				if (nextEntry.Type == TreeEntryType_Log && nextEntry.Log != nil) ||
+					(nextEntry.Type == TreeEntryType_Note && nextEntry.Note != nil) {
 					break
 				}
 
@@ -112,10 +112,10 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 
 			// Select the appropriate item
 			nextItem := computeResult.FullEntries[next]
-			if nextItem.Type == WrapperEntryType_Log && nextItem.TreeEntry != nil {
-				state.Select(nextItem.TreeEntry.Entry.Data.ID)
-			} else if nextItem.Type == WrapperEntryType_Note && nextItem.TreeNote != nil {
-				state.SelectNote(nextItem.TreeNote.Note.Data.ID, nextItem.TreeNote.EntryID)
+			if nextItem.Type == TreeEntryType_Log && nextItem.Log != nil {
+				state.Select(nextItem.Log.Entry.Data.ID)
+			} else if nextItem.Type == TreeEntryType_Note && nextItem.Note != nil {
+				state.SelectNote(nextItem.Note.Note.Data.ID, nextItem.Note.EntryID)
 			}
 
 			state.SelectFromSource = SelectedSource_NavigateByKey
@@ -129,11 +129,11 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			state.SliceStart = 0
 			// Find first selectable item (log entry or note)
 			for _, wrapperEntry := range computeResult.FullEntries {
-				if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-					state.Select(wrapperEntry.TreeEntry.Entry.Data.ID)
+				if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+					state.Select(wrapperEntry.Log.Entry.Data.ID)
 					break
-				} else if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil {
-					state.SelectNote(wrapperEntry.TreeNote.Note.Data.ID, wrapperEntry.TreeNote.EntryID)
+				} else if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil {
+					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
 					break
 				}
 			}
@@ -143,11 +143,11 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			// Find last selectable item (log entry or note)
 			for i := len(computeResult.FullEntries) - 1; i >= 0; i-- {
 				wrapperEntry := computeResult.FullEntries[i]
-				if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-					state.Select(wrapperEntry.TreeEntry.Entry.Data.ID)
+				if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+					state.Select(wrapperEntry.Log.Entry.Data.ID)
 					break
-				} else if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil {
-					state.SelectNote(wrapperEntry.TreeNote.Note.Data.ID, wrapperEntry.TreeNote.EntryID)
+				} else if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil {
+					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
 					break
 				}
 			}
@@ -155,11 +155,11 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		OnGoToTop: func(e *dom.DOMEvent) {
 			// Find first selectable item in visible entries (log entry or note)
 			for _, wrapperEntry := range computeResult.VisibleEntries {
-				if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-					state.Select(wrapperEntry.TreeEntry.Entry.Data.ID)
+				if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+					state.Select(wrapperEntry.Log.Entry.Data.ID)
 					break
-				} else if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil {
-					state.SelectNote(wrapperEntry.TreeNote.Note.Data.ID, wrapperEntry.TreeNote.EntryID)
+				} else if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil {
+					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
 					break
 				}
 			}
@@ -168,11 +168,11 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			// Find last selectable item in visible entries (log entry or note)
 			for i := len(computeResult.VisibleEntries) - 1; i >= 0; i-- {
 				wrapperEntry := computeResult.VisibleEntries[i]
-				if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-					state.Select(wrapperEntry.TreeEntry.Entry.Data.ID)
+				if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+					state.Select(wrapperEntry.Log.Entry.Data.ID)
 					break
-				} else if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil {
-					state.SelectNote(wrapperEntry.TreeNote.Note.Data.ID, wrapperEntry.TreeNote.EntryID)
+				} else if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil {
+					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
 					break
 				}
 			}

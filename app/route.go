@@ -39,7 +39,7 @@ func (routes *Routes) Last() Route {
 }
 
 type MainPageState struct {
-	Entries []WrapperEntry
+	Entries []TreeEntry
 }
 
 type DetailPageState struct {

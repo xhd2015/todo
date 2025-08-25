@@ -11,8 +11,8 @@ import (
 	"github.com/xhd2015/todo/models"
 )
 
-// TreeEntry represents a flattened log entry
-type TreeEntry struct {
+// TreeLog represents a flattened log entry
+type TreeLog struct {
 	Entry *models.LogEntryView
 }
 
@@ -22,27 +22,38 @@ type TreeNote struct {
 	EntryID int64 // ID of the entry that owns this note
 }
 
-// WrapperEntryType represents the type of entry in a WrapperEntry
-type WrapperEntryType string
+// TreeEntryType represents the type of entry in a TreeEntry
+type TreeEntryType string
 
 const (
-	WrapperEntryType_Log  WrapperEntryType = "Log"
-	WrapperEntryType_Note WrapperEntryType = "Note"
+	TreeEntryType_Log  TreeEntryType = "Log"
+	TreeEntryType_Note TreeEntryType = "Note"
 )
 
-// WrapperEntry wraps either a log entry or a note for unified tree rendering
-type WrapperEntry struct {
-	Type      WrapperEntryType
-	Prefix    string
-	IsLast    bool
-	TreeEntry *TreeEntry
-	TreeNote  *TreeNote
+// TreeEntry wraps either a log entry or a note for unified tree rendering
+type TreeEntry struct {
+	Type   TreeEntryType
+	Prefix string
+	IsLast bool
+
+	Log  *TreeLog
+	Note *TreeNote
+}
+
+func (c *TreeEntry) Text() string {
+	switch c.Type {
+	case TreeEntryType_Log:
+		return c.Log.Entry.Data.Text
+	case TreeEntryType_Note:
+		return c.Note.Note.Data.Text
+	}
+	return ""
 }
 
 // TreeProps contains configuration for rendering the entry tree
 type TreeProps struct {
 	State        *State // The application state
-	Entries      []WrapperEntry
+	Entries      []TreeEntry
 	EntriesAbove int
 	EntriesBelow int
 
@@ -82,20 +93,20 @@ func Tree(props TreeProps) []*dom.Node {
 	if selectedID != 0 && len(entries) > 0 {
 		var hasSelected bool
 		for _, wrapperEntry := range entries {
-			if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil && wrapperEntry.TreeEntry.Entry.Data.ID == selectedID {
+			if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil && wrapperEntry.Log.Entry.Data.ID == selectedID {
 				hasSelected = true
 				break
 			}
 		}
-		if !hasSelected && len(entries) > 0 && entries[0].Type == WrapperEntryType_Log && entries[0].TreeEntry != nil {
-			selectedID = entries[0].TreeEntry.Entry.Data.ID
+		if !hasSelected && len(entries) > 0 && entries[0].Type == TreeEntryType_Log && entries[0].Log != nil {
+			selectedID = entries[0].Log.Entry.Data.ID
 		}
 	}
 
-	for _, wrapperEntry := range entries {
-		if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-			entry := wrapperEntry.TreeEntry
-			item := entry.Entry
+	for _, entry := range entries {
+		if entry.Type == TreeEntryType_Log && entry.Log != nil {
+			logEntry := entry.Log
+			item := logEntry.Entry
 			isSelected := selectedID == item.Data.ID
 
 			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
@@ -133,8 +144,8 @@ func Tree(props TreeProps) []*dom.Node {
 			// Always render the TodoItem
 			children = append(children, TodoItem(TodoItemProps{
 				Item:       item,
-				Prefix:     wrapperEntry.Prefix,
-				IsLast:     wrapperEntry.IsLast,
+				Prefix:     entry.Prefix,
+				IsLast:     entry.IsLast,
 				IsSelected: isSelected,
 				State:      state,
 				OnNavigate: func(e *dom.DOMEvent, direction int) {
@@ -297,17 +308,17 @@ func Tree(props TreeProps) []*dom.Node {
 					},
 				}))
 			}
-		} else if wrapperEntry.Type == WrapperEntryType_Note && wrapperEntry.TreeNote != nil {
+		} else if entry.Type == TreeEntryType_Note && entry.Note != nil {
 			// Handle note rendering
-			noteEntry := wrapperEntry.TreeNote
+			noteEntry := entry.Note
 			note := noteEntry.Note
 			isSelected := state.SelectedNoteID == note.Data.ID
 
 			children = append(children, TodoNote(TodoNoteProps{
 				Note:       note,
 				EntryID:    noteEntry.EntryID,
-				Prefix:     wrapperEntry.Prefix,
-				IsLast:     wrapperEntry.IsLast,
+				Prefix:     entry.Prefix,
+				IsLast:     entry.IsLast,
 				IsSelected: isSelected,
 				State:      state,
 				OnNavigate: func(e *dom.DOMEvent, direction int) {

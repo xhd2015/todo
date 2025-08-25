@@ -26,7 +26,7 @@ type ExportNote struct {
 }
 
 // ExportVisibleEntries exports the currently visible entries to a JSON file
-func ExportVisibleEntries(filename string, visibleEntries []WrapperEntry) error {
+func ExportVisibleEntries(filename string, visibleEntries []TreeEntry) error {
 	// Validate filename
 	if strings.TrimSpace(filename) == "" {
 		return fmt.Errorf("filename cannot be empty")
@@ -44,8 +44,8 @@ func ExportVisibleEntries(filename string, visibleEntries []WrapperEntry) error 
 
 	// Convert visible entries to export format
 	for _, wrapperEntry := range visibleEntries {
-		if wrapperEntry.Type == WrapperEntryType_Log && wrapperEntry.TreeEntry != nil {
-			entry := wrapperEntry.TreeEntry.Entry
+		if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
+			entry := wrapperEntry.Log.Entry
 
 			exportEntry := ExportEntry{
 				Data:  entry.Data,
