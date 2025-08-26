@@ -14,7 +14,7 @@ type ComputeResult struct {
 	EffectiveSliceStart int
 }
 
-func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, selectedSource SelectedSource, zenMode bool, searchActive bool, query string) ComputeResult {
+func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, selectedSource SelectedSource, zenMode bool, searchActive bool, query string, showNotes bool) ComputeResult {
 	// Filter entries based on search query if active
 	entriesToRender := applyFilter(entries, zenMode, searchActive, query)
 
@@ -29,7 +29,7 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	var flatEntries []TreeEntry
 	for i, entry := range topLevelEntries {
 		isLast := i == len(topLevelEntries)-1
-		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false)
+		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false, showNotes)
 	}
 	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart, selectedID, selectedSource)
 	return ComputeResult{
@@ -41,11 +41,14 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	}
 }
 
-func addEntryRecursive(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool) []TreeEntry {
-	return addEntryRecursiveWithHistory(flatEntries, entry, depth, prefix, isLast, hasVerticalLine, entry.IncludeHistory, entry.IncludeNotes)
+func addEntryRecursive(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, globalShowNotes bool) []TreeEntry {
+	// Implement 'v implies n': if IncludeHistory is true, also show notes
+	// Also show notes if global notes mode is enabled
+	showNotes := entry.IncludeNotes || entry.IncludeHistory || globalShowNotes
+	return addEntryRecursiveWithHistory(flatEntries, entry, depth, prefix, isLast, hasVerticalLine, entry.IncludeHistory, showNotes, globalShowNotes)
 }
 
-func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool) []TreeEntry {
+func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool, globalShowNotes bool) []TreeEntry {
 	// Add this entry
 	flatEntries = append(flatEntries, TreeEntry{
 		Type:   TreeEntryType_Log,
@@ -104,9 +107,11 @@ func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntr
 		childPrefix, childHasVerticalLine := tree.CalculateChildPrefix(prefix, isLast, hasVerticalLine)
 		// Pass down showNotesInSubtree if current entry has IncludeHistory, or inherit from parent
 		childShowHistory := showNotesInSubtree || child.IncludeHistory
-		// Pass down showNotesFromParent if current entry has IncludeNotes, or inherit from parent
-		childShowNotes := showNotesFromParent || entry.IncludeNotes
-		flatEntries = addEntryRecursiveWithHistory(flatEntries, child, depth+1, childPrefix, isLastChild, childHasVerticalLine, childShowHistory, childShowNotes)
+		// Pass down showNotesFromParent if current entry has IncludeNotes or IncludeHistory, or inherit from parent
+		// Implement 'v implies n': if parent has IncludeHistory, also show notes for children
+		// Also show notes if global notes mode is enabled
+		childShowNotes := showNotesFromParent || entry.IncludeNotes || entry.IncludeHistory || globalShowNotes
+		flatEntries = addEntryRecursiveWithHistory(flatEntries, child, depth+1, childPrefix, isLastChild, childHasVerticalLine, childShowHistory, childShowNotes, globalShowNotes)
 	}
 
 	return flatEntries

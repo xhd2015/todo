@@ -21,7 +21,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		maxEntries = 5
 	}
 
-	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.SelectFromSource, state.ZenMode, state.IsSearchActive, state.SearchQuery)
+	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.SelectFromSource, state.ZenMode, state.IsSearchActive, state.SearchQuery, state.ShowNotes)
 
 	itemsHeight := len(computeResult.VisibleEntries)
 	if computeResult.EntriesAbove > 0 {
@@ -37,16 +37,14 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		EntriesAbove: computeResult.EntriesAbove,
 		EntriesBelow: computeResult.EntriesBelow,
 		Entries:      computeResult.VisibleEntries,
-		OnNavigate: func(e *dom.DOMEvent, entryID int64, direction int) {
+		OnNavigate: func(e *dom.DOMEvent, entryType TreeEntryType, entryID int64, direction int) {
 			// find index of current selected item (entry or note)
 			index := -1
-			isNoteSelected := entryID < 0 // negative IDs indicate notes
 
-			if isNoteSelected {
-				// Looking for a note (entryID is negative note ID)
-				noteID := -entryID
+			if entryType == TreeEntryType_Note {
+				// Looking for a note
 				for i, wrapperEntry := range computeResult.FullEntries {
-					if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil && wrapperEntry.Note.Note.Data.ID == noteID {
+					if wrapperEntry.Type == TreeEntryType_Note && wrapperEntry.Note != nil && wrapperEntry.Note.Note.Data.ID == entryID {
 						index = i
 						break
 					}
@@ -175,6 +173,19 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
 					break
 				}
+			}
+		},
+		OnEnter: func(e *dom.DOMEvent, entryType TreeEntryType, entryID int64) {
+			// Navigate to the detail page of the entry that owns this note
+			// entryType indicates whether this came from a log entry or note
+			state.Routes.Push(DetailRoute(entryID))
+
+			// Reset the input state for the target entry (same as regular todo items)
+			targetEntry := state.Entries.Get(entryID)
+			if targetEntry != nil {
+				targetEntry.DetailPage.InputState.Value = ""
+				targetEntry.DetailPage.InputState.Focused = true
+				targetEntry.DetailPage.InputState.CursorPosition = 0
 			}
 		},
 	})

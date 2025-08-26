@@ -21,6 +21,7 @@ type TodoItemProps struct {
 	State      *State
 
 	OnNavigate func(e *dom.DOMEvent, direction int)
+	OnEnter    func(e *dom.DOMEvent, entryID int64)
 	// gg
 	OnGoToFirst func(e *dom.DOMEvent)
 	// G
@@ -125,11 +126,9 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.ClearSearch()
 					return
 				}
-				state.Routes.Push(DetailRoute(item.Data.ID))
-
-				item.DetailPage.InputState.Value = ""
-				item.DetailPage.InputState.Focused = true
-				item.DetailPage.InputState.CursorPosition = 0
+				if props.OnEnter != nil {
+					props.OnEnter(e, item.Data.ID)
+				}
 			case dom.KeyTypeEsc:
 				if state.IsSearchActive {
 					state.ClearSearch()
@@ -295,7 +294,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						}
 					}
 				case "v":
-					// toggle history inclusion for children
+					// toggle history inclusion for children (also enables notes)
 					if state.OnToggleVisibility != nil {
 						state.Enqueue(func(ctx context.Context) error {
 							err := state.OnToggleVisibility(item.Data.ID)
@@ -374,6 +373,7 @@ type TodoNoteProps struct {
 	State      *State
 
 	OnNavigate func(e *dom.DOMEvent, direction int)
+	OnEnter    func(e *dom.DOMEvent, entryID int64)
 }
 
 func TodoNote(props TodoNoteProps) *dom.Node {
@@ -435,8 +435,9 @@ func TodoNote(props TodoNoteProps) *dom.Node {
 			keyEvent := e.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEnter:
-				// Navigate to the detail page of the entry that owns this note
-				props.State.Routes.Push(DetailRoute(props.EntryID))
+				if props.OnEnter != nil {
+					props.OnEnter(e, props.EntryID)
+				}
 			case dom.KeyTypeUp:
 				if props.OnNavigate != nil {
 					props.OnNavigate(e, -1)

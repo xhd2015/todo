@@ -37,12 +37,12 @@ type LogEntryView struct {
 
 	// IncludeHistory controls whether history children are included
 	// When true, shows (*) indicator and displays all children including history
-	// toggled by 'v' command
+	// toggled by 'v' command (also implies notes display in UI rendering)
 	IncludeHistory bool
 
 	// IncludeNotes controls whether notes are shown for this entry and its subtree
 	// When true, shows notes for this entry and all its descendants
-	// toggled by 'n' command
+	// toggled by 'n' command (UI also shows notes when IncludeHistory is true)
 	IncludeNotes bool
 }
 

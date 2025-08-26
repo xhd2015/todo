@@ -120,7 +120,11 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 						})
 					}
 					return true
-				case "/reload":
+				case "/note", "/notes":
+					// Toggle ShowNotes (global notes mode)
+					state.ShowNotes = !state.ShowNotes
+					return true
+				case "/reload", "/refresh":
 					if state.RefreshEntries != nil {
 						state.Enqueue(func(ctx context.Context) error {
 							return state.RefreshEntries(ctx)

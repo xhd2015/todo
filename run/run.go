@@ -336,6 +336,19 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
+	appState.OnToggleNotesDisplay = func(id int64) error {
+		targetEntry, err := logManager.Get(id)
+		if err != nil {
+			return err
+		}
+
+		// Toggle notes display for this entry
+		targetEntry.IncludeNotes = !targetEntry.IncludeNotes
+
+		// Update the app state entries
+		appState.Entries = logManager.Entries
+		return nil
+	}
 
 	model := &Model{
 		app: charm.NewCharmApp(&appState, app.App),

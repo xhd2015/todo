@@ -60,6 +60,7 @@ type State struct {
 	Routes Routes
 
 	ShowHistory bool // Whether to show historical (done) todos from before today
+	ShowNotes   bool // Whether to show all notes globally
 
 	// Search functionality
 	SearchQuery    string // Current search query (without the ? prefix)
@@ -308,22 +309,34 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}
 
 			// Spacer to push modes to the right
-			hasRightContent := state.ZenMode || state.ShowHistory
+			hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes
 			if hasRightContent {
 				nodes = append(nodes, dom.Spacer())
 
 				// Right side: modes
+				var modeCount int
 				if state.ZenMode {
 					nodes = append(nodes, dom.Text("zen", styles.Style{
 						Bold:  true,
 						Color: colors.GREY_TEXT,
 					}))
+					modeCount++
 				}
 				if state.ShowHistory {
-					if state.ZenMode {
+					if modeCount > 0 {
 						nodes = append(nodes, dom.Text(" ", styles.Style{}))
 					}
 					nodes = append(nodes, dom.Text("history", styles.Style{
+						Bold:  true,
+						Color: colors.GREY_TEXT,
+					}))
+					modeCount++
+				}
+				if state.ShowNotes {
+					if modeCount > 0 {
+						nodes = append(nodes, dom.Text(" ", styles.Style{}))
+					}
+					nodes = append(nodes, dom.Text("notes", styles.Style{
 						Bold:  true,
 						Color: colors.GREY_TEXT,
 					}))

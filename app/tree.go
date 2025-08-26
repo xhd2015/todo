@@ -57,7 +57,8 @@ type TreeProps struct {
 	EntriesAbove int
 	EntriesBelow int
 
-	OnNavigate   func(e *dom.DOMEvent, entryID int64, direction int)
+	OnNavigate   func(e *dom.DOMEvent, entryType TreeEntryType, entryID int64, direction int)
+	OnEnter      func(e *dom.DOMEvent, entryType TreeEntryType, entryID int64)
 	OnGoToFirst  func(e *dom.DOMEvent)
 	OnGoToLast   func(e *dom.DOMEvent)
 	OnGoToTop    func(e *dom.DOMEvent)
@@ -150,7 +151,7 @@ func Tree(props TreeProps) []*dom.Node {
 				State:      state,
 				OnNavigate: func(e *dom.DOMEvent, direction int) {
 					if props.OnNavigate != nil {
-						props.OnNavigate(e, item.Data.ID, direction)
+						props.OnNavigate(e, TreeEntryType_Log, item.Data.ID, direction)
 					}
 				},
 				OnGoToFirst: func(e *dom.DOMEvent) {
@@ -171,6 +172,11 @@ func Tree(props TreeProps) []*dom.Node {
 				OnGoToBottom: func(e *dom.DOMEvent) {
 					if props.OnGoToBottom != nil {
 						props.OnGoToBottom(e)
+					}
+				},
+				OnEnter: func(e *dom.DOMEvent, entryID int64) {
+					if props.OnEnter != nil {
+						props.OnEnter(e, TreeEntryType_Log, entryID)
 					}
 				},
 			}))
@@ -323,9 +329,12 @@ func Tree(props TreeProps) []*dom.Node {
 				State:      state,
 				OnNavigate: func(e *dom.DOMEvent, direction int) {
 					if props.OnNavigate != nil {
-						// For notes, we need to pass the note ID in a special way
-						// We'll use a negative ID to distinguish notes from entries
-						props.OnNavigate(e, -note.Data.ID, direction)
+						props.OnNavigate(e, TreeEntryType_Note, note.Data.ID, direction)
+					}
+				},
+				OnEnter: func(e *dom.DOMEvent, entryID int64) {
+					if props.OnEnter != nil {
+						props.OnEnter(e, TreeEntryType_Note, entryID)
 					}
 				},
 			}))
