@@ -22,6 +22,11 @@ struct ServerInfo {
     let receivedCommands: [TopCommand]
 }
 
+struct FloatingWindowInfo {
+    let controller: FloatingWindowController
+    let command: TopCommand
+}
+
 @main
 struct todo_stickerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -48,11 +53,9 @@ struct todo_stickerApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
-    private var activeFloatingWindows: [Int64: FloatingWindowController] = [:]
-    private var windowPositions: [Int64: NSPoint] = [:] // Track original positions
+    private var floatingWindows: [UUID: FloatingWindowInfo] = [:]
     private let windowHeight: CGFloat = 60
     private let windowSpacing: CGFloat = 10
-    private var nextWindowIndex: Int = 0 // Track next available position index
     
     // HTTP server instance (private, managed internally)
     private var commandMonitor: HTTPCommandMonitor
@@ -137,50 +140,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     private func addFloatingWindow(for command: TopCommand) {
         print("DEBUG AppDelegate: Adding floating window for command - ID: \(command.id), Text: \(command.text)")
         
+        // Generate unique window ID to handle duplicates
+        let windowId = UUID()
+        
         // Create new floating window controller
         let windowController = FloatingWindowController()
         
-        // Calculate and store fixed position for this window
-        let position = calculateWindowPosition(for: nextWindowIndex)
+        // Calculate position based on existing windows and screen bounds
+        let position = calculateOptimalWindowPosition()
         windowController.setPosition(position)
-        windowPositions[command.id] = position
-        nextWindowIndex += 1
         
         // Create content view with completion callback
         let contentView = FloatingContentView(
             command: command,
             queueInfo: nil, // No queue info needed for simultaneous display
             onComplete: { [weak self] in
-                self?.removeFloatingWindow(for: command.id)
+                self?.removeFloatingWindow(for: windowId)
             }
         )
         let hostingView = NSHostingView(rootView: contentView)
         windowController.window?.contentView = hostingView
         
-        // Store and show the window
-        activeFloatingWindows[command.id] = windowController
+        // Store window info and show the window
+        let windowInfo = FloatingWindowInfo(
+            controller: windowController,
+            command: command
+        )
+        floatingWindows[windowId] = windowInfo
         windowController.showFloatingBar()
         
-        print("DEBUG AppDelegate: Now showing \(activeFloatingWindows.count) floating windows")
+        print("DEBUG AppDelegate: Now showing \(floatingWindows.count) floating windows")
     }
     
-    private func removeFloatingWindow(for commandId: Int64) {
-        print("DEBUG AppDelegate: Removing floating window for command ID: \(commandId)")
+    private func removeFloatingWindow(for windowId: UUID) {
+        print("DEBUG AppDelegate: Removing floating window for window ID: \(windowId)")
         
-        if let windowController = activeFloatingWindows.removeValue(forKey: commandId) {
-            windowController.hideFloatingBar()
+        if let windowInfo = floatingWindows.removeValue(forKey: windowId) {
+            windowInfo.controller.hideFloatingBar()
         }
-        
-        // Remove stored position for this window
-        windowPositions.removeValue(forKey: commandId)
         
         // Note: We intentionally do NOT reposition remaining windows to avoid visual disruption
         // Each window maintains its original position when others are dismissed
         
-        print("DEBUG AppDelegate: Now showing \(activeFloatingWindows.count) floating windows")
+        print("DEBUG AppDelegate: Now showing \(floatingWindows.count) floating windows")
     }
     
-    private func calculateWindowPosition(for index: Int) -> NSPoint {
+    private func calculateOptimalWindowPosition() -> NSPoint {
         guard let screen = NSScreen.main else {
             return NSPoint(x: 100, y: 100)
         }
@@ -188,9 +193,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         let screenFrame = screen.visibleFrame
         let windowWidth: CGFloat = 400
         let x = screenFrame.midX - windowWidth / 2
-        let y = screenFrame.maxY - 20 - CGFloat(index) * (windowHeight + windowSpacing)
         
-        return NSPoint(x: x, y: y)
+        // Find the lowest Y position among existing windows
+        var lowestY = screenFrame.maxY - 20 // Start from top with margin
+        
+        if !floatingWindows.isEmpty {
+            // Get current positions of all windows (not stored positions)
+            let currentPositions = floatingWindows.values.compactMap { windowInfo -> NSPoint? in
+                return windowInfo.controller.window?.frame.origin
+            }
+            
+            if !currentPositions.isEmpty {
+                // Find the most bottom window based on current positions
+                let bottomMostY = currentPositions.min { $0.y < $1.y }?.y ?? lowestY
+                lowestY = bottomMostY - windowHeight - windowSpacing
+            }
+        }
+        
+        // Ensure the window stays within screen bounds
+        let minY = screenFrame.minY + 20 // Bottom margin
+        let maxY = screenFrame.maxY - windowHeight - 20 // Top margin
+        
+        // Adjust Y to ensure full visibility
+        var finalY = lowestY
+        if finalY < minY {
+            // If it would go below screen, place it at the bottom with margin
+            finalY = minY
+        } else if finalY > maxY {
+            // If it would go above screen, place it at the top with margin
+            finalY = maxY
+        }
+        
+        // Ensure X position keeps window fully visible
+        let minX = screenFrame.minX + 10 // Left margin
+        let maxX = screenFrame.maxX - windowWidth - 10 // Right margin
+        let finalX = max(minX, min(maxX, x))
+        
+        return NSPoint(x: finalX, y: finalY)
     }
     
 
@@ -198,11 +237,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func hideAllFloatingBars() {
         print("DEBUG AppDelegate: Hiding all floating windows")
         
-        for (_, windowController) in activeFloatingWindows {
-            windowController.hideFloatingBar()
+        for (_, windowInfo) in floatingWindows {
+            windowInfo.controller.hideFloatingBar()
         }
-        activeFloatingWindows.removeAll()
-        windowPositions.removeAll()
-        nextWindowIndex = 0 // Reset position index for future windows
+        floatingWindows.removeAll()
     }
 }
