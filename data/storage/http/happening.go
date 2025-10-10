@@ -156,3 +156,57 @@ func (s *HappeningHttpService) Add(ctx context.Context, happening *models.Happen
 
 	return response.Happening, nil
 }
+
+func (s *HappeningHttpService) Update(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error) {
+	if update == nil {
+		return nil, fmt.Errorf("update cannot be nil")
+	}
+
+	// Create request payload for updating happening
+	req := struct {
+		ID   int64                     `json:"id"`
+		Data *models.HappeningOptional `json:"data"`
+	}{
+		ID:   id,
+		Data: update,
+	}
+
+	var response struct {
+		Happening *models.Happening `json:"happening"`
+	}
+
+	err := s.client.makeRequest(ctx, "/happening/update", req, &response)
+	if err != nil {
+		return nil, fmt.Errorf("http update: %w", err)
+	}
+
+	if response.Happening == nil {
+		return nil, fmt.Errorf("server returned nil happening")
+	}
+
+	return response.Happening, nil
+}
+
+func (s *HappeningHttpService) Delete(ctx context.Context, id int64) error {
+	// Create request payload for deleting happening
+	req := struct {
+		ID int64 `json:"id"`
+	}{
+		ID: id,
+	}
+
+	var response struct {
+		Success bool `json:"success"`
+	}
+
+	err := s.client.makeRequest(ctx, "/happening/delete", req, &response)
+	if err != nil {
+		return fmt.Errorf("failed to delete happening: %w", err)
+	}
+
+	if !response.Success {
+		return fmt.Errorf("server reported failure to delete happening")
+	}
+
+	return nil
+}

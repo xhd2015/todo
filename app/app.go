@@ -44,8 +44,16 @@ type HappeningState struct {
 
 	FocusedItemID int64
 
-	LoadHappenings func(ctx context.Context) ([]*models.Happening, error)
-	AddHappening   func(ctx context.Context, content string) (*models.Happening, error)
+	// Edit/Delete state
+	EditingItemID       int64
+	EditInputState      models.InputState
+	DeletingItemID      int64
+	DeleteConfirmButton int // 0 = Delete, 1 = Cancel
+
+	LoadHappenings  func(ctx context.Context) ([]*models.Happening, error)
+	AddHappening    func(ctx context.Context, content string) (*models.Happening, error)
+	UpdateHappening func(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error)
+	DeleteHappening func(ctx context.Context, id int64) error
 }
 
 type State struct {

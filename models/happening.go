@@ -5,14 +5,14 @@ import "time"
 type Happening struct {
 	ID         int64     `json:"id"`
 	Content    string    `json:"content"`
-	CreateTime time.Time `json:"timestamp"`
+	CreateTime time.Time `json:"create_time"`
 	UpdateTime time.Time `json:"update_time"`
 }
 
 type HappeningOptional struct {
 	ID         *int64     `json:"id"`
 	Content    *string    `json:"content"`
-	CreateTime *time.Time `json:"timestamp"`
+	CreateTime *time.Time `json:"create_time"`
 	UpdateTime *time.Time `json:"update_time"`
 }
 

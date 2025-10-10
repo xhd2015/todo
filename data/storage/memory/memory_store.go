@@ -574,3 +574,56 @@ func (hbs *HappeningBaseStore) Add(ctx context.Context, happening *models.Happen
 
 	return &newHappening, nil
 }
+
+func (hbs *HappeningBaseStore) Update(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error) {
+	if update == nil {
+		return nil, fmt.Errorf("update cannot be nil")
+	}
+
+	hbs.mu.Lock()
+	defer hbs.mu.Unlock()
+
+	// Check if happening exists
+	existing, exists := hbs.data.GetHappening(id)
+	if !exists {
+		return nil, fmt.Errorf("happening with id %d not found", id)
+	}
+
+	// Apply the optional updates to the existing happening
+	updatedHappening := existing
+	updatedHappening.Update(update)
+
+	// Update in data store
+	if err := hbs.data.UpdateHappening(id, updatedHappening); err != nil {
+		return nil, fmt.Errorf("failed to update happening: %w", err)
+	}
+
+	// Save data
+	if err := hbs.data.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save data: %w", err)
+	}
+
+	return &updatedHappening, nil
+}
+
+func (hbs *HappeningBaseStore) Delete(ctx context.Context, id int64) error {
+	hbs.mu.Lock()
+	defer hbs.mu.Unlock()
+
+	// Check if happening exists
+	if _, exists := hbs.data.GetHappening(id); !exists {
+		return fmt.Errorf("happening with id %d not found", id)
+	}
+
+	// Delete from data store
+	if err := hbs.data.DeleteHappening(id); err != nil {
+		return fmt.Errorf("failed to delete happening: %w", err)
+	}
+
+	// Save data
+	if err := hbs.data.Save(); err != nil {
+		return fmt.Errorf("failed to save data: %w", err)
+	}
+
+	return nil
+}

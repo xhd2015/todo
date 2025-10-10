@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/app"
 	"github.com/xhd2015/todo/data"
-	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/internal/config"
 	"github.com/xhd2015/todo/internal/macos"
 	"github.com/xhd2015/todo/internal/process"
@@ -360,23 +358,16 @@ func Main(args []string) error {
 	}
 	appState.Happening = app.HappeningState{
 		LoadHappenings: func(ctx context.Context) ([]*models.Happening, error) {
-			happenings, _, err := logManager.HappeningService.List(storage.HappeningListOptions{
-				Limit: 20,
-			})
-			if err != nil {
-				return nil, err
-			}
-			// sort by create time ASC
-			sort.Slice(happenings, func(i, j int) bool {
-				return happenings[i].CreateTime.Before(happenings[j].CreateTime)
-			})
-			return happenings, err
+			return logManager.HappeningManager.LoadHappenings(ctx)
 		},
 		AddHappening: func(ctx context.Context, content string) (*models.Happening, error) {
-			happening := &models.Happening{
-				Content: content,
-			}
-			return logManager.HappeningService.Add(ctx, happening)
+			return logManager.HappeningManager.AddHappening(ctx, content)
+		},
+		UpdateHappening: func(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error) {
+			return logManager.HappeningManager.UpdateHappening(ctx, id, update)
+		},
+		DeleteHappening: func(ctx context.Context, id int64) error {
+			return logManager.HappeningManager.DeleteHappening(ctx, id)
 		},
 	}
 

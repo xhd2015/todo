@@ -53,4 +53,6 @@ type HappeningListOptions struct {
 type HappeningService interface {
 	List(options HappeningListOptions) ([]*models.Happening, int64, error)
 	Add(ctx context.Context, happening *models.Happening) (*models.Happening, error)
+	Update(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error)
+	Delete(ctx context.Context, id int64) error
 }

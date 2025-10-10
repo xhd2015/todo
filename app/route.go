@@ -153,6 +153,104 @@ func HappeningListPage(state *State) *dom.Node {
 				return nil
 			})
 		},
+		// Edit/Delete functionality
+		EditingItemID:       happeningState.EditingItemID,
+		EditInputState:      &happeningState.EditInputState,
+		DeletingItemID:      happeningState.DeletingItemID,
+		DeleteConfirmButton: happeningState.DeleteConfirmButton,
+		OnEditItem: func(id int64) {
+			// Find the happening to edit
+			for _, happening := range happeningState.Happenings {
+				if happening.ID == id {
+					happeningState.EditingItemID = id
+					happeningState.EditInputState.Value = happening.Content
+					happeningState.EditInputState.Focused = true
+					happeningState.EditInputState.CursorPosition = len(happening.Content)
+					break
+				}
+			}
+		},
+		OnDeleteItem: func(id int64) {
+			happeningState.DeletingItemID = id
+			happeningState.DeleteConfirmButton = 0 // Default to Delete button
+		},
+		OnSaveEdit: func(id int64, content string) {
+			// Update happening using backend API
+			state.Enqueue(func(ctx context.Context) error {
+				if happeningState.UpdateHappening == nil {
+					return fmt.Errorf("UpdateHappening function not available")
+				}
+
+				// Create update with only the content field
+				update := &models.HappeningOptional{
+					Content: &content,
+				}
+
+				// Update via backend service
+				updatedHappening, err := happeningState.UpdateHappening(ctx, id, update)
+				if err != nil {
+					return fmt.Errorf("update: %w", err)
+				}
+
+				// Update local list for immediate UI update
+				for i, happening := range happeningState.Happenings {
+					if happening.ID == id {
+						happeningState.Happenings[i] = updatedHappening
+						break
+					}
+				}
+
+				// Reset edit state
+				happeningState.EditingItemID = 0
+				happeningState.EditInputState.Reset()
+				return nil
+			})
+		},
+		OnCancelEdit: func(e *dom.DOMEvent) {
+			happeningState.EditingItemID = 0
+			happeningState.EditInputState.Reset()
+			if e != nil {
+				e.StopPropagation()
+			}
+		},
+		OnConfirmDelete: func(e *dom.DOMEvent, id int64) {
+			// Delete happening using backend API
+			state.Enqueue(func(ctx context.Context) error {
+				if happeningState.DeleteHappening == nil {
+					return fmt.Errorf("DeleteHappening function not available")
+				}
+
+				// Delete via backend service
+				err := happeningState.DeleteHappening(ctx, id)
+				if err != nil {
+					return fmt.Errorf("failed to delete happening: %w", err)
+				}
+
+				// Remove from local list for immediate UI update
+				for i, happening := range happeningState.Happenings {
+					if happening.ID == id {
+						happeningState.Happenings = append(happeningState.Happenings[:i], happeningState.Happenings[i+1:]...)
+						break
+					}
+				}
+
+				// Reset delete state
+				happeningState.DeletingItemID = 0
+				return nil
+			})
+		},
+		OnCancelDelete: func(e *dom.DOMEvent) {
+			happeningState.DeletingItemID = 0
+		},
+		OnNavigateDeleteConfirm: func(direction int) {
+			happeningState.DeleteConfirmButton += direction
+			if happeningState.DeleteConfirmButton < 0 {
+				happeningState.DeleteConfirmButton = 1
+			}
+			if happeningState.DeleteConfirmButton > 1 {
+				happeningState.DeleteConfirmButton = 0
+			}
+		},
 	})
 }
 

@@ -177,13 +177,13 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 			})
 			return true
 		},
-		onSearchChange: func(query string) {
+		OnSearchChange: func(query string) {
 			state.SearchQuery = query
 		},
-		onSearchActivate: func() {
+		OnSearchActivate: func() {
 			state.IsSearchActive = true
 		},
-		onSearchDeactivate: func() {
+		OnSearchDeactivate: func() {
 			state.IsSearchActive = false
 			state.SearchQuery = ""
 		},

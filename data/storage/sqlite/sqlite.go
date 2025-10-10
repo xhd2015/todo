@@ -764,3 +764,69 @@ func (hss *HappeningSQLiteStore) Add(ctx context.Context, happening *models.Happ
 
 	return newHappening, nil
 }
+
+func (hss *HappeningSQLiteStore) Update(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error) {
+	if update == nil {
+		return nil, fmt.Errorf("update cannot be nil")
+	}
+
+	// First get the existing happening
+	var existing models.Happening
+	var createTime, updateTime string
+	err := hss.db.QueryRowContext(ctx, "SELECT id, content, create_time, update_time FROM happenings WHERE id = ?", id).Scan(
+		&existing.ID, &existing.Content, &createTime, &updateTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("happening with id %d not found", id)
+		}
+		return nil, fmt.Errorf("failed to get existing happening: %w", err)
+	}
+
+	existing.CreateTime, err = tryParseTime(createTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse create time: %w", err)
+	}
+	existing.UpdateTime, err = tryParseTime(updateTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse update time: %w", err)
+	}
+
+	// Apply the optional updates
+	existing.Update(update)
+
+	// Update the happening in database
+	query := `UPDATE happenings SET content = ?, update_time = ? WHERE id = ?`
+	result, err := hss.db.ExecContext(ctx, query, existing.Content, formatTime(existing.UpdateTime), id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update happening: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("happening with id %d not found", id)
+	}
+
+	return &existing, nil
+}
+
+func (hss *HappeningSQLiteStore) Delete(ctx context.Context, id int64) error {
+	result, err := hss.db.ExecContext(ctx, "DELETE FROM happenings WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("failed to delete happening: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("happening with id %d not found", id)
+	}
+
+	return nil
+}

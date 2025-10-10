@@ -1,92 +1,19 @@
 package app
 
 import (
-	"strings"
-
 	"github.com/xhd2015/go-dom-tui/dom"
-	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/component"
 )
 
-type InputProps struct {
-	Placeholder        string
-	State              *models.InputState
-	OnEnter            func(string) bool
-	onSearchChange     func(string)
-	onSearchActivate   func()
-	onSearchDeactivate func()
-	OnKeyDown          func(event *dom.DOMEvent) bool
-	InputType          string
-}
+// InputProps is an alias for component.InputProps for backward compatibility
+type InputProps = component.InputProps
 
+// SearchInput wraps the component.SearchInput with app-specific defaults
 func SearchInput(props InputProps) *dom.Node {
-	return dom.Input(dom.InputProps{
-		Placeholder:    props.Placeholder,
-		Value:          props.State.Value,
-		Focused:        props.State.Focused,
-		CursorPosition: props.State.CursorPosition,
-		Focusable:      dom.Focusable(true),
-		Width:          UIWidth,
-		OnFocus: func() {
-			props.State.Focused = true
-		},
-		OnBlur: func() {
-			props.State.Focused = false
-		},
-		InputType: props.InputType,
-		OnChange: func(value string) {
-			props.State.Value = value
+	// Set the width to UIWidth if not specified
+	if props.Width == 0 {
+		props.Width = UIWidth
+	}
 
-			// Handle search functionality if callbacks are provided
-			if props.onSearchActivate != nil && props.onSearchChange != nil && props.onSearchDeactivate != nil {
-				if strings.HasPrefix(value, "?") {
-					props.onSearchActivate()
-					// Extract search query (remove the ? prefix)
-					query := strings.TrimPrefix(value, "?")
-					props.onSearchChange(query)
-				} else {
-					// Not a search query, deactivate search if active
-					props.onSearchDeactivate()
-				}
-			}
-		},
-		OnCursorMove: func(position int) {
-			if position < 0 {
-				position = 0
-			}
-			rnLen := runLength(props.State.Value)
-			if position > rnLen+1 {
-				position = rnLen + 1
-			}
-			props.State.CursorPosition = position
-		},
-		OnKeyDown: func(event *dom.DOMEvent) {
-			if props.OnKeyDown != nil {
-				if props.OnKeyDown(event) {
-					return
-				}
-			}
-			keyEvent := event.KeydownEvent
-			switch keyEvent.KeyType {
-			case dom.KeyTypeEnter:
-				if props.State.Value == "" {
-					return
-				}
-				if props.OnEnter(props.State.Value) {
-					props.State.Value = ""
-					props.State.CursorPosition = 0
-				}
-			case dom.KeyTypeEsc:
-				// Exit search mode if active and search callbacks are provided
-				if props.onSearchDeactivate != nil && strings.HasPrefix(props.State.Value, "?") {
-					props.onSearchDeactivate()
-					props.State.Value = ""
-					props.State.CursorPosition = 0
-				}
-			}
-		},
-	})
-}
-
-func runLength(s string) int {
-	return len([]rune(s))
+	return component.SearchInput(props)
 }

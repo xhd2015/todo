@@ -16,6 +16,9 @@ type LogManager struct {
 	HappeningService storage.HappeningService
 
 	Entries []*models.LogEntryView
+
+	// Happening manager with internal caching
+	HappeningManager *HappeningManager
 }
 
 func NewLogManager(logEntryService storage.LogEntryService, logNoteService storage.LogNoteService, happeningService storage.HappeningService) *LogManager {
@@ -23,6 +26,7 @@ func NewLogManager(logEntryService storage.LogEntryService, logNoteService stora
 		LogEntryService:  logEntryService,
 		LogNoteService:   logNoteService,
 		HappeningService: happeningService,
+		HappeningManager: NewHappeningManager(happeningService),
 	}
 }
 

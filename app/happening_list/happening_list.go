@@ -19,6 +19,19 @@ type HappeningListProps struct {
 	FocusedItemID int64
 	OnFocusItem   func(id int64)
 	OnBlurItem    func(id int64)
+
+	// Edit/Delete functionality
+	EditingItemID           int64
+	EditInputState          *models.InputState
+	DeletingItemID          int64
+	DeleteConfirmButton     int
+	OnEditItem              func(id int64)
+	OnDeleteItem            func(id int64)
+	OnSaveEdit              func(id int64, content string)
+	OnCancelEdit            func(e *dom.DOMEvent)
+	OnConfirmDelete         func(e *dom.DOMEvent, id int64)
+	OnCancelDelete          func(e *dom.DOMEvent)
+	OnNavigateDeleteConfirm func(direction int)
 }
 
 // HappeningList renders a list of happening items
@@ -36,6 +49,46 @@ func HappeningList(props HappeningListProps) *dom.Node {
 			},
 			OnBlur: func() {
 				props.OnBlurItem(item.ID)
+			},
+			// Edit/Delete functionality
+			IsEditing:           props.EditingItemID == item.ID,
+			IsDeleting:          props.DeletingItemID == item.ID,
+			EditInputState:      props.EditInputState,
+			DeleteConfirmButton: props.DeleteConfirmButton,
+			OnEdit: func() {
+				if props.OnEditItem != nil {
+					props.OnEditItem(item.ID)
+				}
+			},
+			OnDelete: func() {
+				if props.OnDeleteItem != nil {
+					props.OnDeleteItem(item.ID)
+				}
+			},
+			OnSaveEdit: func(content string) {
+				if props.OnSaveEdit != nil {
+					props.OnSaveEdit(item.ID, content)
+				}
+			},
+			OnCancelEdit: func(e *dom.DOMEvent) {
+				if props.OnCancelEdit != nil {
+					props.OnCancelEdit(e)
+				}
+			},
+			OnConfirmDelete: func(e *dom.DOMEvent) {
+				if props.OnConfirmDelete != nil {
+					props.OnConfirmDelete(e, item.ID)
+				}
+			},
+			OnCancelDelete: func(e *dom.DOMEvent) {
+				if props.OnCancelDelete != nil {
+					props.OnCancelDelete(e)
+				}
+			},
+			OnNavigateDeleteConfirm: func(direction int) {
+				if props.OnNavigateDeleteConfirm != nil {
+					props.OnNavigateDeleteConfirm(direction)
+				}
 			},
 		}))
 	}
