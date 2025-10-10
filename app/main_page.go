@@ -4,12 +4,13 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 )
 
+const HEADER_HEIGHT = 9
+
 func MainPage(state *State, window *dom.Window) *dom.Node {
-	const HEADER_HEIGHT = 3
-	const INPUT_HEIGHT = 2
-	const LINES_UNDER_INPUT = 3
 	const RESERVE_ENTRY = 2
 	const SPACE_BETWEEN_LIST_AND_INPUT = 2
+	const INPUT_HEIGHT = 2
+	const LINES_UNDER_INPUT = 3
 
 	height := window.Height
 

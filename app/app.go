@@ -36,6 +36,18 @@ const (
 	SelectedSource_NavigateByKey
 )
 
+type HappeningState struct {
+	Loading    bool
+	Happenings []*models.Happening
+	Error      string
+	Input      models.InputState
+
+	FocusedItemID int64
+
+	LoadHappenings func(ctx context.Context) ([]*models.Happening, error)
+	AddHappening   func(ctx context.Context, content string) (*models.Happening, error)
+}
+
 type State struct {
 	Entries models.LogEntryViews
 
@@ -58,6 +70,9 @@ type State struct {
 	SelectedActionIndex int
 
 	Routes Routes
+
+	// Happening functionality
+	Happening HappeningState
 
 	ShowHistory bool // Whether to show historical (done) todos from before today
 	ShowNotes   bool // Whether to show all notes globally
@@ -255,12 +270,30 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}
 		},
 	},
-		dom.H1(dom.DivProps{}, dom.Text("TODO List", styles.Style{
-			Bold:        true,
-			BorderColor: "orange",
-		})),
-
 		func() *dom.Node {
+			title := "TODO List"
+			if len(state.Routes) > 0 {
+				last := state.Routes.Last()
+				switch last.Type {
+				case RouteType_Main:
+					title = "Main"
+				case RouteType_Detail:
+					title = "Detail"
+				case RouteType_Config:
+					title = "Config"
+				case RouteType_HappeningList:
+					title = "Happenings"
+				}
+			}
+			return dom.H1(dom.DivProps{}, dom.Text(title, styles.Style{
+				Bold:        true,
+				BorderColor: "orange",
+			}))
+		}(),
+		func() *dom.Node {
+			if false {
+				return nil
+			}
 			if len(state.Routes) == 0 {
 				return MainPage(state, window)
 			} else {

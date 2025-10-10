@@ -41,3 +41,16 @@ type LogNoteService interface {
 	Delete(entryID int64, noteID int64) error
 	Update(entryID int64, noteID int64, update models.NoteOptional) error
 }
+
+type HappeningListOptions struct {
+	Filter    string
+	SortBy    string
+	SortOrder string
+	Limit     int
+	Offset    int
+}
+
+type HappeningService interface {
+	List(options HappeningListOptions) ([]*models.Happening, int64, error)
+	Add(ctx context.Context, happening *models.Happening) (*models.Happening, error)
+}

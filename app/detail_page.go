@@ -63,9 +63,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 			}
 		},
 	},
-		dom.Text(item.Data.Text),
-
-		dom.H1(dom.DivProps{}, dom.Text("Notes")),
+		dom.Div(dom.DivProps{}, dom.Text(item.Data.Text)),
 
 		func() *dom.Node {
 			notes := item.Notes

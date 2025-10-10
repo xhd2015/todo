@@ -207,10 +207,6 @@ func ConfigPage(state *State) *dom.Node {
 	}
 
 	return dom.Div(dom.DivProps{},
-		dom.H1(dom.DivProps{}, dom.Text("Config", styles.Style{
-			Bold:  true,
-			Color: "1",
-		})),
 		dom.Div(dom.DivProps{}, configItems...),
 	)
 }

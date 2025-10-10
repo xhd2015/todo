@@ -17,9 +17,10 @@ type FileDataStore struct {
 }
 
 type FileData struct {
-	LogEntries []models.LogEntry `json:"log_entries"`
-	Notes      []models.Note     `json:"notes"`
-	NextID     int64             `json:"next_id"`
+	LogEntries []models.LogEntry  `json:"log_entries"`
+	Notes      []models.Note      `json:"notes"`
+	Happenings []models.Happening `json:"happenings"`
+	NextID     int64              `json:"next_id"`
 }
 
 // NewFileDataStore creates a new file-based data store
@@ -29,6 +30,7 @@ func NewFileDataStore(filePath string) (*FileDataStore, error) {
 		data: &FileData{
 			LogEntries: []models.LogEntry{},
 			Notes:      []models.Note{},
+			Happenings: []models.Happening{},
 			NextID:     1,
 		},
 	}
@@ -131,6 +133,45 @@ func (fds *FileDataStore) DeleteNote(id int64) error {
 	return fmt.Errorf("note with id %d not found", id)
 }
 
+// Happening operations
+func (fds *FileDataStore) GetAllHappenings() []models.Happening {
+	return fds.data.Happenings
+}
+
+func (fds *FileDataStore) GetHappening(id int64) (models.Happening, bool) {
+	for _, happening := range fds.data.Happenings {
+		if happening.ID == id {
+			return happening, true
+		}
+	}
+	return models.Happening{}, false
+}
+
+func (fds *FileDataStore) AddHappening(happening models.Happening) error {
+	fds.data.Happenings = append(fds.data.Happenings, happening)
+	return nil
+}
+
+func (fds *FileDataStore) UpdateHappening(id int64, happening models.Happening) error {
+	for i, existingHappening := range fds.data.Happenings {
+		if existingHappening.ID == id {
+			fds.data.Happenings[i] = happening
+			return nil
+		}
+	}
+	return fmt.Errorf("happening with id %d not found", id)
+}
+
+func (fds *FileDataStore) DeleteHappening(id int64) error {
+	for i, happening := range fds.data.Happenings {
+		if happening.ID == id {
+			fds.data.Happenings = append(fds.data.Happenings[:i], fds.data.Happenings[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("happening with id %d not found", id)
+}
+
 // ID generation
 func (fds *FileDataStore) NextID() int64 {
 	id := fds.data.NextID
@@ -163,4 +204,12 @@ func NewLogNoteService(filePath string) (storage.LogNoteService, error) {
 		return nil, err
 	}
 	return memory.NewLogNoteBaseService(dataStore), nil
+}
+
+func NewHappeningService(filePath string) (storage.HappeningService, error) {
+	dataStore, err := NewFileDataStore(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return memory.NewHappeningBaseService(dataStore), nil
 }

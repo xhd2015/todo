@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,9 +15,11 @@ import (
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/app"
 	"github.com/xhd2015/todo/data"
+	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/internal/config"
 	"github.com/xhd2015/todo/internal/macos"
 	"github.com/xhd2015/todo/internal/process"
+	applog "github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -37,6 +40,7 @@ Options:
   --server-addr <addr>             server address (required when --storage=server)
   --server-token <token>           server authentication token (optional when --storage=server)
   --debug-log <file>               enable debug logging to specified file
+  --show-path                      show config path
   -h,--help                        show this help message
 
 Examples:
@@ -92,6 +96,11 @@ func Main(args []string) error {
 	storageType = storageConfig.StorageType
 	serverAddr = storageConfig.ServerAddr
 	serverToken = storageConfig.ServerToken
+
+	// Initialize logging
+	if err := applog.Init(); err != nil {
+		return fmt.Errorf("failed to initialize logging: %w", err)
+	}
 
 	// Validate server-addr is provided when storage type is server
 	if storageType == "server" && serverAddr == "" {
@@ -348,6 +357,27 @@ func Main(args []string) error {
 		// Update the app state entries
 		appState.Entries = logManager.Entries
 		return nil
+	}
+	appState.Happening = app.HappeningState{
+		LoadHappenings: func(ctx context.Context) ([]*models.Happening, error) {
+			happenings, _, err := logManager.HappeningService.List(storage.HappeningListOptions{
+				Limit: 20,
+			})
+			if err != nil {
+				return nil, err
+			}
+			// sort by create time ASC
+			sort.Slice(happenings, func(i, j int) bool {
+				return happenings[i].CreateTime.Before(happenings[j].CreateTime)
+			})
+			return happenings, err
+		},
+		AddHappening: func(ctx context.Context, content string) (*models.Happening, error) {
+			happening := &models.Happening{
+				Content: content,
+			}
+			return logManager.HappeningService.Add(ctx, happening)
+		},
 	}
 
 	model := &Model{

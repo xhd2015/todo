@@ -9,6 +9,7 @@ import (
 type MemoryDataStore struct {
 	logEntries map[int64]models.LogEntry
 	notes      map[int64]models.Note
+	happenings map[int64]models.Happening
 	nextID     int64
 }
 
@@ -17,6 +18,7 @@ func NewMemoryDataStore() *MemoryDataStore {
 	return &MemoryDataStore{
 		logEntries: make(map[int64]models.LogEntry),
 		notes:      make(map[int64]models.Note),
+		happenings: make(map[int64]models.Happening),
 		nextID:     1,
 	}
 }
@@ -86,6 +88,35 @@ func (mds *MemoryDataStore) NextID() int64 {
 	return id
 }
 
+// Happening operations
+func (mds *MemoryDataStore) GetAllHappenings() []models.Happening {
+	happenings := make([]models.Happening, 0, len(mds.happenings))
+	for _, happening := range mds.happenings {
+		happenings = append(happenings, happening)
+	}
+	return happenings
+}
+
+func (mds *MemoryDataStore) GetHappening(id int64) (models.Happening, bool) {
+	happening, exists := mds.happenings[id]
+	return happening, exists
+}
+
+func (mds *MemoryDataStore) AddHappening(happening models.Happening) error {
+	mds.happenings[happening.ID] = happening
+	return nil
+}
+
+func (mds *MemoryDataStore) UpdateHappening(id int64, happening models.Happening) error {
+	mds.happenings[id] = happening
+	return nil
+}
+
+func (mds *MemoryDataStore) DeleteHappening(id int64) error {
+	delete(mds.happenings, id)
+	return nil
+}
+
 // Persistence (no-op for memory store)
 func (mds *MemoryDataStore) Save() error {
 	return nil
@@ -100,4 +131,9 @@ func NewLogEntryService() storage.LogEntryService {
 func NewLogNoteService() storage.LogNoteService {
 	dataStore := NewMemoryDataStore()
 	return NewLogNoteBaseService(dataStore)
+}
+
+func NewHappeningService() storage.HappeningService {
+	dataStore := NewMemoryDataStore()
+	return NewHappeningBaseService(dataStore)
 }

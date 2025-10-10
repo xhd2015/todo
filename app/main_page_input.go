@@ -139,6 +139,32 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					configState := loadConfigPageState()
 					state.Routes.Push(ConfigRoute(configState))
 					return true
+				case "/h", "/happening":
+					// Set loading state and navigate to happening list page
+					state.Happening.Loading = true
+					state.Happening.Error = ""
+					state.Happening.Happenings = nil
+
+					state.Routes.Push(HappeningListRoute())
+
+					// Start async loading of happening data
+					state.Enqueue(func(ctx context.Context) error {
+						if state.Happening.LoadHappenings == nil {
+							state.Happening.Error = "LoadHappenings is not set"
+							return nil
+						}
+						happenings, err := state.Happening.LoadHappenings(ctx)
+						if err != nil {
+							state.Happening.Error = err.Error()
+							return err
+						}
+						// Update the state with loaded data
+						state.Happening.Loading = false
+						state.Happening.Happenings = happenings
+						return nil
+					})
+
+					return true
 				default:
 					// Unknown command, do nothing
 					state.StatusBar.Error = "unknown command: " + s

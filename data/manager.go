@@ -11,16 +11,18 @@ import (
 )
 
 type LogManager struct {
-	LogEntryService storage.LogEntryService
-	LogNoteService  storage.LogNoteService
+	LogEntryService  storage.LogEntryService
+	LogNoteService   storage.LogNoteService
+	HappeningService storage.HappeningService
 
 	Entries []*models.LogEntryView
 }
 
-func NewLogManager(logEntryService storage.LogEntryService, logNoteService storage.LogNoteService) *LogManager {
+func NewLogManager(logEntryService storage.LogEntryService, logNoteService storage.LogNoteService, happeningService storage.HappeningService) *LogManager {
 	return &LogManager{
-		LogEntryService: logEntryService,
-		LogNoteService:  logNoteService,
+		LogEntryService:  logEntryService,
+		LogNoteService:   logNoteService,
+		HappeningService: happeningService,
 	}
 }
 

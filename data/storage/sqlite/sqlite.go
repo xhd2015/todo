@@ -24,6 +24,10 @@ type LogNoteSQLiteStore struct {
 	*SQLiteStore
 }
 
+type HappeningSQLiteStore struct {
+	*SQLiteStore
+}
+
 func New(filePath string) (*SQLiteStore, error) {
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
@@ -64,11 +68,23 @@ func (s *SQLiteStore) createTables() error {
 		FOREIGN KEY (entry_id) REFERENCES log_entries(id) ON DELETE CASCADE
 	);`
 
+	createHappeningsTable := `
+	CREATE TABLE IF NOT EXISTS happenings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		content TEXT NOT NULL,
+		create_time DATETIME NOT NULL,
+		update_time DATETIME NOT NULL
+	);`
+
 	if _, err := s.db.Exec(createLogEntriesTable); err != nil {
 		return err
 	}
 
 	if _, err := s.db.Exec(createNotesTable); err != nil {
+		return err
+	}
+
+	if _, err := s.db.Exec(createHappeningsTable); err != nil {
 		return err
 	}
 
@@ -93,6 +109,14 @@ func NewLogNoteService(filePath string) (storage.LogNoteService, error) {
 		return nil, err
 	}
 	return &LogNoteSQLiteStore{SQLiteStore: store}, nil
+}
+
+func NewHappeningService(filePath string) (storage.HappeningService, error) {
+	store, err := New(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return &HappeningSQLiteStore{SQLiteStore: store}, nil
 }
 
 // LogEntry service methods
@@ -630,4 +654,113 @@ func (lns *LogNoteSQLiteStore) Update(entryID int64, noteID int64, update models
 	}
 
 	return nil
+}
+
+// Happening service methods
+func (hss *HappeningSQLiteStore) List(options storage.HappeningListOptions) ([]*models.Happening, int64, error) {
+	var whereClause []string
+	var args []interface{}
+
+	if options.Filter != "" {
+		whereClause = append(whereClause, "content LIKE ?")
+		args = append(args, "%"+options.Filter+"%")
+	}
+
+	where := ""
+	if len(whereClause) > 0 {
+		where = "WHERE " + strings.Join(whereClause, " AND ")
+	}
+
+	// Count total
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM happenings %s", where)
+	var total int64
+	if err := hss.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Build main query
+	orderBy := "ORDER BY id ASC"
+	if options.SortBy != "" {
+		direction := "ASC"
+		if options.SortOrder == "desc" {
+			direction = "DESC"
+		}
+		orderBy = fmt.Sprintf("ORDER BY %s %s", options.SortBy, direction)
+	}
+
+	limit := ""
+	if options.Limit > 0 {
+		limit = fmt.Sprintf("LIMIT %d", options.Limit)
+		if options.Offset > 0 {
+			limit += fmt.Sprintf(" OFFSET %d", options.Offset)
+		}
+	}
+
+	query := fmt.Sprintf("SELECT id, content, create_time, update_time FROM happenings %s %s %s",
+		where, orderBy, limit)
+
+	rows, err := hss.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var happenings []*models.Happening
+	for rows.Next() {
+		var happening models.Happening
+		var createTime, updateTime string
+
+		if err := rows.Scan(&happening.ID, &happening.Content, &createTime, &updateTime); err != nil {
+			return nil, 0, err
+		}
+
+		if happening.CreateTime, err = tryParseTime(createTime); err != nil {
+			return nil, 0, err
+		}
+		if happening.UpdateTime, err = tryParseTime(updateTime); err != nil {
+			return nil, 0, err
+		}
+
+		happenings = append(happenings, &happening)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return happenings, total, nil
+}
+
+func (hss *HappeningSQLiteStore) Add(ctx context.Context, happening *models.Happening) (*models.Happening, error) {
+	if happening == nil {
+		return nil, fmt.Errorf("happening cannot be nil")
+	}
+	if happening.Content == "" {
+		return nil, fmt.Errorf("happening content cannot be empty")
+	}
+
+	now := time.Now()
+
+	// Insert the happening
+	query := `INSERT INTO happenings (content, create_time, update_time) VALUES (?, ?, ?)`
+	result, err := hss.db.ExecContext(ctx, query, happening.Content, formatTime(now), formatTime(now))
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert happening: %w", err)
+	}
+
+	// Get the inserted ID
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inserted ID: %w", err)
+	}
+
+	// Return the new happening
+	newHappening := &models.Happening{
+		ID:         id,
+		Content:    happening.Content,
+		CreateTime: now,
+		UpdateTime: now,
+	}
+
+	return newHappening, nil
 }

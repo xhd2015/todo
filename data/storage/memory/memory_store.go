@@ -28,6 +28,13 @@ type DataStore interface {
 	UpdateNote(id int64, note models.Note) error
 	DeleteNote(id int64) error
 
+	// Happening operations
+	GetAllHappenings() []models.Happening
+	GetHappening(id int64) (models.Happening, bool)
+	AddHappening(happening models.Happening) error
+	UpdateHappening(id int64, happening models.Happening) error
+	DeleteHappening(id int64) error
+
 	// ID generation
 	NextID() int64
 
@@ -58,6 +65,11 @@ type LogNoteBaseStore struct {
 	*BaseStore
 }
 
+// HappeningBaseStore implements storage.HappeningService using BaseStore
+type HappeningBaseStore struct {
+	*BaseStore
+}
+
 // NewLogEntryBaseService creates a LogEntryService using the given DataStore
 func NewLogEntryBaseService(data DataStore) storage.LogEntryService {
 	base := NewBaseStore(data)
@@ -68,6 +80,12 @@ func NewLogEntryBaseService(data DataStore) storage.LogEntryService {
 func NewLogNoteBaseService(data DataStore) storage.LogNoteService {
 	base := NewBaseStore(data)
 	return &LogNoteBaseStore{BaseStore: base}
+}
+
+// NewHappeningBaseService creates a HappeningService using the given DataStore
+func NewHappeningBaseService(data DataStore) storage.HappeningService {
+	base := NewBaseStore(data)
+	return &HappeningBaseStore{BaseStore: base}
 }
 
 // LogEntry service methods
@@ -464,4 +482,95 @@ func (lns *LogNoteBaseStore) Update(entryID int64, noteID int64, update models.N
 	}
 
 	return lns.data.Save()
+}
+
+// Happening service methods
+func (hbs *HappeningBaseStore) List(options storage.HappeningListOptions) ([]*models.Happening, int64, error) {
+	hbs.mu.RLock()
+	defer hbs.mu.RUnlock()
+
+	allHappenings := hbs.data.GetAllHappenings()
+	var happenings []*models.Happening
+
+	// Apply filter
+	for _, happening := range allHappenings {
+		if options.Filter != "" {
+			if !strings.Contains(strings.ToLower(happening.Content), strings.ToLower(options.Filter)) {
+				continue
+			}
+		}
+		// Convert to pointer for consistency with interface
+		happenings = append(happenings, &happening)
+	}
+
+	total := int64(len(happenings))
+
+	// Apply sorting
+	if options.SortBy != "" {
+		sort.Slice(happenings, func(i, j int) bool {
+			var less bool
+			switch options.SortBy {
+			case "id":
+				less = happenings[i].ID < happenings[j].ID
+			case "content":
+				less = happenings[i].Content < happenings[j].Content
+			case "create_time":
+				less = happenings[i].CreateTime.Before(happenings[j].CreateTime)
+			case "update_time":
+				less = happenings[i].UpdateTime.Before(happenings[j].UpdateTime)
+			default:
+				less = happenings[i].ID < happenings[j].ID
+			}
+
+			if options.SortOrder == "desc" {
+				return !less
+			}
+			return less
+		})
+	}
+
+	// Apply pagination
+	if options.Offset > 0 {
+		if options.Offset >= len(happenings) {
+			return []*models.Happening{}, total, nil
+		}
+		happenings = happenings[options.Offset:]
+	}
+
+	if options.Limit > 0 && options.Limit < len(happenings) {
+		happenings = happenings[:options.Limit]
+	}
+
+	return happenings, total, nil
+}
+
+func (hbs *HappeningBaseStore) Add(ctx context.Context, happening *models.Happening) (*models.Happening, error) {
+	if happening == nil {
+		return nil, fmt.Errorf("happening cannot be nil")
+	}
+	if happening.Content == "" {
+		return nil, fmt.Errorf("happening content cannot be empty")
+	}
+
+	hbs.mu.Lock()
+	defer hbs.mu.Unlock()
+
+	// Generate new ID and set timestamps
+	newHappening := *happening
+	newHappening.ID = hbs.data.NextID()
+	now := time.Now()
+	newHappening.CreateTime = now
+	newHappening.UpdateTime = now
+
+	// Add to data store
+	if err := hbs.data.AddHappening(newHappening); err != nil {
+		return nil, fmt.Errorf("failed to add happening: %w", err)
+	}
+
+	// Save data
+	if err := hbs.data.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save data: %w", err)
+	}
+
+	return &newHappening, nil
 }
