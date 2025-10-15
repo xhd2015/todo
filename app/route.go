@@ -3,11 +3,13 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/happening_list"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -150,6 +152,31 @@ func HappeningListPage(state *State) *dom.Node {
 
 				// Add to local list for immediate UI update
 				happeningState.Happenings = append(happeningState.Happenings, newHappening)
+				return nil
+			})
+		},
+		OnReload: func() {
+			// Reload happenings by setting loading state and fetching fresh data
+			if len(happeningState.Happenings) == 0 {
+				happeningState.Loading = true
+			}
+			happeningState.Error = ""
+
+			state.Enqueue(func(ctx context.Context) error {
+				log.Infof(ctx, "Reload happenings")
+				time.Sleep(1 * time.Second)
+				if happeningState.LoadHappenings == nil {
+					happeningState.Error = "LoadHappenings is not set"
+					return nil
+				}
+				happenings, err := happeningState.LoadHappenings(ctx)
+				if err != nil {
+					happeningState.Error = err.Error()
+					return err
+				}
+				// Update the state with loaded data
+				happeningState.Loading = false
+				happeningState.Happenings = happenings
 				return nil
 			})
 		},

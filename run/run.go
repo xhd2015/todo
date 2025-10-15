@@ -369,6 +369,9 @@ func Main(args []string) error {
 		DeleteHappening: func(ctx context.Context, id int64) error {
 			return logManager.HappeningManager.DeleteHappening(ctx, id)
 		},
+		Input: models.InputState{
+			Focused: true,
+		},
 	}
 
 	model := &Model{

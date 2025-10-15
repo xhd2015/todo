@@ -15,6 +15,7 @@ type HappeningListProps struct {
 	InputState     *models.InputState
 	OnNavigateBack func()
 	OnAddHappening func(text string)
+	OnReload       func() // New callback for reloading the list
 
 	FocusedItemID int64
 	OnFocusItem   func(id int64)
@@ -41,14 +42,15 @@ func HappeningList(props HappeningListProps) *dom.Node {
 
 	// Add each happening item
 	for _, item := range props.Items {
+		itemID := item.ID // Capture item ID for closure
 		children = append(children, HappeningItem(&HappeningItemProps{
 			Item:    item,
 			Focused: props.FocusedItemID == item.ID,
 			OnFocus: func() {
-				props.OnFocusItem(item.ID)
+				props.OnFocusItem(itemID)
 			},
 			OnBlur: func() {
-				props.OnBlurItem(item.ID)
+				props.OnBlurItem(itemID)
 			},
 			// Edit/Delete functionality
 			IsEditing:           props.EditingItemID == item.ID,
@@ -57,17 +59,17 @@ func HappeningList(props HappeningListProps) *dom.Node {
 			DeleteConfirmButton: props.DeleteConfirmButton,
 			OnEdit: func() {
 				if props.OnEditItem != nil {
-					props.OnEditItem(item.ID)
+					props.OnEditItem(itemID)
 				}
 			},
 			OnDelete: func() {
 				if props.OnDeleteItem != nil {
-					props.OnDeleteItem(item.ID)
+					props.OnDeleteItem(itemID)
 				}
 			},
 			OnSaveEdit: func(content string) {
 				if props.OnSaveEdit != nil {
-					props.OnSaveEdit(item.ID, content)
+					props.OnSaveEdit(itemID, content)
 				}
 			},
 			OnCancelEdit: func(e *dom.DOMEvent) {
@@ -77,7 +79,7 @@ func HappeningList(props HappeningListProps) *dom.Node {
 			},
 			OnConfirmDelete: func(e *dom.DOMEvent) {
 				if props.OnConfirmDelete != nil {
-					props.OnConfirmDelete(e, item.ID)
+					props.OnConfirmDelete(e, itemID)
 				}
 			},
 			OnCancelDelete: func(e *dom.DOMEvent) {
@@ -89,6 +91,10 @@ func HappeningList(props HappeningListProps) *dom.Node {
 				if props.OnNavigateDeleteConfirm != nil {
 					props.OnNavigateDeleteConfirm(direction)
 				}
+			},
+			// Key event handling - moved from HappeningItem
+			OnKeyEvent: func(e *dom.DOMEvent) {
+				handleItemKeyEvent(e, itemID, &props)
 			},
 		}))
 	}
@@ -147,17 +153,23 @@ func HappeningList(props HappeningListProps) *dom.Node {
 						props.InputState.Value = ""
 						props.InputState.CursorPosition = 0
 
-						// Handle /todo command
-						if text == "/todo" {
+						// Handle commands
+						switch text {
+						case "/todo":
 							if props.OnNavigateBack != nil {
 								props.OnNavigateBack()
 							}
 							return
-						}
-
-						// Handle other text as new happening
-						if props.OnAddHappening != nil {
-							props.OnAddHappening(text)
+						case "/reload", "/refresh":
+							if props.OnReload != nil {
+								props.OnReload()
+							}
+							return
+						default:
+							// Handle other text as new happening
+							if props.OnAddHappening != nil {
+								props.OnAddHappening(text)
+							}
 						}
 					}
 				},
@@ -169,6 +181,66 @@ func HappeningList(props HappeningListProps) *dom.Node {
 		dom.DivProps{},
 		children...,
 	)
+}
+
+// handleItemKeyEvent handles key events for happening items
+func handleItemKeyEvent(e *dom.DOMEvent, itemID int64, props *HappeningListProps) {
+	// Handle delete confirmation navigation
+	if props.DeletingItemID == itemID {
+		keyEvent := e.KeydownEvent
+		switch keyEvent.KeyType {
+		case dom.KeyTypeLeft:
+			if props.OnNavigateDeleteConfirm != nil {
+				props.OnNavigateDeleteConfirm(-1)
+			}
+		case dom.KeyTypeRight:
+			if props.OnNavigateDeleteConfirm != nil {
+				props.OnNavigateDeleteConfirm(1)
+			}
+		case dom.KeyTypeEnter:
+			if props.DeleteConfirmButton == 0 {
+				// Delete button selected
+				if props.OnConfirmDelete != nil {
+					props.OnConfirmDelete(e, itemID)
+				}
+			} else {
+				// Cancel button selected
+				if props.OnCancelDelete != nil {
+					props.OnCancelDelete(e)
+				}
+			}
+		case dom.KeyTypeEsc:
+			if props.OnCancelDelete != nil {
+				props.OnCancelDelete(e)
+			}
+		}
+		return
+	}
+
+	// Handle normal key events
+	keyEvent := e.KeydownEvent
+	switch keyEvent.KeyType {
+	default:
+		key := string(keyEvent.Runes)
+		switch key {
+		case "d":
+			if props.OnDeleteItem != nil {
+				props.OnDeleteItem(itemID)
+			}
+		case "e":
+			if props.OnEditItem != nil {
+				props.OnEditItem(itemID)
+			}
+		case "/":
+			// Focus input when "/" is pressed and clear item focus
+			if props.OnBlurItem != nil {
+				props.OnBlurItem(itemID)
+			}
+			if props.InputState != nil {
+				props.InputState.Focused = true
+			}
+		}
+	}
 }
 
 // GetSampleHappenings returns sample happening data for testing

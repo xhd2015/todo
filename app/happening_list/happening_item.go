@@ -28,6 +28,9 @@ type HappeningItemProps struct {
 	OnConfirmDelete         func(e *dom.DOMEvent)
 	OnCancelDelete          func(e *dom.DOMEvent)
 	OnNavigateDeleteConfirm func(direction int) // -1 for left, 1 for right
+
+	// Key event handling - moved from OnKeyDown to parent
+	OnKeyEvent func(e *dom.DOMEvent)
 }
 
 // HappeningItem renders a single happening item with main text and relative time
@@ -114,53 +117,9 @@ func HappeningItem(data *HappeningItemProps) *dom.Node {
 			OnFocus:   data.OnFocus,
 			OnBlur:    data.OnBlur,
 			OnKeyDown: func(e *dom.DOMEvent) {
-				// Handle delete confirmation navigation
-				if data.IsDeleting {
-					keyEvent := e.KeydownEvent
-					switch keyEvent.KeyType {
-					case dom.KeyTypeLeft:
-						if data.OnNavigateDeleteConfirm != nil {
-							data.OnNavigateDeleteConfirm(-1)
-						}
-					case dom.KeyTypeRight:
-						if data.OnNavigateDeleteConfirm != nil {
-							data.OnNavigateDeleteConfirm(1)
-						}
-					case dom.KeyTypeEnter:
-						if data.DeleteConfirmButton == 0 {
-							// Delete button selected
-							if data.OnConfirmDelete != nil {
-								data.OnConfirmDelete(e)
-							}
-						} else {
-							// Cancel button selected
-							if data.OnCancelDelete != nil {
-								data.OnCancelDelete(e)
-							}
-						}
-					case dom.KeyTypeEsc:
-						if data.OnCancelDelete != nil {
-							data.OnCancelDelete(e)
-						}
-					}
-					return
-				}
-
-				// Handle normal key events
-				keyEvent := e.KeydownEvent
-				switch keyEvent.KeyType {
-				default:
-					key := string(keyEvent.Runes)
-					switch key {
-					case "d":
-						if data.OnDelete != nil {
-							data.OnDelete()
-						}
-					case "e":
-						if data.OnEdit != nil {
-							data.OnEdit()
-						}
-					}
+				// Delegate all key events to parent
+				if data.OnKeyEvent != nil {
+					data.OnKeyEvent(e)
 				}
 			},
 		},
