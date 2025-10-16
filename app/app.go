@@ -212,6 +212,8 @@ func (state *State) SelectNote(noteID int64, entryID int64) {
 	state.SelectFromSource = SelectedSource_Default
 }
 
+const _REFRESH_DELAY = 200 * time.Millisecond
+
 // Enqueue schedules an action to run in a goroutine and tracks its status
 func (state *State) Enqueue(action func(ctx context.Context) error) {
 	state.actionQueueMutex.Lock()
@@ -219,6 +221,7 @@ func (state *State) Enqueue(action func(ctx context.Context) error) {
 	state.actionQueueMutex.Unlock()
 
 	go func() {
+		begin := time.Now()
 		defer func() {
 			e := recover()
 			if e != nil {
@@ -231,6 +234,11 @@ func (state *State) Enqueue(action func(ctx context.Context) error) {
 
 			// Trigger refresh to update UI
 			if state.Refresh != nil {
+				// wait for 200ms to avoid flickering
+				elapsed := time.Since(begin)
+				if elapsed < _REFRESH_DELAY {
+					time.Sleep(_REFRESH_DELAY - elapsed)
+				}
 				state.Refresh()
 			}
 		}()

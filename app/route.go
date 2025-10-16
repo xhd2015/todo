@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
@@ -164,7 +163,6 @@ func HappeningListPage(state *State) *dom.Node {
 
 			state.Enqueue(func(ctx context.Context) error {
 				log.Infof(ctx, "Reload happenings")
-				time.Sleep(1 * time.Second)
 				if happeningState.LoadHappenings == nil {
 					happeningState.Error = "LoadHappenings is not set"
 					return nil
