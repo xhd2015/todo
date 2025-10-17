@@ -6,6 +6,7 @@
 *.bin
 *.a
 *.exe
+.env
 
 /bin
 /todo

@@ -13,6 +13,7 @@ type LogEntry struct {
 	UpdateTime      time.Time  `json:"update_time"`
 	AdjustedTopTime int64      `json:"adjusted_top_time"`
 	HighlightLevel  int        `json:"highlight_level"`
+	Collapsed       bool       `json:"collapsed"`
 	ParentID        int64      `json:"parent_id"`
 }
 
@@ -25,6 +26,7 @@ type LogEntryOptional struct {
 	UpdateTime      *time.Time  `json:"update_time"`
 	AdjustedTopTime *int64      `json:"adjusted_top_time"`
 	HighlightLevel  *int        `json:"highlight_level"`
+	Collapsed       *bool       `json:"collapsed"`
 	ParentID        *int64      `json:"parent_id"`
 }
 
@@ -55,6 +57,9 @@ func (c *LogEntry) Update(optional *LogEntryOptional) {
 	}
 	if optional.HighlightLevel != nil {
 		c.HighlightLevel = *optional.HighlightLevel
+	}
+	if optional.Collapsed != nil {
+		c.Collapsed = *optional.Collapsed
 	}
 	if optional.ParentID != nil {
 		c.ParentID = *optional.ParentID

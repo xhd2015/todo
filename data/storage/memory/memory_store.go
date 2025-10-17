@@ -246,6 +246,9 @@ func (les *LogEntryBaseStore) Update(id int64, update models.LogEntryOptional) e
 	if update.HighlightLevel != nil {
 		entry.HighlightLevel = *update.HighlightLevel
 	}
+	if update.Collapsed != nil {
+		entry.Collapsed = *update.Collapsed
+	}
 	if update.ParentID != nil {
 		entry.ParentID = *update.ParentID
 	}

@@ -44,6 +44,12 @@ type LogEntryView struct {
 	// When true, shows notes for this entry and all its descendants
 	// toggled by 'n' command (UI also shows notes when IncludeHistory is true)
 	IncludeNotes bool
+
+	// CollapsedChildren stores the original children when entry is collapsed
+	CollapsedChildren LogEntryViews
+
+	// CollapsedCount stores the total count of collapsed children (including nested)
+	CollapsedCount int
 }
 
 type MatchText struct {

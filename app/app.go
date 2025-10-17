@@ -116,6 +116,7 @@ type State struct {
 	OnShowTop            func(id int64, text string, duration time.Duration) // Callback to show todo in macOS floating bar
 	OnToggleVisibility   func(id int64) error                                // Callback to toggle visibility of all children including history
 	OnToggleNotesDisplay func(id int64) error                                // Callback to toggle notes display for entry and its subtree
+	OnToggleCollapsed    func(id int64) error                                // Callback to toggle collapsed state for entry
 
 	LastCtrlC time.Time
 

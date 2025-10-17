@@ -356,6 +356,14 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
+	appState.OnToggleCollapsed = func(id int64) error {
+		err := logManager.ToggleCollapsed(id)
+		if err != nil {
+			return err
+		}
+		appState.Entries = logManager.Entries
+		return nil
+	}
 	appState.Happening = app.HappeningState{
 		LoadHappenings: func(ctx context.Context) ([]*models.Happening, error) {
 			return logManager.HappeningManager.LoadHappenings(ctx)

@@ -102,6 +102,10 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 	}
 
 	sortEntries(rootEntries)
+
+	// Process collapsed entries to hide children and add count information
+	processCollapsedEntries(rootEntries)
+
 	return rootEntries, nil
 }
 
@@ -139,6 +143,45 @@ func isNewer(a *models.LogEntryView, b *models.LogEntryView) bool {
 
 	// compare adjusted top time if both are adjusted top time
 	return a.Data.AdjustedTopTime > b.Data.AdjustedTopTime
+}
+
+// processCollapsedEntries processes the tree to hide children of collapsed entries
+// and adds collapsed count information to the entry view
+func processCollapsedEntries(entries []*models.LogEntryView) {
+	for _, entry := range entries {
+		if entry.Data.Collapsed {
+			// If we have children visible, we need to collapse them
+			if len(entry.Children) > 0 {
+				// Count total children (including nested children)
+				collapsedCount := countAllChildren(entry.Children)
+
+				// Store the original children for potential expansion later
+				// and clear the visible children
+				entry.CollapsedChildren = entry.Children
+				entry.CollapsedCount = collapsedCount
+				entry.Children = []*models.LogEntryView{}
+			}
+			// If children are already hidden but we don't have a count, keep existing state
+		} else {
+			// If not collapsed but we have collapsed children, restore them
+			if len(entry.CollapsedChildren) > 0 {
+				entry.Children = entry.CollapsedChildren
+				entry.CollapsedChildren = nil
+				entry.CollapsedCount = 0
+			}
+			// Recursively process non-collapsed children
+			processCollapsedEntries(entry.Children)
+		}
+	}
+}
+
+// countAllChildren recursively counts all children and their descendants
+func countAllChildren(children []*models.LogEntryView) int {
+	count := len(children)
+	for _, child := range children {
+		count += countAllChildren(child.Children)
+	}
+	return count
 }
 
 func (m *LogManager) Add(entry models.LogEntry) (int64, error) {
@@ -485,5 +528,32 @@ func (m *LogManager) GetTree(ctx context.Context, id int64, includeHistory bool)
 	// Sort children recursively
 	sortEntries([]*models.LogEntryView{rootEntry})
 
+	// Process collapsed entries to hide children and add count information
+	processCollapsedEntries([]*models.LogEntryView{rootEntry})
+
 	return rootEntry, nil
+}
+
+// ToggleCollapsed toggles the collapsed state of an entry
+func (m *LogManager) ToggleCollapsed(id int64) error {
+	entry, err := m.Get(id)
+	if err != nil {
+		return err
+	}
+
+	// Toggle the collapsed state
+	newCollapsed := !entry.Data.Collapsed
+
+	err = m.Update(id, models.LogEntryOptional{
+		Collapsed: &newCollapsed,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Re-process the entire tree to apply collapsed logic consistently
+	// This ensures all collapsed states are properly handled
+	processCollapsedEntries(m.Entries)
+
+	return nil
 }

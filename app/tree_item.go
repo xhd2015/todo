@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -315,6 +316,17 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							return nil
 						})
 					}
+				case ",":
+					// toggle collapsed state
+					if state.OnToggleCollapsed != nil {
+						state.Enqueue(func(ctx context.Context) error {
+							err := state.OnToggleCollapsed(item.Data.ID)
+							if err != nil {
+								return err
+							}
+							return nil
+						})
+					}
 				}
 			}
 		},
@@ -337,6 +349,25 @@ func TodoItem(props TodoItemProps) *dom.Node {
 		func() *dom.Node {
 			if item.IncludeHistory {
 				return dom.Text(" (*)", styles.Style{
+					Color: func() string {
+						if isSelected {
+							return colors.GREEN_SUCCESS
+						}
+						return colors.GREY_TEXT
+					}(),
+				})
+			}
+			return nil
+		}(),
+		func() *dom.Node {
+			if item.Data.Collapsed {
+				var text string
+				if item.CollapsedCount > 0 {
+					text = fmt.Sprintf(" (%d collapsed)", item.CollapsedCount)
+				} else {
+					text = " (collapsed)"
+				}
+				return dom.Text(text, styles.Style{
 					Color: func() string {
 						if isSelected {
 							return colors.GREEN_SUCCESS

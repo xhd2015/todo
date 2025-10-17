@@ -55,6 +55,7 @@ func (s *SQLiteStore) createTables() error {
 		update_time DATETIME NOT NULL,
 		adjusted_top_time INTEGER NOT NULL DEFAULT 0,
 		highlight_level INTEGER NOT NULL DEFAULT 0,
+		collapsed BOOLEAN NOT NULL DEFAULT 0,
 		parent_id INTEGER NOT NULL DEFAULT 0
 	);`
 
@@ -170,7 +171,7 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		}
 	}
 
-	query := fmt.Sprintf("SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id FROM log_entries %s %s %s",
+	query := fmt.Sprintf("SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, collapsed, parent_id FROM log_entries %s %s %s",
 		where, orderBy, limit)
 
 	rows, err := les.db.Query(query, args...)
@@ -185,7 +186,7 @@ func (les *LogEntrySQLiteStore) List(options storage.LogEntryListOptions) ([]mod
 		var createTime, updateTime string
 		var doneTime *string
 
-		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &doneTime, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel, &entry.ParentID); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &doneTime, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel, &entry.Collapsed, &entry.ParentID); err != nil {
 			return nil, 0, err
 		}
 
@@ -221,8 +222,8 @@ func (les *LogEntrySQLiteStore) Add(entry models.LogEntry) (int64, error) {
 		entry.UpdateTime = time.Now()
 	}
 
-	query := `INSERT INTO log_entries (text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id) 
-			  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO log_entries (text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, collapsed, parent_id) 
+		  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	var doneTimeStr interface{}
 	if entry.DoneTime != nil {
@@ -234,6 +235,7 @@ func (les *LogEntrySQLiteStore) Add(entry models.LogEntry) (int64, error) {
 		entry.UpdateTime.Format("2006-01-02 15:04:05"),
 		entry.AdjustedTopTime,
 		entry.HighlightLevel,
+		entry.Collapsed,
 		entry.ParentID)
 	if err != nil {
 		return 0, err
@@ -304,6 +306,10 @@ func (les *LogEntrySQLiteStore) Update(id int64, update models.LogEntryOptional)
 		setParts = append(setParts, "highlight_level = ?")
 		args = append(args, *update.HighlightLevel)
 	}
+	if update.Collapsed != nil {
+		setParts = append(setParts, "collapsed = ?")
+		args = append(args, *update.Collapsed)
+	}
 	if update.ParentID != nil {
 		setParts = append(setParts, "parent_id = ?")
 		args = append(args, *update.ParentID)
@@ -358,18 +364,18 @@ func (les *LogEntrySQLiteStore) GetTree(ctx context.Context, id int64, includeHi
 		query = `
 			WITH RECURSIVE descendants AS (
 				-- Base case: the root entry
-				SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+				SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, collapsed, parent_id
 				FROM log_entries 
 				WHERE id = ?
 				
 				UNION ALL
 				
 				-- Recursive case: children of entries already in the result
-				SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.parent_id
+				SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.collapsed, e.parent_id
 				FROM log_entries e
 				INNER JOIN descendants d ON e.parent_id = d.id
 			)
-			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, collapsed, parent_id
 			FROM descendants
 			ORDER BY parent_id, id
 		`
@@ -377,19 +383,19 @@ func (les *LogEntrySQLiteStore) GetTree(ctx context.Context, id int64, includeHi
 		query = `
 			WITH RECURSIVE descendants AS (
 				-- Base case: the root entry
-				SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+				SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, collapsed, parent_id
 				FROM log_entries 
 				WHERE id = ?
 				
 				UNION ALL
 				
 				-- Recursive case: children of entries already in the result (excluding done entries)
-				SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.parent_id
+				SELECT e.id, e.text, e.done, e.done_time, e.create_time, e.update_time, e.adjusted_top_time, e.highlight_level, e.collapsed, e.parent_id
 				FROM log_entries e
 				INNER JOIN descendants d ON e.parent_id = d.id
 				WHERE NOT (e.done = 1 AND e.done_time IS NOT NULL)
 			)
-			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, parent_id
+			SELECT id, text, done, done_time, create_time, update_time, adjusted_top_time, highlight_level, collapsed, parent_id
 			FROM descendants
 			ORDER BY parent_id, id
 		`
@@ -407,7 +413,7 @@ func (les *LogEntrySQLiteStore) GetTree(ctx context.Context, id int64, includeHi
 		var createTime, updateTime string
 		var doneTime *string
 
-		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &doneTime, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel, &entry.ParentID); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Text, &entry.Done, &doneTime, &createTime, &updateTime, &entry.AdjustedTopTime, &entry.HighlightLevel, &entry.Collapsed, &entry.ParentID); err != nil {
 			return nil, err
 		}
 
