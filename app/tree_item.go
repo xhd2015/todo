@@ -133,6 +133,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			case dom.KeyTypeEsc:
 				if state.IsSearchActive {
 					state.ClearSearch()
+				} else if state.FocusedEntryID != 0 {
+					state.FocusedEntryID = 0
 				} else if state.ZenMode {
 					state.ZenMode = false
 				}
@@ -316,6 +318,9 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							return nil
 						})
 					}
+				case "f":
+					// enter focused mode on this entry
+					state.FocusedEntryID = item.Data.ID
 				case ",":
 					// toggle collapsed state
 					if state.OnToggleCollapsed != nil {

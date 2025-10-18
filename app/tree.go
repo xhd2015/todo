@@ -26,9 +26,15 @@ type TreeNote struct {
 type TreeEntryType string
 
 const (
-	TreeEntryType_Log  TreeEntryType = "Log"
-	TreeEntryType_Note TreeEntryType = "Note"
+	TreeEntryType_Log         TreeEntryType = "Log"
+	TreeEntryType_Note        TreeEntryType = "Note"
+	TreeEntryType_FocusedItem TreeEntryType = "FocusedItem"
 )
+
+// TreeFocusedItem represents the focused root path
+type TreeFocusedItem struct {
+	RootPath []string
+}
 
 // TreeEntry wraps either a log entry or a note for unified tree rendering
 type TreeEntry struct {
@@ -36,8 +42,9 @@ type TreeEntry struct {
 	Prefix string
 	IsLast bool
 
-	Log  *TreeLog
-	Note *TreeNote
+	Log         *TreeLog
+	Note        *TreeNote
+	FocusedItem *TreeFocusedItem
 }
 
 func (c *TreeEntry) Text() string {
@@ -46,6 +53,16 @@ func (c *TreeEntry) Text() string {
 		return c.Log.Entry.Data.Text
 	case TreeEntryType_Note:
 		return c.Note.Note.Data.Text
+	case TreeEntryType_FocusedItem:
+		if c.FocusedItem != nil && len(c.FocusedItem.RootPath) > 0 {
+			// Join the path components with " > " separator
+			result := c.FocusedItem.RootPath[0]
+			for i := 1; i < len(c.FocusedItem.RootPath); i++ {
+				result += " > " + c.FocusedItem.RootPath[i]
+			}
+			return result
+		}
+		return ""
 	}
 	return ""
 }
@@ -338,6 +355,16 @@ func Tree(props TreeProps) []*dom.Node {
 					}
 				},
 			}))
+		} else if entry.Type == TreeEntryType_FocusedItem && entry.FocusedItem != nil {
+			// Handle focused root path rendering
+			children = append(children, dom.Li(dom.ListItemProps{
+				Focusable:  dom.Focusable(false),
+				Selected:   false, // Focused items are not selectable like regular entries
+				Focused:    false,
+				ItemPrefix: dom.String("📍 "), // Use a location icon to distinguish it
+			}, dom.Text(entry.Text(), styles.Style{
+				Color: colors.PURPLE_PRIMARY,
+			})))
 		}
 	}
 

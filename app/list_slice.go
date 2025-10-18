@@ -14,7 +14,13 @@ type ComputeResult struct {
 	EffectiveSliceStart int
 }
 
-func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, selectedSource SelectedSource, zenMode bool, searchActive bool, query string, showNotes bool) ComputeResult {
+func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, selectedSource SelectedSource, zenMode bool, searchActive bool, query string, showNotes bool, focusingEntryID int64) ComputeResult {
+	var focusedRootPath []string
+	// Process focusing if focusingEntryID is provided
+	if focusingEntryID != 0 {
+		entries, focusedRootPath = processFocusedEntries(entries, focusingEntryID)
+	}
+
 	// Filter entries based on search query if active
 	entriesToRender := applyFilter(entries, zenMode, searchActive, query)
 
@@ -27,6 +33,20 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 	}
 
 	var flatEntries []TreeEntry
+
+	// Add focused root path as the first entry if in focused mode
+	if len(focusedRootPath) > 0 {
+		focusedTreeEntry := TreeEntry{
+			Type:   TreeEntryType_FocusedItem,
+			Prefix: "",
+			IsLast: false,
+			FocusedItem: &TreeFocusedItem{
+				RootPath: focusedRootPath,
+			},
+		}
+		flatEntries = append(flatEntries, focusedTreeEntry)
+	}
+
 	for i, entry := range topLevelEntries {
 		isLast := i == len(topLevelEntries)-1
 		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false, showNotes)
@@ -208,4 +228,62 @@ func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedI
 	entriesAbove := sliceStart
 	entriesBelow := totalEntries - end
 	return entriesAbove, entriesBelow, visibleEntries, sliceStart
+}
+
+// processFocusedEntries processes entries for focused mode, showing only the focused entry and its subtree
+func processFocusedEntries(entries models.LogEntryViews, focusingEntryID int64) (models.LogEntryViews, []string) {
+	// Find the focused entry and build its root path
+	focusedEntry := findEntryInTree(entries, focusingEntryID)
+	if focusedEntry == nil {
+		// If focused entry not found, return original entries
+		return entries, nil
+	}
+
+	// Build the root path for the focused entry
+	rootPath := buildRootPath(entries, focusingEntryID)
+
+	// should clear parent entry id
+	children := focusedEntry.Children
+
+	copiedChildren := make(models.LogEntryViews, len(children))
+	for i, child := range children {
+		p := *child
+		p.Data.ParentID = 0
+		copiedChildren[i] = &p
+	}
+
+	return focusedEntry.Children, rootPath
+}
+
+// findEntryInTree recursively finds an entry by ID in the tree
+func findEntryInTree(entries models.LogEntryViews, entryID int64) *models.LogEntryView {
+	for _, entry := range entries {
+		if entry.Data.ID == entryID {
+			return entry
+		}
+		if found := findEntryInTree(entry.Children, entryID); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// buildRootPath builds the path from root to the specified entry
+func buildRootPath(entries models.LogEntryViews, entryID int64) []string {
+	path := findPathToEntry(entries, entryID, []string{})
+	return path
+}
+
+// findPathToEntry recursively finds the path to an entry
+func findPathToEntry(entries models.LogEntryViews, entryID int64, currentPath []string) []string {
+	for _, entry := range entries {
+		newPath := append(currentPath, entry.Data.Text)
+		if entry.Data.ID == entryID {
+			return newPath
+		}
+		if found := findPathToEntry(entry.Children, entryID, newPath); found != nil {
+			return found
+		}
+	}
+	return nil
 }

@@ -4,11 +4,11 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 )
 
-const HEADER_HEIGHT = 9
+const HEADER_HEIGHT = 1
 
 func MainPage(state *State, window *dom.Window) *dom.Node {
 	const RESERVE_ENTRY = 2
-	const SPACE_BETWEEN_LIST_AND_INPUT = 2
+	const SPACE_BETWEEN_LIST_AND_INPUT = 1
 	const INPUT_HEIGHT = 2
 	const LINES_UNDER_INPUT = 3
 
@@ -22,7 +22,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		maxEntries = 5
 	}
 
-	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.SelectFromSource, state.ZenMode, state.IsSearchActive, state.SearchQuery, state.ShowNotes)
+	computeResult := computeVisibleEntries(state.Entries, maxEntries, state.SliceStart, state.SelectedEntryID, state.SelectFromSource, state.ZenMode, state.IsSearchActive, state.SearchQuery, state.ShowNotes, state.FocusedEntryID)
 
 	itemsHeight := len(computeResult.VisibleEntries)
 	if computeResult.EntriesAbove > 0 {

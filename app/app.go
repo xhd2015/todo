@@ -95,6 +95,9 @@ type State struct {
 	// Cut/Paste functionality
 	CuttingEntryID int64 // ID of the entry currently being cut (0 if none)
 
+	// Focused mode functionality
+	FocusedEntryID int64 // ID of the entry currently focused on (0 if none)
+
 	Quit func()
 
 	Refresh func()
