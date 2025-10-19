@@ -8,6 +8,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/happening_list"
+	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
@@ -19,6 +20,7 @@ const (
 	RouteType_Detail
 	RouteType_Config
 	RouteType_HappeningList
+	RouteType_HumanState
 )
 
 type Routes []Route
@@ -29,6 +31,7 @@ type Route struct {
 	DetailPage        *DetailPageState
 	ConfigPage        *ConfigPageState
 	HappeningListPage *HappeningListPageState
+	HumanStatePage    *HumanStatePageState
 }
 
 func (routes *Routes) Push(route Route) {
@@ -83,6 +86,10 @@ type HappeningListPageState struct {
 	// This can be empty since happening state is now in main State
 }
 
+type HumanStatePageState struct {
+	// This can be empty since human state is now in main State
+}
+
 func DetailRoute(entryID int64) Route {
 	return Route{
 		Type: RouteType_Detail,
@@ -103,6 +110,13 @@ func HappeningListRoute() Route {
 	return Route{
 		Type:              RouteType_HappeningList,
 		HappeningListPage: &HappeningListPageState{},
+	}
+}
+
+func HumanStateRoute() Route {
+	return Route{
+		Type:           RouteType_HumanState,
+		HumanStatePage: &HumanStatePageState{},
 	}
 }
 
@@ -279,6 +293,23 @@ func HappeningListPage(state *State) *dom.Node {
 	})
 }
 
+// HumanStatePage renders the human state page
+func HumanStatePage(state *State) *dom.Node {
+	return human_state.HumanStatePage(
+		state.HumanState,
+		func(event *dom.DOMEvent) {
+			keyEvent := event.KeydownEvent
+			if keyEvent != nil {
+				if keyEvent.KeyType == dom.KeyTypeEsc {
+					state.Routes.Pop()
+					return
+				}
+				return
+			}
+		},
+	)
+}
+
 func RenderRoute(state *State, route Route) *dom.Node {
 	switch route.Type {
 	case RouteType_Detail:
@@ -287,6 +318,8 @@ func RenderRoute(state *State, route Route) *dom.Node {
 		return ConfigPage(state)
 	case RouteType_HappeningList:
 		return HappeningListPage(state)
+	case RouteType_HumanState:
+		return HumanStatePage(state)
 	default:
 		return dom.Text(fmt.Sprintf("unknown route: %d", route.Type), styles.Style{
 			Bold:  true,

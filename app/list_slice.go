@@ -14,15 +14,31 @@ type ComputeResult struct {
 	EffectiveSliceStart int
 }
 
-func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceStart int, selectedID int64, selectedSource SelectedSource, zenMode bool, searchActive bool, query string, showNotes bool, focusingEntryID int64) ComputeResult {
+type EntryOptions struct {
+	MaxEntries      int
+	SliceStart      int
+	SelectedID      int64
+	SelectedSource  SelectedSource
+	ZenMode         bool
+	SearchActive    bool
+	Query           string
+	ShowNotes       bool
+	FocusingEntryID int64
+	ExpandAll       bool
+}
+
+func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) ComputeResult {
 	var focusedRootPath []string
 	// Process focusing if focusingEntryID is provided
-	if focusingEntryID != 0 {
-		entries, focusedRootPath = processFocusedEntries(entries, focusingEntryID)
+	if opts.FocusingEntryID != 0 {
+		entries, focusedRootPath = processFocusedEntries(entries, opts.FocusingEntryID)
 	}
 
 	// Filter entries based on search query if active
-	entriesToRender := applyFilter(entries, zenMode, searchActive, query)
+	entriesToRender := applyFilter(entries, opts.ZenMode, opts.SearchActive, opts.Query)
+
+	// Process collapsed entries to hide children and add count information
+	processCollapsedEntries(entriesToRender, opts.ExpandAll)
 
 	// Add top-level entries (ParentID == 0)
 	topLevelEntries := make([]*models.LogEntryView, 0)
@@ -49,9 +65,9 @@ func computeVisibleEntries(entries models.LogEntryViews, maxEntries int, sliceSt
 
 	for i, entry := range topLevelEntries {
 		isLast := i == len(topLevelEntries)-1
-		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false, showNotes)
+		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false, opts.ShowNotes)
 	}
-	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, maxEntries, sliceStart, selectedID, selectedSource)
+	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, opts.MaxEntries, opts.SliceStart, opts.SelectedID, opts.SelectedSource)
 	return ComputeResult{
 		EntriesAbove:        entriesAbove,
 		EntriesBelow:        entriesBelow,
@@ -286,4 +302,44 @@ func findPathToEntry(entries models.LogEntryViews, entryID int64, currentPath []
 		}
 	}
 	return nil
+}
+
+// processCollapsedEntries processes the tree to hide children of collapsed entries
+// and adds collapsed count information to the entry view
+// If expandAll is true, ignores collapse flags and shows all entries
+func processCollapsedEntries(entries models.LogEntryViews, expandAll bool) {
+	for _, entry := range entries {
+		if !expandAll && entry.Data.Collapsed {
+			// If we have children visible, we need to collapse them
+			if len(entry.Children) > 0 {
+				// Count total children (including nested children)
+				collapsedCount := countAllChildren(entry.Children)
+
+				// Store the original children for potential expansion later
+				// and clear the visible children
+				entry.CollapsedChildren = entry.Children
+				entry.CollapsedCount = collapsedCount
+				entry.Children = []*models.LogEntryView{}
+			}
+			// If children are already hidden but we don't have a count, keep existing state
+		} else {
+			// If not collapsed but we have collapsed children, restore them
+			if len(entry.CollapsedChildren) > 0 {
+				entry.Children = entry.CollapsedChildren
+				entry.CollapsedChildren = nil
+				entry.CollapsedCount = 0
+			}
+			// Recursively process non-collapsed children
+			processCollapsedEntries(entry.Children, expandAll)
+		}
+	}
+}
+
+// countAllChildren recursively counts all children and their descendants
+func countAllChildren(children []*models.LogEntryView) int {
+	count := len(children)
+	for _, child := range children {
+		count += countAllChildren(child.Children)
+	}
+	return count
 }

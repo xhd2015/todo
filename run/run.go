@@ -13,6 +13,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/log"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/app"
+	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/data"
 	"github.com/xhd2015/todo/internal/config"
 	"github.com/xhd2015/todo/internal/macos"
@@ -381,6 +382,9 @@ func Main(args []string) error {
 			Focused: true,
 		},
 	}
+
+	// Initialize human state
+	appState.HumanState = human_state.NewHumanState()
 
 	model := &Model{
 		app: charm.NewCharmApp(&appState, app.App),

@@ -365,7 +365,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			return nil
 		}(),
 		func() *dom.Node {
-			if item.Data.Collapsed {
+			// Only show collapsed indicator if the entry is collapsed AND expandAll is not active
+			if item.Data.Collapsed && !props.State.ExpandAll {
 				var text string
 				if item.CollapsedCount > 0 {
 					text = fmt.Sprintf(" (%d collapsed)", item.CollapsedCount)

@@ -10,6 +10,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -82,8 +83,12 @@ type State struct {
 	// Happening functionality
 	Happening HappeningState
 
+	// Human state functionality
+	HumanState *human_state.HumanState
+
 	ShowHistory bool // Whether to show historical (done) todos from before today
 	ShowNotes   bool // Whether to show all notes globally
+	ExpandAll   bool // Whether to expand all entries, ignoring individual collapse flags
 
 	// Search functionality
 	SearchQuery    string // Current search query (without the ? prefix)
@@ -303,6 +308,8 @@ func App(state *State, window *dom.Window) *dom.Node {
 					title = "Config"
 				case RouteType_HappeningList:
 					title = "Happenings"
+				case RouteType_HumanState:
+					title = "Human States"
 				}
 			}
 			return dom.H1(dom.DivProps{}, dom.Text(title, styles.Style{

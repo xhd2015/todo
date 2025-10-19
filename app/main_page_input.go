@@ -134,6 +134,9 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 				case "/zen":
 					state.ZenMode = !state.ZenMode
 					return true
+				case "/expandall":
+					state.ExpandAll = !state.ExpandAll
+					return true
 				case "/config":
 					// show config page
 					configState := loadConfigPageState()
@@ -164,6 +167,10 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 						return nil
 					})
 
+					return true
+				case "/hstat":
+					// Navigate to human states page
+					state.Routes.Push(HumanStateRoute())
 					return true
 				default:
 					// Unknown command, do nothing
