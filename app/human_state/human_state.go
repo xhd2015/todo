@@ -57,8 +57,6 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 
 	// Instructions
 	instructions := []string{
-		"Human States (HP State)",
-		"",
 		"Navigation:",
 		"↑/↓ - Select bar",
 		"+ - Increase score (+1)",
@@ -75,7 +73,6 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 		OnKeyDown: onKeyDown,
 	},
 		// Title
-		dom.Text("Human States", styles.Style{Bold: true, Color: colors.GREEN_SUCCESS}),
 		dom.Text(""), // Empty line
 
 		// Main content area with ASCII art combined with hp bars
