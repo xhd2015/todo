@@ -35,6 +35,19 @@ type DataStore interface {
 	UpdateHappening(id int64, happening models.Happening) error
 	DeleteHappening(id int64) error
 
+	// State operations
+	GetAllStates() []models.State
+	GetState(id int64) (models.State, bool)
+	GetStateByName(name string) (models.State, bool)
+	AddState(state models.State) error
+	UpdateState(id int64, state models.State) error
+	DeleteState(id int64) error
+
+	// StateEvent operations
+	GetAllStateEvents() []models.StateEvent
+	GetStateEvent(id int64) (models.StateEvent, bool)
+	AddStateEvent(event models.StateEvent) error
+
 	// ID generation
 	NextID() int64
 
@@ -70,6 +83,11 @@ type HappeningBaseStore struct {
 	*BaseStore
 }
 
+// StateRecordingBaseStore implements storage.StateRecordingService using BaseStore
+type StateRecordingBaseStore struct {
+	*BaseStore
+}
+
 // NewLogEntryBaseService creates a LogEntryService using the given DataStore
 func NewLogEntryBaseService(data DataStore) storage.LogEntryService {
 	base := NewBaseStore(data)
@@ -86,6 +104,12 @@ func NewLogNoteBaseService(data DataStore) storage.LogNoteService {
 func NewHappeningBaseService(data DataStore) storage.HappeningService {
 	base := NewBaseStore(data)
 	return &HappeningBaseStore{BaseStore: base}
+}
+
+// NewStateRecordingBaseService creates a StateRecordingService using the given DataStore
+func NewStateRecordingBaseService(data DataStore) storage.StateRecordingService {
+	base := NewBaseStore(data)
+	return &StateRecordingBaseStore{BaseStore: base}
 }
 
 // LogEntry service methods
@@ -629,4 +653,124 @@ func (hbs *HappeningBaseStore) Delete(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+// StateRecordingService methods
+func (srs *StateRecordingBaseStore) GetState(ctx context.Context, name string) (*models.State, error) {
+	srs.mu.RLock()
+	defer srs.mu.RUnlock()
+
+	if state, exists := srs.data.GetStateByName(name); exists {
+		return &state, nil
+	}
+	return nil, fmt.Errorf("state not found")
+}
+
+func (srs *StateRecordingBaseStore) RecordStateEvent(ctx context.Context, name string, deltaScore float64) error {
+	srs.mu.Lock()
+	defer srs.mu.Unlock()
+
+	// Find the state by name
+	state, exists := srs.data.GetStateByName(name)
+	if !exists {
+		return fmt.Errorf("state not found")
+	}
+
+	// Update the state score
+	state.Score += deltaScore
+	state.UpdateTime = time.Now()
+	err := srs.data.UpdateState(state.ID, state)
+	if err != nil {
+		return err
+	}
+
+	// Create and add the state event
+	eventID := srs.data.NextID()
+	event := models.StateEvent{
+		ID:            eventID,
+		StateRecordID: state.ID,
+		RecordData:    "",
+		DeltaScore:    deltaScore,
+		Description:   "",
+		Details:       "",
+		Scope:         state.Scope,
+		CreateTime:    time.Now(),
+		UpdateTime:    time.Now(),
+	}
+
+	if err := srs.data.AddStateEvent(event); err != nil {
+		return err
+	}
+
+	return srs.data.Save()
+}
+
+func (srs *StateRecordingBaseStore) CreateState(ctx context.Context, state *models.State) (*models.State, error) {
+	if state == nil {
+		return nil, fmt.Errorf("state cannot be nil")
+	}
+
+	srs.mu.Lock()
+	defer srs.mu.Unlock()
+
+	// Check if state with same name already exists
+	if _, exists := srs.data.GetStateByName(state.Name); exists {
+		return nil, fmt.Errorf("state with this name already exists")
+	}
+
+	// Generate ID and set timestamps
+	state.ID = srs.data.NextID()
+	state.CreateTime = time.Now()
+	state.UpdateTime = time.Now()
+
+	err := srs.data.AddState(*state)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := srs.data.Save(); err != nil {
+		return nil, err
+	}
+
+	return state, nil
+}
+
+func (srs *StateRecordingBaseStore) ListStates(ctx context.Context, scope string) ([]*models.State, error) {
+	srs.mu.RLock()
+	defer srs.mu.RUnlock()
+
+	allStates := srs.data.GetAllStates()
+	var filteredStates []*models.State
+
+	for _, state := range allStates {
+		// Filter by scope if provided
+		if scope == "" || strings.Contains(state.Scope, scope) {
+			stateCopy := state
+			filteredStates = append(filteredStates, &stateCopy)
+		}
+	}
+
+	return filteredStates, nil
+}
+
+func (srs *StateRecordingBaseStore) GetStateEvents(ctx context.Context, stateID int64, limit int) ([]*models.StateEvent, error) {
+	srs.mu.RLock()
+	defer srs.mu.RUnlock()
+
+	allEvents := srs.data.GetAllStateEvents()
+	var filteredEvents []*models.StateEvent
+
+	for _, event := range allEvents {
+		if event.StateRecordID == stateID {
+			eventCopy := event
+			filteredEvents = append(filteredEvents, &eventCopy)
+		}
+	}
+
+	// Apply limit if specified
+	if limit > 0 && len(filteredEvents) > limit {
+		filteredEvents = filteredEvents[:limit]
+	}
+
+	return filteredEvents, nil
 }

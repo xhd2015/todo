@@ -31,6 +31,10 @@ setup-lifelog - Setup a lifelog project
 Options:
   --lifelog-project <project>  The project to setup
   -h,--help                    Show this help message
+
+Examples:
+	go run ./script/setup-lifelog
+	go run ./script/setup-lifelog merge-into-master
 `
 
 func Handle(args []string) error {
@@ -149,6 +153,22 @@ func mergeIntoMaster(args []string) error {
 	}
 
 	fmt.Printf("Successfully merged branch '%s' into master\n", currentBranch)
+
+	// print follow-up commands:
+
+	pushOriginCmd := fmt.Sprintf("cd %q && git push origin master", lifelogProject)
+	removeWorktreeCmd := fmt.Sprintf("cd %q && git worktree remove \"$PWD\"", pwdLifelog)
+	removeBranchCmd := fmt.Sprintf("cd %q && git branch -D %s", lifelogProject, currentBranch)
+
+	fmt.Printf("You can now push origin to remote: (%s)\n", pushOriginCmd)
+	fmt.Printf("Then remove the worktree: (%s)\n", removeWorktreeCmd)
+	fmt.Printf("Finally remove the branch: (%s)\n", removeBranchCmd)
+
+	fmt.Printf("Combined commands: \n")
+	cmds := []string{pushOriginCmd, removeWorktreeCmd, removeBranchCmd}
+	for _, cmd := range cmds {
+		fmt.Printf("  (%s)\n", cmd)
+	}
 	return nil
 }
 

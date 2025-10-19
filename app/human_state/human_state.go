@@ -17,25 +17,85 @@ import (
 //go:embed man.txt
 var manASCII string
 
-const TOTAL_HP_SCORE = 5
+const (
+	HP_TOTAL_SCORE = 5
+	HP_STATE_NAME  = "H/P State"
+)
 
 // HumanState represents the state of human metrics with one hp state having 5 bars
 type HumanState struct {
-	HpScores        int // 5 bars for the single hp state
-	FocusedBarIndex int // Which bar is currently focused (0-4)
+	HpScores        int                                          // 5 bars for the single hp state
+	FocusedBarIndex int                                          // Which bar is currently focused (0-4)
+	OnAdjustScore   func(delta int) error                        // Callback for when score is adjusted
+	Enqueue         func(action func(ctx context.Context) error) // Async task enqueue function
+	LoadStateOnce   func()                                       // Load state once on first access
 }
 
-// NewHumanState creates a new human state with default values
-func NewHumanState() *HumanState {
-	return &HumanState{
-		HpScores:        0,
-		FocusedBarIndex: -1,
+// HumanStatePage renders the complete human state page
+func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.Node {
+	log.Infof(context.Background(), "DEBUG HumanStatePage: scores=%+v", humanState.HpScores)
+	// Get ASCII art as DOM nodes
+	asciiText := GetASCIIArt()
+	asciiLines := strings.Split(asciiText, "\n")
+	var asciiNodes []*dom.Node
+	for _, line := range asciiLines {
+		asciiNodes = append(asciiNodes, dom.Text(line, styles.Style{Color: colors.GREY_TEXT}))
 	}
+
+	// Create hp bar group as DOM nodes
+	hpBarNodes := RenderBars(humanState.HpScores, HP_TOTAL_SCORE, humanState.FocusedBarIndex, func(delta int) {
+		humanState.AdjustScore(delta)
+	}, func(index int) {
+		humanState.FocusedBarIndex = index
+	})
+
+	// Combine ASCII art with hp bars side by side
+	combinedNodes := combineAlignBottom(asciiNodes, hpBarNodes, 2) // 2 spaces between
+
+	// Create the main art container
+	artNode := dom.Div(dom.DivProps{}, combinedNodes...)
+
+	// Instructions
+	instructions := []string{
+		"Human States (HP State)",
+		"",
+		"Navigation:",
+		"↑/↓ - Select bar",
+		"+ - Increase score (+1)",
+		"- - Decrease score (-2)",
+		"ESC - Back to main",
+	}
+
+	var instructionNodes []*dom.Node
+	for _, instruction := range instructions {
+		instructionNodes = append(instructionNodes, dom.Text(instruction, styles.Style{Color: colors.GREY_TEXT}))
+	}
+
+	return dom.Div(dom.DivProps{
+		OnKeyDown: onKeyDown,
+	},
+		// Title
+		dom.Text("Human States", styles.Style{Bold: true, Color: colors.GREEN_SUCCESS}),
+		dom.Text(""), // Empty line
+
+		// Main content area with ASCII art combined with hp bars
+		artNode,
+
+		dom.Text(""), // Empty line
+
+		// Instructions
+		dom.Div(dom.DivProps{}, instructionNodes...),
+	)
 }
 
 // AdjustScore increases or decreases the focused bar's score
 func (hs *HumanState) AdjustScore(delta int) {
 	hs.HpScores += delta
+	if hs.OnAdjustScore != nil && hs.Enqueue != nil {
+		hs.Enqueue(func(ctx context.Context) error {
+			return hs.OnAdjustScore(delta)
+		})
+	}
 }
 
 // GetASCIIArt returns the ASCII art for a male figure
@@ -228,7 +288,7 @@ func RenderBars(hpScores int, totalScore int, focusedBarIndex int, onAdjustScore
 		}))
 	}
 
-	if hpScores < 0 || hpScores > TOTAL_HP_SCORE {
+	if hpScores < 0 || hpScores > HP_TOTAL_SCORE {
 		color := colors.RED_ERROR
 		if hpScores >= 0 {
 			color = colors.GREEN_SUCCESS
@@ -237,60 +297,4 @@ func RenderBars(hpScores int, totalScore int, focusedBarIndex int, onAdjustScore
 	}
 
 	return nodes
-}
-
-// HumanStatePage renders the complete human state page
-func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.Node {
-	// Get ASCII art as DOM nodes
-	asciiText := GetASCIIArt()
-	asciiLines := strings.Split(asciiText, "\n")
-	var asciiNodes []*dom.Node
-	for _, line := range asciiLines {
-		asciiNodes = append(asciiNodes, dom.Text(line, styles.Style{Color: colors.GREY_TEXT}))
-	}
-
-	// Create hp bar group as DOM nodes
-	hpBarNodes := RenderBars(humanState.HpScores, TOTAL_HP_SCORE, humanState.FocusedBarIndex, func(delta int) {
-		humanState.AdjustScore(delta)
-	}, func(index int) {
-		humanState.FocusedBarIndex = index
-	})
-
-	// Combine ASCII art with hp bars side by side
-	combinedNodes := combineAlignBottom(asciiNodes, hpBarNodes, 2) // 2 spaces between
-
-	// Create the main art container
-	artNode := dom.Div(dom.DivProps{}, combinedNodes...)
-
-	// Instructions
-	instructions := []string{
-		"Human States (HP State)",
-		"",
-		"Navigation:",
-		"↑/↓ - Select bar",
-		"+ - Increase score (+1)",
-		"- - Decrease score (-2)",
-		"ESC - Back to main",
-	}
-
-	var instructionNodes []*dom.Node
-	for _, instruction := range instructions {
-		instructionNodes = append(instructionNodes, dom.Text(instruction, styles.Style{Color: colors.GREY_TEXT}))
-	}
-
-	return dom.Div(dom.DivProps{
-		OnKeyDown: onKeyDown,
-	},
-		// Title
-		dom.Text("Human States", styles.Style{Bold: true, Color: colors.GREEN_SUCCESS}),
-		dom.Text(""), // Empty line
-
-		// Main content area with ASCII art combined with hp bars
-		artNode,
-
-		dom.Text(""), // Empty line
-
-		// Instructions
-		dom.Div(dom.DivProps{}, instructionNodes...),
-	)
 }

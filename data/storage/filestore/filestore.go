@@ -17,10 +17,12 @@ type FileDataStore struct {
 }
 
 type FileData struct {
-	LogEntries []models.LogEntry  `json:"log_entries"`
-	Notes      []models.Note      `json:"notes"`
-	Happenings []models.Happening `json:"happenings"`
-	NextID     int64              `json:"next_id"`
+	LogEntries  []models.LogEntry   `json:"log_entries"`
+	Notes       []models.Note       `json:"notes"`
+	Happenings  []models.Happening  `json:"happenings"`
+	States      []models.State      `json:"states"`
+	StateEvents []models.StateEvent `json:"state_events"`
+	NextID      int64               `json:"next_id"`
 }
 
 // NewFileDataStore creates a new file-based data store
@@ -28,10 +30,12 @@ func NewFileDataStore(filePath string) (*FileDataStore, error) {
 	fds := &FileDataStore{
 		filePath: filePath,
 		data: &FileData{
-			LogEntries: []models.LogEntry{},
-			Notes:      []models.Note{},
-			Happenings: []models.Happening{},
-			NextID:     1,
+			LogEntries:  []models.LogEntry{},
+			Notes:       []models.Note{},
+			Happenings:  []models.Happening{},
+			States:      []models.State{},
+			StateEvents: []models.StateEvent{},
+			NextID:      1,
 		},
 	}
 
@@ -172,6 +176,73 @@ func (fds *FileDataStore) DeleteHappening(id int64) error {
 	return fmt.Errorf("happening with id %d not found", id)
 }
 
+// State operations
+func (fds *FileDataStore) GetAllStates() []models.State {
+	return fds.data.States
+}
+
+func (fds *FileDataStore) GetState(id int64) (models.State, bool) {
+	for _, state := range fds.data.States {
+		if state.ID == id {
+			return state, true
+		}
+	}
+	return models.State{}, false
+}
+
+func (fds *FileDataStore) GetStateByName(name string) (models.State, bool) {
+	for _, state := range fds.data.States {
+		if state.Name == name {
+			return state, true
+		}
+	}
+	return models.State{}, false
+}
+
+func (fds *FileDataStore) AddState(state models.State) error {
+	fds.data.States = append(fds.data.States, state)
+	return nil
+}
+
+func (fds *FileDataStore) UpdateState(id int64, state models.State) error {
+	for i, existingState := range fds.data.States {
+		if existingState.ID == id {
+			fds.data.States[i] = state
+			return nil
+		}
+	}
+	return fmt.Errorf("state with id %d not found", id)
+}
+
+func (fds *FileDataStore) DeleteState(id int64) error {
+	for i, state := range fds.data.States {
+		if state.ID == id {
+			fds.data.States = append(fds.data.States[:i], fds.data.States[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("state with id %d not found", id)
+}
+
+// StateEvent operations
+func (fds *FileDataStore) GetAllStateEvents() []models.StateEvent {
+	return fds.data.StateEvents
+}
+
+func (fds *FileDataStore) GetStateEvent(id int64) (models.StateEvent, bool) {
+	for _, event := range fds.data.StateEvents {
+		if event.ID == id {
+			return event, true
+		}
+	}
+	return models.StateEvent{}, false
+}
+
+func (fds *FileDataStore) AddStateEvent(event models.StateEvent) error {
+	fds.data.StateEvents = append(fds.data.StateEvents, event)
+	return nil
+}
+
 // ID generation
 func (fds *FileDataStore) NextID() int64 {
 	id := fds.data.NextID
@@ -212,4 +283,12 @@ func NewHappeningService(filePath string) (storage.HappeningService, error) {
 		return nil, err
 	}
 	return memory.NewHappeningBaseService(dataStore), nil
+}
+
+func NewStateRecordingService(filePath string) (storage.StateRecordingService, error) {
+	dataStore, err := NewFileDataStore(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return memory.NewStateRecordingBaseService(dataStore), nil
 }

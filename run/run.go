@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
@@ -383,8 +384,41 @@ func Main(args []string) error {
 		},
 	}
 
+	// Initialize sync.Once for state loading
+	var loadStateOnce sync.Once
+
 	// Initialize human state
-	appState.HumanState = human_state.NewHumanState()
+	appState.HumanState = &human_state.HumanState{
+		HpScores:        0,
+		FocusedBarIndex: -1,
+		OnAdjustScore: func(delta int) error {
+			// First update local score (already done in AdjustScore method)
+			// Then record the state event
+			ctx := context.Background()
+			err := logManager.StateRecordingService.RecordStateEvent(ctx, human_state.HP_STATE_NAME, float64(delta))
+			if err != nil {
+				applog.Errorf(ctx, "Failed to record state event: %v", err)
+				return err
+			}
+			applog.Infof(ctx, "DEBUG Recorded state event with delta: %d", delta)
+			return nil
+		},
+		Enqueue: appState.Enqueue,
+		LoadStateOnce: func() {
+			loadStateOnce.Do(func() {
+				appState.Enqueue(func(ctx context.Context) error {
+					state, err := logManager.StateRecordingService.GetState(ctx, human_state.HP_STATE_NAME)
+					if err != nil {
+						applog.Infof(ctx, "DEBUG Failed to fetch H/P State: %v", err)
+						return err
+					}
+					appState.HumanState.HpScores = int(state.Score)
+					applog.Infof(ctx, "DEBUG H/P State score: %f", state.Score)
+					return nil
+				})
+			})
+		},
+	}
 
 	model := &Model{
 		app: charm.NewCharmApp(&appState, app.App),

@@ -169,6 +169,10 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 
 					return true
 				case "/hstat":
+					// Load state on first access
+					if state.HumanState.LoadStateOnce != nil {
+						state.HumanState.LoadStateOnce()
+					}
 					// Navigate to human states page
 					state.Routes.Push(HumanStateRoute())
 					return true

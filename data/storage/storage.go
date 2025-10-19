@@ -56,3 +56,16 @@ type HappeningService interface {
 	Update(ctx context.Context, id int64, update *models.HappeningOptional) (*models.Happening, error)
 	Delete(ctx context.Context, id int64) error
 }
+
+type StateRecordingService interface {
+	// GetState retrieves a state record by name
+	GetState(ctx context.Context, name string) (*models.State, error)
+	// RecordStateEvent records a state event with delta score, updates the state score, and logs the event
+	RecordStateEvent(ctx context.Context, name string, deltaScore float64) error
+	// CreateState creates a new state record
+	CreateState(ctx context.Context, state *models.State) (*models.State, error)
+	// ListStates lists all state records with optional filtering
+	ListStates(ctx context.Context, scope string) ([]*models.State, error)
+	// GetStateEvents retrieves events for a specific state
+	GetStateEvents(ctx context.Context, stateID int64, limit int) ([]*models.StateEvent, error)
+}

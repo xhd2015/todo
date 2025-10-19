@@ -28,6 +28,10 @@ type HappeningSQLiteStore struct {
 	*SQLiteStore
 }
 
+type StateRecordingSQLiteStore struct {
+	*SQLiteStore
+}
+
 func New(filePath string) (*SQLiteStore, error) {
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
@@ -77,6 +81,32 @@ func (s *SQLiteStore) createTables() error {
 		update_time DATETIME NOT NULL
 	);`
 
+	createStatesTable := `
+	CREATE TABLE IF NOT EXISTS states (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE,
+		description TEXT NOT NULL DEFAULT '',
+		parent_state_record_id INTEGER NOT NULL DEFAULT 0,
+		score REAL NOT NULL DEFAULT 0.0,
+		scope TEXT NOT NULL DEFAULT '',
+		create_time DATETIME NOT NULL,
+		update_time DATETIME NOT NULL
+	);`
+
+	createStateEventsTable := `
+	CREATE TABLE IF NOT EXISTS state_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		state_record_id INTEGER NOT NULL,
+		record_data TEXT NOT NULL DEFAULT '',
+		delta_score REAL NOT NULL DEFAULT 0.0,
+		description TEXT NOT NULL DEFAULT '',
+		details TEXT NOT NULL DEFAULT '',
+		scope TEXT NOT NULL DEFAULT '',
+		create_time DATETIME NOT NULL,
+		update_time DATETIME NOT NULL,
+		FOREIGN KEY (state_record_id) REFERENCES states(id) ON DELETE CASCADE
+	);`
+
 	if _, err := s.db.Exec(createLogEntriesTable); err != nil {
 		return err
 	}
@@ -86,6 +116,14 @@ func (s *SQLiteStore) createTables() error {
 	}
 
 	if _, err := s.db.Exec(createHappeningsTable); err != nil {
+		return err
+	}
+
+	if _, err := s.db.Exec(createStatesTable); err != nil {
+		return err
+	}
+
+	if _, err := s.db.Exec(createStateEventsTable); err != nil {
 		return err
 	}
 
@@ -118,6 +156,14 @@ func NewHappeningService(filePath string) (storage.HappeningService, error) {
 		return nil, err
 	}
 	return &HappeningSQLiteStore{SQLiteStore: store}, nil
+}
+
+func NewStateRecordingService(filePath string) (storage.StateRecordingService, error) {
+	store, err := New(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return &StateRecordingSQLiteStore{SQLiteStore: store}, nil
 }
 
 // LogEntry service methods
@@ -835,4 +881,235 @@ func (hss *HappeningSQLiteStore) Delete(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+// StateRecordingService methods
+func (srs *StateRecordingSQLiteStore) GetState(ctx context.Context, name string) (*models.State, error) {
+	if name == "" {
+		return nil, fmt.Errorf("name cannot be empty")
+	}
+
+	var state models.State
+	var createTime, updateTime string
+
+	query := `SELECT id, name, description, parent_state_record_id, score, scope, create_time, update_time 
+			  FROM states WHERE name = ?`
+
+	err := srs.db.QueryRowContext(ctx, query, name).Scan(
+		&state.ID, &state.Name, &state.Description, &state.ParentStateRecordID,
+		&state.Score, &state.Scope, &createTime, &updateTime)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("state not found")
+		}
+		return nil, fmt.Errorf("failed to get state: %w", err)
+	}
+
+	state.CreateTime, err = tryParseTime(createTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse create time: %w", err)
+	}
+	state.UpdateTime, err = tryParseTime(updateTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse update time: %w", err)
+	}
+
+	return &state, nil
+}
+
+func (srs *StateRecordingSQLiteStore) RecordStateEvent(ctx context.Context, name string, deltaScore float64) error {
+	if name == "" {
+		return fmt.Errorf("name cannot be empty")
+	}
+
+	// Start a transaction
+	tx, err := srs.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Get the state by name
+	var stateID int64
+	var currentScore float64
+	var scope string
+	err = tx.QueryRowContext(ctx, "SELECT id, score, scope FROM states WHERE name = ?", name).Scan(&stateID, &currentScore, &scope)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("state not found")
+		}
+		return fmt.Errorf("failed to get state: %w", err)
+	}
+
+	// Update the state score
+	newScore := currentScore + deltaScore
+	updateTime := time.Now()
+	_, err = tx.ExecContext(ctx, "UPDATE states SET score = ?, update_time = ? WHERE id = ?",
+		newScore, formatTime(updateTime), stateID)
+	if err != nil {
+		return fmt.Errorf("failed to update state score: %w", err)
+	}
+
+	// Create and insert the state event
+	now := time.Now()
+	eventQuery := `INSERT INTO state_events (state_record_id, record_data, delta_score, description, details, scope, create_time, update_time) 
+				   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err = tx.ExecContext(ctx, eventQuery, stateID, "", deltaScore, "", "", scope, formatTime(now), formatTime(now))
+	if err != nil {
+		return fmt.Errorf("failed to insert state event: %w", err)
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (srs *StateRecordingSQLiteStore) CreateState(ctx context.Context, state *models.State) (*models.State, error) {
+	if state == nil {
+		return nil, fmt.Errorf("state cannot be nil")
+	}
+	if state.Name == "" {
+		return nil, fmt.Errorf("state name cannot be empty")
+	}
+
+	// Check if state with same name already exists
+	var exists bool
+	err := srs.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM states WHERE name = ?)", state.Name).Scan(&exists)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if state exists: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("state with this name already exists")
+	}
+
+	now := time.Now()
+
+	// Insert the state
+	query := `INSERT INTO states (name, description, parent_state_record_id, score, scope, create_time, update_time) 
+			  VALUES (?, ?, ?, ?, ?, ?, ?)`
+
+	result, err := srs.db.ExecContext(ctx, query,
+		state.Name, state.Description, state.ParentStateRecordID,
+		state.Score, state.Scope, formatTime(now), formatTime(now))
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert state: %w", err)
+	}
+
+	// Get the inserted ID
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get inserted ID: %w", err)
+	}
+
+	// Return the new state
+	newState := &models.State{
+		ID:                  id,
+		Name:                state.Name,
+		Description:         state.Description,
+		ParentStateRecordID: state.ParentStateRecordID,
+		Score:               state.Score,
+		Scope:               state.Scope,
+		CreateTime:          now,
+		UpdateTime:          now,
+	}
+
+	return newState, nil
+}
+
+func (srs *StateRecordingSQLiteStore) ListStates(ctx context.Context, scope string) ([]*models.State, error) {
+	var whereClause string
+	var args []interface{}
+
+	if scope != "" {
+		whereClause = "WHERE scope LIKE ?"
+		args = append(args, "%"+scope+"%")
+	}
+
+	query := fmt.Sprintf(`SELECT id, name, description, parent_state_record_id, score, scope, create_time, update_time 
+						  FROM states %s ORDER BY name`, whereClause)
+
+	rows, err := srs.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query states: %w", err)
+	}
+	defer rows.Close()
+
+	var states []*models.State
+	for rows.Next() {
+		var state models.State
+		var createTime, updateTime string
+
+		err := rows.Scan(&state.ID, &state.Name, &state.Description, &state.ParentStateRecordID,
+			&state.Score, &state.Scope, &createTime, &updateTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan state: %w", err)
+		}
+
+		state.CreateTime, err = tryParseTime(createTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse create time: %w", err)
+		}
+		state.UpdateTime, err = tryParseTime(updateTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse update time: %w", err)
+		}
+
+		states = append(states, &state)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return states, nil
+}
+
+func (srs *StateRecordingSQLiteStore) GetStateEvents(ctx context.Context, stateID int64, limit int) ([]*models.StateEvent, error) {
+	var limitClause string
+	if limit > 0 {
+		limitClause = fmt.Sprintf("LIMIT %d", limit)
+	}
+
+	query := fmt.Sprintf(`SELECT id, state_record_id, record_data, delta_score, description, details, scope, create_time, update_time 
+						  FROM state_events WHERE state_record_id = ? ORDER BY create_time DESC %s`, limitClause)
+
+	rows, err := srs.db.QueryContext(ctx, query, stateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query state events: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*models.StateEvent
+	for rows.Next() {
+		var event models.StateEvent
+		var createTime, updateTime string
+
+		err := rows.Scan(&event.ID, &event.StateRecordID, &event.RecordData, &event.DeltaScore,
+			&event.Description, &event.Details, &event.Scope, &createTime, &updateTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan state event: %w", err)
+		}
+
+		event.CreateTime, err = tryParseTime(createTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse create time: %w", err)
+		}
+		event.UpdateTime, err = tryParseTime(updateTime)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse update time: %w", err)
+		}
+
+		events = append(events, &event)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return events, nil
 }
