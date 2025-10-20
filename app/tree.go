@@ -8,6 +8,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/app/emojis"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -361,7 +362,7 @@ func Tree(props TreeProps) []*dom.Node {
 				Focusable:  dom.Focusable(false),
 				Selected:   false, // Focused items are not selectable like regular entries
 				Focused:    false,
-				ItemPrefix: dom.String("📍 "), // Use a location icon to distinguish it
+				ItemPrefix: dom.String(emojis.FOCUSED + " "), // Use a location icon to distinguish it
 			}, dom.Text(entry.Text(), styles.Style{
 				Color: colors.PURPLE_PRIMARY,
 			})))

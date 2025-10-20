@@ -30,6 +30,11 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 			case dom.KeyTypeEsc:
 				if state.IsSearchActive {
 					state.ClearSearch()
+					return true
+				}
+				if state.FocusedEntryID != 0 {
+					state.FocusedEntryID = 0
+					return true
 				}
 			case dom.KeyTypeCtrlC:
 				if state.IsSearchActive {
@@ -175,6 +180,10 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					}
 					// Navigate to human states page
 					state.Routes.Push(HumanStateRoute())
+					return true
+				case "/help":
+					// Navigate to help page
+					state.Routes.Push(HelpRoute())
 					return true
 				default:
 					// Unknown command, do nothing

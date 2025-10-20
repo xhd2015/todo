@@ -8,6 +8,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/happening_list"
+	"github.com/xhd2015/todo/app/help"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
@@ -21,6 +22,7 @@ const (
 	RouteType_Config
 	RouteType_HappeningList
 	RouteType_HumanState
+	RouteType_Help
 )
 
 type Routes []Route
@@ -32,6 +34,7 @@ type Route struct {
 	ConfigPage        *ConfigPageState
 	HappeningListPage *HappeningListPageState
 	HumanStatePage    *HumanStatePageState
+	HelpPage          *HelpPageState
 }
 
 func (routes *Routes) Push(route Route) {
@@ -90,6 +93,10 @@ type HumanStatePageState struct {
 	// This can be empty since human state is now in main State
 }
 
+type HelpPageState struct {
+	ScrollOffset int // Current scroll position (line offset from top)
+}
+
 func DetailRoute(entryID int64) Route {
 	return Route{
 		Type: RouteType_Detail,
@@ -117,6 +124,13 @@ func HumanStateRoute() Route {
 	return Route{
 		Type:           RouteType_HumanState,
 		HumanStatePage: &HumanStatePageState{},
+	}
+}
+
+func HelpRoute() Route {
+	return Route{
+		Type:     RouteType_Help,
+		HelpPage: &HelpPageState{},
 	}
 }
 
@@ -310,7 +324,57 @@ func HumanStatePage(state *State) *dom.Node {
 	)
 }
 
-func RenderRoute(state *State, route Route) *dom.Node {
+// HelpPage renders the help page with scrolling support
+func HelpPage(state *State, window *dom.Window) *dom.Node {
+	route := state.Routes.Last()
+	helpState := route.HelpPage
+
+	// Calculate viewport height from window dimensions
+	// Reserve space for title (1 line), exit message (1 line), status bar (1 line), and some padding
+	reservedLines := 4
+	viewportHeight := window.Height - reservedLines
+	if viewportHeight < 5 {
+		viewportHeight = 5 // Minimum viewport height
+	}
+
+	return dom.Div(dom.DivProps{
+		Focusable: true,
+		Focused:   true,
+		OnKeyDown: func(event *dom.DOMEvent) {
+			keyEvent := event.KeydownEvent
+			if keyEvent == nil {
+				return
+			}
+
+			log.Infof(context.Background(), "key: %v", keyEvent.KeyType)
+
+			switch keyEvent.KeyType {
+			case dom.KeyTypeUp:
+				// Scroll up
+				if helpState.ScrollOffset > 0 {
+					helpState.ScrollOffset--
+				}
+				event.PreventDefault()
+			case dom.KeyTypeDown:
+				// Scroll down with bounds checking
+				totalLines := help.GetTotalLines()
+				maxScroll := totalLines - viewportHeight
+				if maxScroll < 0 {
+					maxScroll = 0
+				}
+				if helpState.ScrollOffset < maxScroll {
+					helpState.ScrollOffset++
+				}
+				event.PreventDefault()
+			}
+		},
+	}, help.Help(help.HelpProps{
+		ScrollOffset:   helpState.ScrollOffset,
+		ViewportHeight: viewportHeight,
+	}))
+}
+
+func RenderRoute(state *State, route Route, window *dom.Window) *dom.Node {
 	switch route.Type {
 	case RouteType_Detail:
 		return DetailPage(state, route.DetailPage.EntryID)
@@ -320,6 +384,8 @@ func RenderRoute(state *State, route Route) *dom.Node {
 		return HappeningListPage(state)
 	case RouteType_HumanState:
 		return HumanStatePage(state)
+	case RouteType_Help:
+		return HelpPage(state, window)
 	default:
 		return dom.Text(fmt.Sprintf("unknown route: %d", route.Type), styles.Style{
 			Bold:  true,

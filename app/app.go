@@ -10,6 +10,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/app/emojis"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/models"
 )
@@ -310,6 +311,8 @@ func App(state *State, window *dom.Window) *dom.Node {
 					title = "Happenings"
 				case RouteType_HumanState:
 					title = "Human States"
+				case RouteType_Help:
+					title = "Help"
 				}
 			}
 			return dom.H1(dom.DivProps{}, dom.Text(title, styles.Style{
@@ -324,7 +327,7 @@ func App(state *State, window *dom.Window) *dom.Node {
 			if len(state.Routes) == 0 {
 				return MainPage(state, window)
 			} else {
-				return RenderRoute(state, state.Routes.Last())
+				return RenderRoute(state, state.Routes.Last(), window)
 			}
 		}(),
 		func() *dom.Node {
@@ -369,12 +372,18 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}
 
 			// Spacer to push modes to the right
-			hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes
+			hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes || state.FocusedEntryID != 0
 			if hasRightContent {
 				nodes = append(nodes, dom.Spacer())
 
 				// Right side: modes
 				var modeCount int
+				if state.FocusedEntryID != 0 {
+					nodes = append(nodes, dom.Text(emojis.FOCUSED, styles.Style{
+						Bold: true,
+					}))
+					modeCount++
+				}
 				if state.ZenMode {
 					nodes = append(nodes, dom.Text("zen", styles.Style{
 						Bold:  true,
