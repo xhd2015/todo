@@ -112,6 +112,9 @@ type State struct {
 	// View mode functionality
 	ViewMode ViewMode // Current view mode (default or group)
 
+	// Group collapse state (for group mode entries that don't exist in DB)
+	GroupCollapseState map[int64]bool // Group ID -> collapsed state
+
 	Quit func()
 
 	Refresh func()

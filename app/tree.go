@@ -51,7 +51,10 @@ type TreeEntry struct {
 func (c *TreeEntry) Text() string {
 	switch c.Type {
 	case models.LogEntryViewType_Log:
-		return c.Entry.Data.Text
+		if c.Entry != nil && c.Entry.Data != nil {
+			return c.Entry.Data.Text
+		}
+		return ""
 	case models.LogEntryViewType_Note:
 		return c.Note.Note.Data.Text
 	case models.LogEntryViewType_FocusedItem:
@@ -117,13 +120,19 @@ func Tree(props TreeProps) []*dom.Node {
 	if state.SelectedEntry.IsSet() && len(entries) > 0 {
 		var hasSelected bool
 		for _, wrapperEntry := range entries {
-			if wrapperEntry.Entry.SameIdentity(state.SelectedEntry) {
+			if wrapperEntry.Entry != nil && wrapperEntry.Entry.SameIdentity(state.SelectedEntry) {
 				hasSelected = true
 				break
 			}
 		}
 		if !hasSelected {
-			effectiveSelectedEntry = entries[0].Entry.Identity()
+			// Find first entry with non-nil Entry field
+			for _, entry := range entries {
+				if entry.Entry != nil {
+					effectiveSelectedEntry = entry.Entry.Identity()
+					break
+				}
+			}
 		}
 	}
 
@@ -133,7 +142,9 @@ func Tree(props TreeProps) []*dom.Node {
 
 		if entry.Type == models.LogEntryViewType_Log || entry.Type == models.LogEntryViewType_Group {
 			entryItem = entry.Entry
-			entryIdentity = entry.Entry.Identity()
+			if entry.Entry != nil {
+				entryIdentity = entry.Entry.Identity()
+			}
 		}
 
 		if entryItem != nil {
@@ -164,7 +175,7 @@ func Tree(props TreeProps) []*dom.Node {
 							e.StopPropagation()
 						case dom.KeyTypeEnter:
 							state.Enqueue(func(ctx context.Context) error {
-								return state.OnUpdate(entryType, entryItem.Data.ID, state.SelectedInputState.Value)
+								return state.OnUpdate(entryType, entryID, state.SelectedInputState.Value)
 							})
 							state.SelectedEntryMode = SelectedEntryMode_Default
 						}

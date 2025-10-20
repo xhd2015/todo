@@ -7,6 +7,79 @@ import (
 	"github.com/xhd2015/todo/ui/tree"
 )
 
+// Group IDs for organizing entries in group mode
+const (
+	GROUP_DEADLINE_ID    = 1
+	GROUP_WORKPERF_ID    = 2
+	GROUP_LIFEENHANCE_ID = 3
+	GROUP_WORKHACK_ID    = 4
+	GROUP_LIFEHACK_ID    = 5
+	GROUP_OTHER_ID       = 6
+)
+
+// LogAndGroup tracks the group association and staging children for an entry during group organization
+type LogAndGroup struct {
+	LogGroupID      int64
+	StagingChildren models.LogEntryViews
+}
+
+// mountToGroup mounts a log entry to its appropriate group based on mapping and parent chain
+// Returns a cloned entry with proper group association and children
+func mountToGroup(
+	entry *models.LogEntryView,
+	parents []*LogAndGroup,
+	mapping map[int64]int64,
+	normalGroups models.LogEntryViews,
+	otherGroup *models.LogEntryView,
+) *models.LogEntryView {
+	groupID := mapping[entry.Data.ID]
+	var foundNormalGroup *models.LogEntryView
+	for _, groupEntry := range normalGroups {
+		if groupEntry.Data.ID == groupID {
+			foundNormalGroup = groupEntry
+			break
+		}
+	}
+
+	targetGroup := otherGroup
+	if foundNormalGroup != nil {
+		targetGroup = foundNormalGroup
+	}
+	targetGroupID := targetGroup.Data.ID
+
+	var foundSameGroupParent *LogAndGroup
+	n := len(parents)
+	for i := n - 1; i >= 0; i-- {
+		p := parents[i]
+		if p.LogGroupID == targetGroupID {
+			foundSameGroupParent = p
+			break
+		}
+	}
+	var logAndGroup *LogAndGroup
+
+	cloneEntry := *entry
+	if foundSameGroupParent == nil {
+		targetGroup.Children = append(targetGroup.Children, &cloneEntry)
+		logAndGroup = &LogAndGroup{
+			LogGroupID: targetGroupID,
+		}
+	} else {
+		foundSameGroupParent.StagingChildren = append(foundSameGroupParent.StagingChildren, &cloneEntry)
+		logAndGroup = &LogAndGroup{
+			LogGroupID: foundSameGroupParent.LogGroupID,
+		}
+	}
+	parents = append(parents, logAndGroup)
+
+	for _, child := range entry.Children {
+		mountToGroup(child, parents, mapping, normalGroups, otherGroup)
+	}
+
+	cloneEntry.Children = logAndGroup.StagingChildren
+	return &cloneEntry
+}
+
 type ComputeResult struct {
 	EntriesAbove        int
 	EntriesBelow        int
@@ -16,17 +89,18 @@ type ComputeResult struct {
 }
 
 type EntryOptions struct {
-	MaxEntries      int
-	SliceStart      int
-	SelectedID      int64
-	SelectedSource  SelectedSource
-	ZenMode         bool
-	SearchActive    bool
-	Query           string
-	ShowNotes       bool
-	FocusingEntryID models.EntryIdentity
-	ExpandAll       bool
-	ViewMode        ViewMode
+	MaxEntries         int
+	SliceStart         int
+	SelectedID         int64
+	SelectedSource     SelectedSource
+	ZenMode            bool
+	SearchActive       bool
+	Query              string
+	ShowNotes          bool
+	FocusingEntryID    models.EntryIdentity
+	ExpandAll          bool
+	ViewMode           ViewMode
+	GroupCollapseState map[int64]bool
 }
 
 func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) ComputeResult {
@@ -38,7 +112,7 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 
 	// Organize entries into groups if ViewMode is Group
 	if opts.ViewMode == ViewMode_Group {
-		entries = organizeEntriesIntoGroups(entries)
+		entries = organizeEntriesIntoGroups(entries, opts.GroupCollapseState)
 	}
 
 	// Filter entries based on search query if active
@@ -299,7 +373,7 @@ func processFocusedEntries(entries models.LogEntryViews, focusingEntryID models.
 // findEntryInTree recursively finds an entry by ID in the tree
 func findEntryInTree(entries models.LogEntryViews, targetEntry models.EntryIdentity) *models.LogEntryView {
 	for _, entry := range entries {
-		if entry.ViewType == entry.ViewType && entry.Data.ID == targetEntry.ID {
+		if entry.ViewType == targetEntry.EntryType && entry.Data.ID == targetEntry.ID {
 			return entry
 		}
 		if found := findEntryInTree(entry.Children, targetEntry); found != nil {
@@ -370,18 +444,30 @@ func countAllChildren(children []*models.LogEntryView) int {
 }
 
 // organizeEntriesIntoGroups organizes entries into pseudo groups based on their properties
-func organizeEntriesIntoGroups(entries models.LogEntryViews) models.LogEntryViews {
+func organizeEntriesIntoGroups(entries models.LogEntryViews, groupCollapseState map[int64]bool) models.LogEntryViews {
 	// Create group entries in order: Deadline, WorkPerf, LifeEnhance, WorkHack, LifeHack, Other
 	groupNames := []string{"Deadline", "WorkPerf", "LifeEnhance", "WorkHack", "LifeHack", "Other"}
 	groupEntries := make(models.LogEntryViews, 0, len(groupNames))
 
 	for i, name := range groupNames {
-		id := int64(i + 1) // Natural ID assignment: Deadline=1, WorkPerf=2, LifeEnhance=3, WorkHack=4, LifeHack=5, Other=6
+		id := int64(i + 1) // Natural ID assignment: see GROUP_*_ID constants
+
+		// Determine if this group should be collapsed
+		var collapsed bool
+		if groupCollapseState != nil {
+			// Use the stored collapse state if available
+			collapsed = groupCollapseState[id]
+		} else {
+			// Default: "Other" group is collapsed by default
+			collapsed = (id == GROUP_OTHER_ID)
+		}
+
 		groupEntries = append(groupEntries, &models.LogEntryView{
 			// Create a pseudo LogEntry for the group
 			Data: &models.LogEntry{
-				ID:   id,
-				Text: name,
+				ID:        id,
+				Text:      name,
+				Collapsed: collapsed,
 			},
 			ViewType: models.LogEntryViewType_Group,
 		})
@@ -395,67 +481,8 @@ func organizeEntriesIntoGroups(entries models.LogEntryViews) models.LogEntryView
 	normalGroups := groupEntries[:len(groupEntries)-1]
 	otherGroup := groupEntries[len(groupEntries)-1]
 
-	type LogAndGroup struct {
-		LogGroupID int64
-
-		StagingChildren models.LogEntryViews
-	}
-
-	// mount log to a specific group:
-	//    if log has no group, follow its parent chain
-	//    if log has a group, find the nearest parent in chain in the same group
-	var mountToGroup func(entry *models.LogEntryView, parents []*LogAndGroup) *models.LogEntryView
-	mountToGroup = func(entry *models.LogEntryView, parents []*LogAndGroup) *models.LogEntryView {
-		groupID := mapping[entry.Data.ID]
-		var foundNormalGroup *models.LogEntryView
-		for _, groupEntry := range normalGroups {
-			if groupEntry.Data.ID == groupID {
-				foundNormalGroup = groupEntry
-				break
-			}
-		}
-
-		targetGroup := otherGroup
-		if foundNormalGroup != nil {
-			targetGroup = foundNormalGroup
-		}
-		targetGroupID := targetGroup.Data.ID
-
-		var foundSameGroupParent *LogAndGroup
-		n := len(parents)
-		for i := n - 1; i >= 0; i-- {
-			p := parents[i]
-			if p.LogGroupID == targetGroupID {
-				foundSameGroupParent = p
-				break
-			}
-		}
-		var logAndGroup *LogAndGroup
-
-		cloneEntry := *entry
-		if foundSameGroupParent == nil {
-			targetGroup.Children = append(targetGroup.Children, &cloneEntry)
-			logAndGroup = &LogAndGroup{
-				LogGroupID: targetGroupID,
-			}
-		} else {
-			foundSameGroupParent.StagingChildren = append(foundSameGroupParent.StagingChildren, &cloneEntry)
-			logAndGroup = &LogAndGroup{
-				LogGroupID: foundSameGroupParent.LogGroupID,
-			}
-		}
-		parents = append(parents, logAndGroup)
-
-		for _, child := range entry.Children {
-			mountToGroup(child, parents)
-		}
-
-		cloneEntry.Children = logAndGroup.StagingChildren
-		return &cloneEntry
-	}
-
 	for _, entry := range entries {
-		mountToGroup(entry, nil)
+		mountToGroup(entry, nil, mapping, normalGroups, otherGroup)
 	}
 
 	return groupEntries

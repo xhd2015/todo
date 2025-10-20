@@ -28,17 +28,18 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 	}
 
 	computeResult := computeVisibleEntries(state.Entries, EntryOptions{
-		MaxEntries:      maxEntries,
-		SliceStart:      state.SliceStart,
-		SelectedID:      state.SelectedEntry.ID,
-		SelectedSource:  state.SelectFromSource,
-		ZenMode:         state.ZenMode,
-		SearchActive:    state.IsSearchActive,
-		Query:           state.SearchQuery,
-		ShowNotes:       state.ShowNotes,
-		FocusingEntryID: state.FocusedEntry,
-		ExpandAll:       state.ExpandAll,
-		ViewMode:        state.ViewMode,
+		MaxEntries:         maxEntries,
+		SliceStart:         state.SliceStart,
+		SelectedID:         state.SelectedEntry.ID,
+		SelectedSource:     state.SelectFromSource,
+		ZenMode:            state.ZenMode,
+		SearchActive:       state.IsSearchActive,
+		Query:              state.SearchQuery,
+		ShowNotes:          state.ShowNotes,
+		FocusingEntryID:    state.FocusedEntry,
+		ExpandAll:          state.ExpandAll,
+		ViewMode:           state.ViewMode,
+		GroupCollapseState: state.GroupCollapseState,
 	})
 
 	itemsHeight := len(computeResult.VisibleEntries)

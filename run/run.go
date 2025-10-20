@@ -212,13 +212,38 @@ func Main(args []string) error {
 		return nil
 	}
 	appState.OnAddChild = func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error) {
-		if viewType != models.LogEntryViewType_Log {
+		if viewType != models.LogEntryViewType_Log && viewType != models.LogEntryViewType_Group {
 			return 0, nil
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
 			return 0, nil
 		}
+
+		// Check if the parent is a group entry
+		if viewType == models.LogEntryViewType_Group {
+			// Create a rootless log entry (ParentID = 0) and bind to group
+			logID, err := logManager.Add(models.LogEntry{
+				Text: text,
+			})
+			if err != nil {
+				return 0, err
+			}
+
+			// Bind the new log to the group
+			_, err = exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
+				LogID:   logID,
+				GroupID: parentID,
+			})
+			if err != nil {
+				return 0, fmt.Errorf("failed to bind log to group: %w", err)
+			}
+
+			appState.Entries = logManager.Entries
+			return logID, nil
+		}
+
+		// Regular child entry creation for log entries
 		id, err := logManager.Add(models.LogEntry{
 			Text:     text,
 			ParentID: parentID,
@@ -393,14 +418,22 @@ func Main(args []string) error {
 		return nil
 	}
 	appState.OnToggleCollapsed = func(entryType models.LogEntryViewType, id int64) error {
-		if entryType != models.LogEntryViewType_Log {
+		if entryType == models.LogEntryViewType_Log {
+			err := logManager.ToggleCollapsed(id)
+			if err != nil {
+				return err
+			}
+			appState.Entries = logManager.Entries
+			return nil
+		} else if entryType == models.LogEntryViewType_Group {
+			// Handle group collapse state in memory
+			if appState.GroupCollapseState == nil {
+				appState.GroupCollapseState = make(map[int64]bool)
+			}
+			// Toggle the collapse state
+			appState.GroupCollapseState[id] = !appState.GroupCollapseState[id]
 			return nil
 		}
-		err := logManager.ToggleCollapsed(id)
-		if err != nil {
-			return err
-		}
-		appState.Entries = logManager.Entries
 		return nil
 	}
 	appState.Happening = app.HappeningState{
