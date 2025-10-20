@@ -30,10 +30,12 @@ func createTestEntries(count int) models.LogEntryViews {
 // createTestState creates a test state with given entries and pagination settings
 func createTestState(entries models.LogEntryViews, sliceStart int, selectedID int64, maxEntries int) *State {
 	return &State{
-		Entries:         entries,
-		SliceStart:      sliceStart,
-		SelectedEntryID: selectedID,
-		MaxEntries:      maxEntries,
+		Entries:    entries,
+		SliceStart: sliceStart,
+		SelectedEntry: EntryIdentity{
+			EntryType: TreeEntryType_Log,
+			ID:        selectedID,
+		},
 	}
 }
 
@@ -44,9 +46,8 @@ func TestRenderEntryTree_NoPagination(t *testing.T) {
 	state := createTestState(entries, 0, 0, maxEntries)
 
 	props := TreeProps{
-		State:      state,
-		MaxEntries: maxEntries,
-		SliceStart: 0,
+		State:   state,
+		Entries: []TreeEntry{},
 	}
 
 	nodes := Tree(props)
@@ -81,9 +82,10 @@ func TestRenderEntryTree_ShowDownIndicator(t *testing.T) {
 	state := createTestState(entries, 0, 0, 30)
 
 	props := TreeProps{
-		State:      state,
-		MaxEntries: 30,
-		SliceStart: 0,
+		State:        state,
+		Entries:      []TreeEntry{},
+		EntriesAbove: 0,
+		EntriesBelow: 0,
 	}
 
 	nodes := Tree(props)
@@ -126,9 +128,10 @@ func TestRenderEntryTree_ShowUpIndicator(t *testing.T) {
 	state := createTestState(entries, 5, 0, 30) // Start from entry 6
 
 	props := TreeProps{
-		State:      state,
-		MaxEntries: 30,
-		SliceStart: 5,
+		State:        state,
+		Entries:      []TreeEntry{},
+		EntriesAbove: 5,
+		EntriesBelow: 0,
 	}
 
 	nodes := Tree(props)
@@ -171,9 +174,10 @@ func TestRenderEntryTree_ShowBothIndicators(t *testing.T) {
 	state := createTestState(entries, 10, 0, 30) // Start from entry 11
 
 	props := TreeProps{
-		State:      state,
-		MaxEntries: 30,
-		SliceStart: 10,
+		State:        state,
+		Entries:      []TreeEntry{},
+		EntriesAbove: 10,
+		EntriesBelow: 10,
 	}
 
 	nodes := Tree(props)
@@ -226,9 +230,10 @@ func TestRenderEntryTree_EdgeCaseNavigation(t *testing.T) {
 	// Test case 1: SliceStart at end boundary
 	state := createTestState(entries, 35, 0, 30) // Beyond total entries
 	props := TreeProps{
-		State:      state,
-		MaxEntries: 30,
-		SliceStart: 35, // This should be adjusted to 5 (35 - 30)
+		State:        state,
+		Entries:      []TreeEntry{},
+		EntriesAbove: 5, // This should be adjusted to 5 (35 - 30)
+		EntriesBelow: 0,
 	}
 
 	nodes := Tree(props)
@@ -246,9 +251,10 @@ func TestRenderEntryTree_EdgeCaseNavigation(t *testing.T) {
 	// Test case 2: Negative SliceStart
 	state2 := createTestState(entries, -5, 0, 30) // Negative, should be adjusted to 0
 	props2 := TreeProps{
-		State:      state2,
-		MaxEntries: 30,
-		SliceStart: -5,
+		State:        state2,
+		Entries:      []TreeEntry{},
+		EntriesAbove: 0,
+		EntriesBelow: 5,
 	}
 
 	nodes2 := Tree(props2)

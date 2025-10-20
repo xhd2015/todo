@@ -34,3 +34,13 @@ func (c *Happening) Update(optional *HappeningOptional) {
 	}
 	c.UpdateTime = time.Now()
 }
+
+// GetID returns the ID of the happening
+func (h *Happening) GetID() int64 {
+	return h.ID
+}
+
+// SetID sets the ID of the happening
+func (h *Happening) SetID(id int64) {
+	h.ID = id
+}

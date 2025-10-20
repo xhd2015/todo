@@ -44,8 +44,8 @@ func ExportVisibleEntries(filename string, visibleEntries []TreeEntry) error {
 
 	// Convert visible entries to export format
 	for _, wrapperEntry := range visibleEntries {
-		if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
-			entry := wrapperEntry.Log.Entry
+		if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
+			entry := wrapperEntry.Entry
 
 			exportEntry := ExportEntry{
 				Data:  entry.Data,

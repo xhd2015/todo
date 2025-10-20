@@ -14,6 +14,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/log"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/todo/app"
+	"github.com/xhd2015/todo/app/exp"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/data"
 	"github.com/xhd2015/todo/internal/config"
@@ -193,7 +194,10 @@ func Main(args []string) error {
 		refreshEntries()
 		return nil
 	}
-	appState.OnAdd = func(value string) error {
+	appState.OnAdd = func(viewType models.LogEntryViewType, value string) error {
+		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
 		value = strings.TrimSpace(value)
 		if value == "" {
 			return nil
@@ -207,7 +211,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnAddChild = func(parentID int64, text string) (int64, error) {
+	appState.OnAddChild = func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error) {
+		if viewType != models.LogEntryViewType_Log {
+			return 0, nil
+		}
 		text = strings.TrimSpace(text)
 		if text == "" {
 			return 0, nil
@@ -219,7 +226,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return id, err
 	}
-	appState.OnUpdate = func(id int64, text string) error {
+	appState.OnUpdate = func(viewType models.LogEntryViewType, id int64, text string) error {
+		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
 		err := logManager.Update(id, models.LogEntryOptional{
 			Text: &text,
 		})
@@ -229,7 +239,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnDelete = func(id int64) error {
+	appState.OnDelete = func(viewType models.LogEntryViewType, id int64) error {
+		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
 		err := logManager.Delete(id)
 		if err != nil {
 			return err
@@ -237,7 +250,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnToggle = func(id int64) error {
+	appState.OnToggle = func(viewType models.LogEntryViewType, id int64) error {
+		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
 		foundEntry, err := logManager.Get(id)
 		if err != nil {
 			return err
@@ -259,7 +275,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnPromote = func(id int64) error {
+	appState.OnPromote = func(viewType models.LogEntryViewType, id int64) error {
+		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
 		currentTime := time.Now().UnixMilli()
 		err := logManager.Update(id, models.LogEntryOptional{
 			AdjustedTopTime: &currentTime,
@@ -270,18 +289,33 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnUpdateHighlight = func(id int64, highlightLevel int) {
+	appState.OnUpdateHighlight = func(viewType models.LogEntryViewType, id int64, highlightLevel int) {
+		if viewType != models.LogEntryViewType_Log {
+			return
+		}
 		logManager.Update(id, models.LogEntryOptional{
 			HighlightLevel: &highlightLevel,
 		})
 		appState.Entries = logManager.Entries
 	}
-	appState.OnMove = func(id int64, newParentID int64) error {
-		err := logManager.Move(id, newParentID)
-		if err != nil {
-			return err
+
+	appState.OnMove = func(id models.EntryIdentity, newParentID models.EntryIdentity) error {
+		applog.Infof(context.TODO(), "moving: %v, %v to %v,%v", id.EntryType, id.ID, newParentID.EntryType, newParentID.ID)
+		if id.EntryType == models.LogEntryViewType_Log && newParentID.EntryType == models.LogEntryViewType_Log {
+			err := logManager.Move(id.ID, newParentID.ID)
+			if err != nil {
+				return err
+			}
+			appState.Entries = logManager.Entries
+			return nil
 		}
-		appState.Entries = logManager.Entries
+		if id.EntryType == models.LogEntryViewType_Log && newParentID.EntryType == models.LogEntryViewType_Group {
+			// id -> group
+			exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
+				LogID:   id.ID,
+				GroupID: newParentID.ID,
+			})
+		}
 		return nil
 	}
 	appState.OnAddNote = func(id int64, text string) error {
@@ -358,7 +392,10 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnToggleCollapsed = func(id int64) error {
+	appState.OnToggleCollapsed = func(entryType models.LogEntryViewType, id int64) error {
+		if entryType != models.LogEntryViewType_Log {
+			return nil
+		}
 		err := logManager.ToggleCollapsed(id)
 		if err != nil {
 			return err

@@ -7,10 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
-	"github.com/xhd2015/todo/app/emojis"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/models"
 )
@@ -38,6 +36,13 @@ const (
 	SelectedSource_NavigateByKey
 )
 
+type ViewMode int
+
+const (
+	ViewMode_Default ViewMode = iota
+	ViewMode_Group
+)
+
 type HappeningState struct {
 	Loading    bool
 	Happenings []*models.Happening
@@ -62,11 +67,11 @@ type State struct {
 	Entries models.LogEntryViews
 
 	Input               models.InputState
-	SelectedEntryID     int64
+	SelectedEntry       models.EntryIdentity
+	LastSelectedEntry   models.EntryIdentity
 	SelectedNoteID      int64 // ID of the selected note (0 if none)
 	SelectedNoteEntryID int64 // ID of the entry that owns the selected note
 	SelectFromSource    SelectedSource
-	LastSelectedEntryID int64
 	SelectedEntryMode   SelectedEntryMode
 	SelectedInputState  models.InputState
 	ChildInputState     models.InputState
@@ -99,33 +104,36 @@ type State struct {
 	SliceStart int // Starting index for the slice of entries to display
 
 	// Cut/Paste functionality
-	CuttingEntryID int64 // ID of the entry currently being cut (0 if none)
+	CuttingEntry models.EntryIdentity // ID of the entry currently being cut (0 if none)
 
 	// Focused mode functionality
-	FocusedEntryID int64 // ID of the entry currently focused on (0 if none)
+	FocusedEntry models.EntryIdentity // ID of the entry currently focused on (0 if none)
+
+	// View mode functionality
+	ViewMode ViewMode // Current view mode (default or group)
 
 	Quit func()
 
 	Refresh func()
 
-	OnAdd             func(string) error
-	OnAddChild        func(parentID int64, text string) (int64, error)
-	OnUpdate          func(id int64, text string) error
-	OnDelete          func(id int64) error
-	OnToggle          func(id int64) error
-	OnPromote         func(id int64) error
-	OnUpdateHighlight func(id int64, highlightLevel int)
-	OnMove            func(id int64, newParentID int64) error
+	OnAdd             func(viewType models.LogEntryViewType, text string) error
+	OnAddChild        func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error)
+	OnUpdate          func(viewType models.LogEntryViewType, id int64, text string) error
+	OnDelete          func(viewType models.LogEntryViewType, id int64) error
+	OnToggle          func(viewType models.LogEntryViewType, id int64) error
+	OnPromote         func(viewType models.LogEntryViewType, id int64) error
+	OnUpdateHighlight func(viewType models.LogEntryViewType, id int64, highlightLevel int)
+	OnMove            func(id models.EntryIdentity, newParentID models.EntryIdentity) error
 
 	OnAddNote    func(id int64, text string) error
 	OnUpdateNote func(entryID int64, noteID int64, text string)
 	OnDeleteNote func(entryID int64, noteID int64)
 
-	RefreshEntries       func(ctx context.Context) error                     // Callback to refresh entries when ShowHistory changes
-	OnShowTop            func(id int64, text string, duration time.Duration) // Callback to show todo in macOS floating bar
-	OnToggleVisibility   func(id int64) error                                // Callback to toggle visibility of all children including history
-	OnToggleNotesDisplay func(id int64) error                                // Callback to toggle notes display for entry and its subtree
-	OnToggleCollapsed    func(id int64) error                                // Callback to toggle collapsed state for entry
+	RefreshEntries       func(ctx context.Context) error                         // Callback to refresh entries when ShowHistory changes
+	OnShowTop            func(id int64, text string, duration time.Duration)     // Callback to show todo in macOS floating bar
+	OnToggleVisibility   func(id int64) error                                    // Callback to toggle visibility of all children including history
+	OnToggleNotesDisplay func(id int64) error                                    // Callback to toggle notes display for entry and its subtree
+	OnToggleCollapsed    func(entryType models.LogEntryViewType, id int64) error // Callback to toggle collapsed state for entry
 
 	LastCtrlC time.Time
 
@@ -182,18 +190,21 @@ func (state *State) ResetAllChildrenVisibility() {
 }
 
 // IsDescendant checks if potentialChild is a descendant of potentialParent
-func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bool {
+func (state *State) IsDescendant(potentialChild models.EntryIdentity, potentialParent models.EntryIdentity) bool {
 	if potentialChild == potentialParent {
 		return true
 	}
 
 	for _, entry := range state.Entries {
-		if entry.Data.ID == potentialChild {
-			if entry.Data.ParentID == potentialParent {
+		if entry.SameIdentity(potentialChild) {
+			if potentialParent.EntryType == models.LogEntryViewType_Log && entry.Data.ParentID == potentialParent.ID {
 				return true
 			}
 			if entry.Data.ParentID != 0 {
-				return state.IsDescendant(entry.Data.ParentID, potentialParent)
+				return state.IsDescendant(models.EntryIdentity{
+					EntryType: models.LogEntryViewType_Log,
+					ID:        entry.Data.ParentID,
+				}, potentialParent)
 			}
 			break
 		}
@@ -202,21 +213,24 @@ func (state *State) IsDescendant(potentialChild int64, potentialParent int64) bo
 }
 
 func (state *State) Deselect() {
-	state.SelectedEntryID = 0
+	state.SelectedEntry = models.EntryIdentity{}
 	state.SelectedNoteID = 0
 	state.SelectedNoteEntryID = 0
 	state.SelectFromSource = SelectedSource_Default
 }
 
-func (state *State) Select(id int64) {
-	state.SelectedEntryID = id
+func (state *State) Select(entyType models.LogEntryViewType, id int64) {
+	state.SelectedEntry = models.EntryIdentity{
+		EntryType: entyType,
+		ID:        id,
+	}
 	state.SelectedNoteID = 0
 	state.SelectedNoteEntryID = 0
 	state.SelectFromSource = SelectedSource_Default
 }
 
 func (state *State) SelectNote(noteID int64, entryID int64) {
-	state.SelectedEntryID = 0
+	state.SelectedEntry = models.EntryIdentity{}
 	state.SelectedNoteID = noteID
 	state.SelectedNoteEntryID = entryID
 	state.SelectFromSource = SelectedSource_Default
@@ -339,80 +353,6 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}
 			return dom.Text("type 'exit','quit' or 'q' to exit")
 		}(),
-		func() *dom.Node {
-			// Build status bar nodes
-			var nodes []*dom.Node
-
-			// Left side: dot, storage, error, requesting
-			nodes = append(nodes, dom.Text("•", styles.Style{
-				Bold:  true,
-				Color: colors.GREEN_SUCCESS,
-			}))
-			if state.StatusBar.Storage != "" {
-				nodes = append(nodes, dom.Text(state.StatusBar.Storage, styles.Style{
-					Bold:  true,
-					Color: colors.GREY_TEXT,
-				}))
-			}
-			if state.StatusBar.Error != "" {
-				nodes = append(nodes, dom.Text("  "+state.StatusBar.Error, styles.Style{
-					Bold:  true,
-					Color: colors.RED_ERROR,
-				}))
-			}
-			if state.Requesting() {
-				nodes = append(nodes, dom.Text("  •", styles.Style{
-					Bold:  true,
-					Color: colors.GREEN_SUCCESS,
-				}))
-				nodes = append(nodes, dom.Text("Request...", styles.Style{
-					Bold:  true,
-					Color: colors.GREEN_SUCCESS,
-				}))
-			}
-
-			// Spacer to push modes to the right
-			hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes || state.FocusedEntryID != 0
-			if hasRightContent {
-				nodes = append(nodes, dom.Spacer())
-
-				// Right side: modes
-				var modeCount int
-				if state.FocusedEntryID != 0 {
-					nodes = append(nodes, dom.Text(emojis.FOCUSED, styles.Style{
-						Bold: true,
-					}))
-					modeCount++
-				}
-				if state.ZenMode {
-					nodes = append(nodes, dom.Text("zen", styles.Style{
-						Bold:  true,
-						Color: colors.GREY_TEXT,
-					}))
-					modeCount++
-				}
-				if state.ShowHistory {
-					if modeCount > 0 {
-						nodes = append(nodes, dom.Text(" ", styles.Style{}))
-					}
-					nodes = append(nodes, dom.Text("history", styles.Style{
-						Bold:  true,
-						Color: colors.GREY_TEXT,
-					}))
-					modeCount++
-				}
-				if state.ShowNotes {
-					if modeCount > 0 {
-						nodes = append(nodes, dom.Text(" ", styles.Style{}))
-					}
-					nodes = append(nodes, dom.Text("notes", styles.Style{
-						Bold:  true,
-						Color: colors.GREY_TEXT,
-					}))
-				}
-			}
-
-			return dom.Div(dom.DivProps{Width: UIWidth}, nodes...)
-		}(),
+		AppStatusBar(state),
 	)
 }

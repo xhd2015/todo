@@ -43,6 +43,7 @@
 - `/h` / `/happening` - Open happenings page
 - `/hstat` - Open human states page
 - `/export <filename>` - Export visible entries to file
+- `/switch` - Toggle view mode (Default/Group)
 - `exit` / `quit` / `q` - Exit application
 
 ## Special Features

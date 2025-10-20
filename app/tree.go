@@ -14,7 +14,6 @@ import (
 
 // TreeLog represents a flattened log entry
 type TreeLog struct {
-	Entry *models.LogEntryView
 }
 
 // TreeNote represents a flattened note
@@ -23,38 +22,39 @@ type TreeNote struct {
 	EntryID int64 // ID of the entry that owns this note
 }
 
-// TreeEntryType represents the type of entry in a TreeEntry
-type TreeEntryType string
-
-const (
-	TreeEntryType_Log         TreeEntryType = "Log"
-	TreeEntryType_Note        TreeEntryType = "Note"
-	TreeEntryType_FocusedItem TreeEntryType = "FocusedItem"
-)
-
 // TreeFocusedItem represents the focused root path
 type TreeFocusedItem struct {
 	RootPath []string
 }
 
+// TreeGroup represents a group entry
+type TreeGroup struct {
+	ID   int64
+	Name string
+}
+
 // TreeEntry wraps either a log entry or a note for unified tree rendering
 type TreeEntry struct {
-	Type   TreeEntryType
+	Type   models.LogEntryViewType
 	Prefix string
 	IsLast bool
+
+	// for all
+	Entry *models.LogEntryView
 
 	Log         *TreeLog
 	Note        *TreeNote
 	FocusedItem *TreeFocusedItem
+	Group       *TreeGroup
 }
 
 func (c *TreeEntry) Text() string {
 	switch c.Type {
-	case TreeEntryType_Log:
-		return c.Log.Entry.Data.Text
-	case TreeEntryType_Note:
+	case models.LogEntryViewType_Log:
+		return c.Entry.Data.Text
+	case models.LogEntryViewType_Note:
 		return c.Note.Note.Data.Text
-	case TreeEntryType_FocusedItem:
+	case models.LogEntryViewType_FocusedItem:
 		if c.FocusedItem != nil && len(c.FocusedItem.RootPath) > 0 {
 			// Join the path components with " > " separator
 			result := c.FocusedItem.RootPath[0]
@@ -62,6 +62,11 @@ func (c *TreeEntry) Text() string {
 				result += " > " + c.FocusedItem.RootPath[i]
 			}
 			return result
+		}
+		return ""
+	case models.LogEntryViewType_Group:
+		if c.Group != nil {
+			return c.Group.Name
 		}
 		return ""
 	}
@@ -75,8 +80,8 @@ type TreeProps struct {
 	EntriesAbove int
 	EntriesBelow int
 
-	OnNavigate   func(e *dom.DOMEvent, entryType TreeEntryType, entryID int64, direction int)
-	OnEnter      func(e *dom.DOMEvent, entryType TreeEntryType, entryID int64)
+	OnNavigate   func(e *dom.DOMEvent, entryType models.LogEntryViewType, entryID int64, direction int)
+	OnEnter      func(e *dom.DOMEvent, entryType models.LogEntryViewType, entryID int64)
 	OnGoToFirst  func(e *dom.DOMEvent)
 	OnGoToLast   func(e *dom.DOMEvent)
 	OnGoToTop    func(e *dom.DOMEvent)
@@ -108,25 +113,33 @@ func Tree(props TreeProps) []*dom.Node {
 	}
 
 	// auto select first if selected one is hidden
-	selectedID := state.SelectedEntryID
-	if selectedID != 0 && len(entries) > 0 {
+	effectiveSelectedEntry := state.SelectedEntry
+	if state.SelectedEntry.IsSet() && len(entries) > 0 {
 		var hasSelected bool
 		for _, wrapperEntry := range entries {
-			if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil && wrapperEntry.Log.Entry.Data.ID == selectedID {
+			if wrapperEntry.Entry.SameIdentity(state.SelectedEntry) {
 				hasSelected = true
 				break
 			}
 		}
-		if !hasSelected && len(entries) > 0 && entries[0].Type == TreeEntryType_Log && entries[0].Log != nil {
-			selectedID = entries[0].Log.Entry.Data.ID
+		if !hasSelected {
+			effectiveSelectedEntry = entries[0].Entry.Identity()
 		}
 	}
 
 	for _, entry := range entries {
-		if entry.Type == TreeEntryType_Log && entry.Log != nil {
-			logEntry := entry.Log
-			item := logEntry.Entry
-			isSelected := selectedID == item.Data.ID
+		var entryItem *models.LogEntryView
+		var entryIdentity models.EntryIdentity
+
+		if entry.Type == models.LogEntryViewType_Log || entry.Type == models.LogEntryViewType_Group {
+			entryItem = entry.Entry
+			entryIdentity = entry.Entry.Identity()
+		}
+
+		if entryItem != nil {
+			isSelected := effectiveSelectedEntry == entryIdentity
+			entryType := entryIdentity.EntryType
+			entryID := entryIdentity.ID
 
 			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
 				children = append(children, dom.Input(dom.InputProps{
@@ -151,7 +164,7 @@ func Tree(props TreeProps) []*dom.Node {
 							e.StopPropagation()
 						case dom.KeyTypeEnter:
 							state.Enqueue(func(ctx context.Context) error {
-								return state.OnUpdate(item.Data.ID, state.SelectedInputState.Value)
+								return state.OnUpdate(entryType, entryItem.Data.ID, state.SelectedInputState.Value)
 							})
 							state.SelectedEntryMode = SelectedEntryMode_Default
 						}
@@ -162,14 +175,14 @@ func Tree(props TreeProps) []*dom.Node {
 
 			// Always render the TodoItem
 			children = append(children, TodoItem(TodoItemProps{
-				Item:       item,
+				Item:       entryItem,
 				Prefix:     entry.Prefix,
 				IsLast:     entry.IsLast,
 				IsSelected: isSelected,
 				State:      state,
 				OnNavigate: func(e *dom.DOMEvent, direction int) {
 					if props.OnNavigate != nil {
-						props.OnNavigate(e, TreeEntryType_Log, item.Data.ID, direction)
+						props.OnNavigate(e, entryType, entryID, direction)
 					}
 				},
 				OnGoToFirst: func(e *dom.DOMEvent) {
@@ -194,7 +207,7 @@ func Tree(props TreeProps) []*dom.Node {
 				},
 				OnEnter: func(e *dom.DOMEvent, entryID int64) {
 					if props.OnEnter != nil {
-						props.OnEnter(e, TreeEntryType_Log, entryID)
+						props.OnEnter(e, entryType, entryID)
 					}
 				},
 			}))
@@ -222,14 +235,14 @@ func Tree(props TreeProps) []*dom.Node {
 						case dom.KeyTypeEnter:
 							if strings.TrimSpace(state.ChildInputState.Value) != "" {
 								state.Enqueue(func(ctx context.Context) error {
-									id, err := state.OnAddChild(item.Data.ID, state.ChildInputState.Value)
+									id, err := state.OnAddChild(entryType, entryID, state.ChildInputState.Value)
 									if err != nil {
 										return err
 									}
 
 									state.ChildInputState.Value = ""
 									state.ChildInputState.CursorPosition = 0
-									state.Select(id)
+									state.Select(entryType, id)
 									return nil
 								})
 							}
@@ -246,9 +259,9 @@ func Tree(props TreeProps) []*dom.Node {
 					DeleteText:     "[Delete]",
 					CancelText:     "[Cancel]",
 					OnDelete: func() {
-						next := state.Entries.FindNextOrLast(item.Data.ID)
+						next := state.Entries.FindNextOrLast(entryID)
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnDelete(item.Data.ID)
+							err := state.OnDelete(entryType, entryID)
 							if err != nil {
 								return err
 							}
@@ -256,7 +269,7 @@ func Tree(props TreeProps) []*dom.Node {
 							if next != nil {
 								nextID = next.Data.ID
 							}
-							state.Select(nextID)
+							state.Select(entryType, nextID)
 							state.SelectedEntryMode = SelectedEntryMode_Default
 							return nil
 						})
@@ -280,7 +293,7 @@ func Tree(props TreeProps) []*dom.Node {
 						Text: "Promote",
 						OnSelect: func() {
 							state.Enqueue(func(ctx context.Context) error {
-								err := state.OnPromote(item.Data.ID)
+								err := state.OnPromote(entryType, entryID)
 								if err != nil {
 									return err
 								}
@@ -291,7 +304,7 @@ func Tree(props TreeProps) []*dom.Node {
 					{
 						Text: "No Highlight",
 						OnSelect: func() {
-							state.OnUpdateHighlight(item.Data.ID, 0)
+							state.OnUpdateHighlight(entryType, entryID, 0)
 							state.SelectedEntryMode = SelectedEntryMode_Default
 						}},
 				}
@@ -307,7 +320,7 @@ func Tree(props TreeProps) []*dom.Node {
 						Text:  fmt.Sprintf("Highlight-%d", i+1),
 						Color: colors[i],
 						OnSelect: func() {
-							state.OnUpdateHighlight(item.Data.ID, i+1)
+							state.OnUpdateHighlight(entryType, entryID, i+1)
 							state.SelectedEntryMode = SelectedEntryMode_Default
 						},
 					})
@@ -332,7 +345,7 @@ func Tree(props TreeProps) []*dom.Node {
 					},
 				}))
 			}
-		} else if entry.Type == TreeEntryType_Note && entry.Note != nil {
+		} else if entry.Type == models.LogEntryViewType_Note && entry.Note != nil {
 			// Handle note rendering
 			noteEntry := entry.Note
 			note := noteEntry.Note
@@ -347,16 +360,16 @@ func Tree(props TreeProps) []*dom.Node {
 				State:      state,
 				OnNavigate: func(e *dom.DOMEvent, direction int) {
 					if props.OnNavigate != nil {
-						props.OnNavigate(e, TreeEntryType_Note, note.Data.ID, direction)
+						props.OnNavigate(e, models.LogEntryViewType_Note, note.Data.ID, direction)
 					}
 				},
 				OnEnter: func(e *dom.DOMEvent, entryID int64) {
 					if props.OnEnter != nil {
-						props.OnEnter(e, TreeEntryType_Note, entryID)
+						props.OnEnter(e, models.LogEntryViewType_Note, entryID)
 					}
 				},
 			}))
-		} else if entry.Type == TreeEntryType_FocusedItem && entry.FocusedItem != nil {
+		} else if entry.Type == models.LogEntryViewType_FocusedItem && entry.FocusedItem != nil {
 			// Handle focused root path rendering
 			children = append(children, dom.Li(dom.ListItemProps{
 				Focusable:  dom.Focusable(false),

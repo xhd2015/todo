@@ -10,6 +10,8 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/app/emojis"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 	"github.com/xhd2015/todo/ui/tree"
 )
@@ -36,6 +38,10 @@ type TodoItemProps struct {
 
 func TodoItem(props TodoItemProps) *dom.Node {
 	item := props.Item
+	entryIdentiy := item.Identity()
+	entryType := entryIdentiy.EntryType
+	entryID := entryIdentiy.ID
+
 	prefix := props.Prefix
 	isLast := props.IsLast
 	isSelected := props.IsSelected
@@ -95,18 +101,20 @@ func TodoItem(props TodoItemProps) *dom.Node {
 		Selected:  isSelected,
 		Focused:   state.SelectedEntryMode == SelectedEntryMode_Default && isSelected,
 		ItemPrefix: dom.String(func() string {
-			prefix := treePrefix
-			if item.Data.Done {
-				prefix += "✓"
-			} else {
-				prefix += "•"
+			listIndicator := emojis.LIST_DOT
+			if entryType == models.LogEntryViewType_Group {
+				listIndicator = emojis.FOLDER
+			} else if item.Data.Done {
+				listIndicator = emojis.CHECKED
 			}
-			return prefix
+			return treePrefix + listIndicator
 		}()),
 		OnFocus: func() {
-			state.Select(item.Data.ID)
+			log.Infof(context.TODO(), "focused: %v, %v", entryType, entryID)
+			state.Select(entryType, entryID)
 		},
 		OnBlur: func() {
+			log.Infof(context.TODO(), "blurred: %v, %v", entryType, entryID)
 			state.Deselect()
 		},
 		OnKeyDown: func(e *dom.DOMEvent) {
@@ -128,13 +136,13 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					return
 				}
 				if props.OnEnter != nil {
-					props.OnEnter(e, item.Data.ID)
+					props.OnEnter(e, entryID)
 				}
 			case dom.KeyTypeEsc:
 				if state.IsSearchActive {
 					state.ClearSearch()
-				} else if state.FocusedEntryID != 0 {
-					state.FocusedEntryID = 0
+				} else if state.FocusedEntry.IsSet() {
+					state.FocusedEntry.Unset()
 				} else if state.ZenMode {
 					state.ZenMode = false
 				}
@@ -172,7 +180,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			case dom.KeyTypeSpace:
 				// toggle status
 				state.Enqueue(func(ctx context.Context) error {
-					return state.OnToggle(item.Data.ID)
+					return state.OnToggle(entryType, entryID)
 				})
 			case dom.KeyTypeCtrlC:
 				if state.IsSearchActive {
@@ -187,11 +195,17 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					// focus to input
 					state.Deselect()
 					state.Input.Focused = true
-					state.LastSelectedEntryID = item.Data.ID
+					state.LastSelectedEntry = models.EntryIdentity{
+						EntryType: entryType,
+						ID:        entryID,
+					}
 				case "?":
 					state.Deselect()
 					state.Input.Focused = true
-					state.LastSelectedEntryID = item.Data.ID
+					state.LastSelectedEntry = models.EntryIdentity{
+						EntryType: entryType,
+						ID:        entryID,
+					}
 					if !strings.HasPrefix(state.Input.Value, "?") {
 						state.Input.Value = "?" + state.Input.Value
 						state.Input.CursorPosition = len(state.Input.Value)
@@ -230,7 +244,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							// Default duration is 30 minutes
 							duration := 30 * time.Minute
 							state.Enqueue(func(ctx context.Context) error {
-								state.OnShowTop(item.Data.ID, item.Data.Text, duration)
+								state.OnShowTop(entryID, item.Data.Text, duration)
 								return nil
 							})
 						}
@@ -265,32 +279,32 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.ChildInputState.CursorPosition = 0
 				case "x":
 					// cut
-					if state.CuttingEntryID == item.Data.ID {
+					if state.CuttingEntry == entryIdentiy {
 						// Cancel cutting if pressing x on the same item
-						state.CuttingEntryID = 0
+						state.CuttingEntry.Unset()
 					} else {
 						// Start cutting this item
-						state.CuttingEntryID = item.Data.ID
+						state.CuttingEntry = entryIdentiy
 					}
 				case "p":
 					// paste
-					if state.CuttingEntryID == item.Data.ID {
+					if state.CuttingEntry == entryIdentiy {
 						// cancel
-						state.CuttingEntryID = 0
+						state.CuttingEntry.Unset()
 						return
 					}
-					if state.CuttingEntryID != 0 && state.CuttingEntryID != item.Data.ID {
+					if state.CuttingEntry.IsSet() && state.CuttingEntry != entryIdentiy {
 						// Check if the target is not a descendant of the cutting item
-						if !state.IsDescendant(item.Data.ID, state.CuttingEntryID) {
+						if !state.IsDescendant(entryIdentiy, state.CuttingEntry) {
 							// Move the cutting item to be a child of the current item
 							if state.OnMove != nil {
 								state.Enqueue(func(ctx context.Context) error {
-									err := state.OnMove(state.CuttingEntryID, item.Data.ID)
+									err := state.OnMove(state.CuttingEntry, entryIdentiy)
 									if err != nil {
 										return err
 									}
 									// Clear the cutting state
-									state.CuttingEntryID = 0
+									state.CuttingEntry.Unset()
 									return nil
 								})
 							}
@@ -300,7 +314,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					// toggle history inclusion for children (also enables notes)
 					if state.OnToggleVisibility != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnToggleVisibility(item.Data.ID)
+							err := state.OnToggleVisibility(entryID)
 							if err != nil {
 								return err
 							}
@@ -311,7 +325,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					// toggle notes display for this entry and its subtree
 					if state.OnToggleNotesDisplay != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnToggleNotesDisplay(item.Data.ID)
+							err := state.OnToggleNotesDisplay(entryID)
 							if err != nil {
 								return err
 							}
@@ -320,12 +334,15 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					}
 				case "f":
 					// enter focused mode on this entry
-					state.FocusedEntryID = item.Data.ID
+					state.FocusedEntry = models.EntryIdentity{
+						EntryType: entryType,
+						ID:        entryID,
+					}
 				case ",":
 					// toggle collapsed state
 					if state.OnToggleCollapsed != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnToggleCollapsed(item.Data.ID)
+							err := state.OnToggleCollapsed(entryType, entryID)
 							if err != nil {
 								return err
 							}
@@ -385,7 +402,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			return nil
 		}(),
 		func() *dom.Node {
-			if state.CuttingEntryID == item.Data.ID {
+			if state.CuttingEntry == entryIdentiy {
 				return dom.Text("(cutting...)", styles.Style{
 					Color: func() string {
 						if isSelected {

@@ -78,6 +78,7 @@ func loadEntries(svc storage.LogEntryService, noteSvc storage.LogNoteService, sh
 		}
 		entryView := &models.LogEntryView{
 			Data:     &entry,
+			ViewType: models.LogEntryViewType_Log,
 			Notes:    notesView,
 			Children: []*models.LogEntryView{},
 			DetailPage: &models.EntryOnDetailPage{
@@ -158,6 +159,7 @@ func (m *LogManager) Add(entry models.LogEntry) (int64, error) {
 	entry.ID = id
 	entryView := &models.LogEntryView{
 		Data:     &entry,
+		ViewType: models.LogEntryViewType_Note,
 		Notes:    []*models.NoteView{},
 		Children: []*models.LogEntryView{},
 		DetailPage: &models.EntryOnDetailPage{
@@ -456,6 +458,7 @@ func (m *LogManager) GetTree(ctx context.Context, id int64, includeHistory bool)
 		}
 		entryView := &models.LogEntryView{
 			Data:     &entry,
+			ViewType: models.LogEntryViewType_Log,
 			Notes:    notesView,
 			Children: []*models.LogEntryView{},
 			DetailPage: &models.EntryOnDetailPage{

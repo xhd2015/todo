@@ -28,6 +28,9 @@ func (c *InputState) FocusWithText(text string) {
 type LogEntryView struct {
 	Data *LogEntry
 
+	// ViewType indicates whether this is a regular log entry or a group entry
+	ViewType LogEntryViewType
+
 	MatchTexts []MatchText
 
 	DetailPage *EntryOnDetailPage
@@ -52,6 +55,30 @@ type LogEntryView struct {
 	CollapsedCount int
 }
 
+func (c *LogEntryView) SameIdentity(target EntryIdentity) bool {
+	return c.Identity() == target
+}
+
+func (c *LogEntryView) Identity() EntryIdentity {
+	return EntryIdentity{
+		EntryType: c.ViewType,
+		ID:        c.Data.ID,
+	}
+}
+
+type EntryIdentity struct {
+	EntryType LogEntryViewType
+	ID        int64
+}
+
+func (c EntryIdentity) IsSet() bool {
+	return c.ID != 0
+}
+
+func (c *EntryIdentity) Unset() {
+	*c = EntryIdentity{}
+}
+
 type MatchText struct {
 	Text  string
 	Match bool
@@ -70,6 +97,15 @@ const (
 	SelectedNoteMode_Default SelectedNoteMode = iota
 	SelectedNoteMode_Editing
 	SelectedNoteMode_Deleting
+)
+
+type LogEntryViewType string
+
+const (
+	LogEntryViewType_Log         LogEntryViewType = "Log"
+	LogEntryViewType_Note        LogEntryViewType = "Note"
+	LogEntryViewType_FocusedItem LogEntryViewType = "FocusedItem"
+	LogEntryViewType_Group       LogEntryViewType = "Group"
 )
 
 type EntryOnDetailPage struct {

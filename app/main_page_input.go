@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/todo/models"
 )
 
 func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
@@ -21,9 +22,11 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 			keyEvent := event.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeUp:
-				if state.LastSelectedEntryID != 0 {
-					state.Select(state.LastSelectedEntryID)
-					state.LastSelectedEntryID = 0
+				if state.LastSelectedEntry.ID != 0 {
+					if state.LastSelectedEntry.EntryType == models.LogEntryViewType_Log {
+						state.Select(state.LastSelectedEntry.EntryType, state.LastSelectedEntry.ID)
+					}
+					state.LastSelectedEntry = models.EntryIdentity{}
 					state.Input.Focused = false
 					event.PreventDefault()
 				}
@@ -32,8 +35,8 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					state.ClearSearch()
 					return true
 				}
-				if state.FocusedEntryID != 0 {
-					state.FocusedEntryID = 0
+				if state.FocusedEntry.ID != 0 {
+					state.FocusedEntry = models.EntryIdentity{}
 					return true
 				}
 			case dom.KeyTypeCtrlC:
@@ -61,9 +64,9 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					// first match
 					var foundID int64
 					for _, wrapperEntry := range fullEntries {
-						if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
-							if len(wrapperEntry.Log.Entry.MatchTexts) > 0 {
-								foundID = wrapperEntry.Log.Entry.Data.ID
+						if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
+							if len(wrapperEntry.Entry.MatchTexts) > 0 {
+								foundID = wrapperEntry.Entry.Data.ID
 								break
 							}
 						}
@@ -71,13 +74,13 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					if foundID == 0 {
 						// Find first log entry
 						for _, wrapperEntry := range fullEntries {
-							if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil {
-								foundID = wrapperEntry.Log.Entry.Data.ID
+							if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
+								foundID = wrapperEntry.Entry.Data.ID
 								break
 							}
 						}
 					}
-					state.Select(foundID)
+					state.Select(models.LogEntryViewType_Log, foundID)
 					state.SelectFromSource = SelectedSource_Search
 				}
 				return true
@@ -185,6 +188,14 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					// Navigate to help page
 					state.Routes.Push(HelpRoute())
 					return true
+				case "/switch":
+					// Toggle view mode between default and group
+					if state.ViewMode == ViewMode_Default {
+						state.ViewMode = ViewMode_Group
+					} else {
+						state.ViewMode = ViewMode_Default
+					}
+					return true
 				default:
 					// Unknown command, do nothing
 					state.StatusBar.Error = "unknown command: " + s
@@ -193,7 +204,7 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 			}
 
 			state.Enqueue(func(ctx context.Context) error {
-				return state.OnAdd(s)
+				return state.OnAdd(models.LogEntryViewType_Log, s)
 			})
 			return true
 		},

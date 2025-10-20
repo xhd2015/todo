@@ -66,6 +66,16 @@ func (c *LogEntry) Update(optional *LogEntryOptional) {
 	}
 }
 
+// GetID returns the ID of the log entry
+func (le *LogEntry) GetID() int64 {
+	return le.ID
+}
+
+// SetID sets the ID of the log entry
+func (le *LogEntry) SetID(id int64) {
+	le.ID = id
+}
+
 type Config struct {
 	LastInput  string `json:"last_input"`
 	RunningPID int    `json:"running_pid"`
@@ -119,4 +129,14 @@ func (c *Note) Update(optional *NoteOptional) {
 	if optional.UpdateTime != nil {
 		c.UpdateTime = *optional.UpdateTime
 	}
+}
+
+// GetID returns the ID of the note
+func (n *Note) GetID() int64 {
+	return n.ID
+}
+
+// SetID sets the ID of the note
+func (n *Note) SetID(id int64) {
+	n.ID = id
 }

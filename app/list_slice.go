@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/xhd2015/todo/app/exp"
 	"github.com/xhd2015/todo/models"
 	"github.com/xhd2015/todo/ui/search"
 	"github.com/xhd2015/todo/ui/tree"
@@ -23,15 +24,21 @@ type EntryOptions struct {
 	SearchActive    bool
 	Query           string
 	ShowNotes       bool
-	FocusingEntryID int64
+	FocusingEntryID models.EntryIdentity
 	ExpandAll       bool
+	ViewMode        ViewMode
 }
 
 func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) ComputeResult {
 	var focusedRootPath []string
 	// Process focusing if focusingEntryID is provided
-	if opts.FocusingEntryID != 0 {
+	if opts.FocusingEntryID.IsSet() {
 		entries, focusedRootPath = processFocusedEntries(entries, opts.FocusingEntryID)
+	}
+
+	// Organize entries into groups if ViewMode is Group
+	if opts.ViewMode == ViewMode_Group {
+		entries = organizeEntriesIntoGroups(entries)
 	}
 
 	// Filter entries based on search query if active
@@ -53,7 +60,7 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 	// Add focused root path as the first entry if in focused mode
 	if len(focusedRootPath) > 0 {
 		focusedTreeEntry := TreeEntry{
-			Type:   TreeEntryType_FocusedItem,
+			Type:   models.LogEntryViewType_FocusedItem,
 			Prefix: "",
 			IsLast: false,
 			FocusedItem: &TreeFocusedItem{
@@ -67,6 +74,7 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 		isLast := i == len(topLevelEntries)-1
 		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false, opts.ShowNotes)
 	}
+
 	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, opts.MaxEntries, opts.SliceStart, opts.SelectedID, opts.SelectedSource)
 	return ComputeResult{
 		EntriesAbove:        entriesAbove,
@@ -85,15 +93,32 @@ func addEntryRecursive(flatEntries []TreeEntry, entry *models.LogEntryView, dept
 }
 
 func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool, globalShowNotes bool) []TreeEntry {
+	// Determine entry type based on the ViewType field
+	var treeEntry TreeEntry
+
+	if entry.ViewType == models.LogEntryViewType_Group {
+		treeEntry = TreeEntry{
+			Type:   models.LogEntryViewType_Group,
+			Prefix: prefix,
+			IsLast: isLast,
+			Entry:  entry,
+			Group: &TreeGroup{
+				ID:   entry.Data.ID,
+				Name: entry.Data.Text,
+			},
+		}
+	} else {
+		treeEntry = TreeEntry{
+			Type:   models.LogEntryViewType_Log,
+			Prefix: prefix,
+			IsLast: isLast,
+			Entry:  entry,
+			Log:    &TreeLog{},
+		}
+	}
+
 	// Add this entry
-	flatEntries = append(flatEntries, TreeEntry{
-		Type:   TreeEntryType_Log,
-		Prefix: prefix,
-		IsLast: isLast,
-		Log: &TreeLog{
-			Entry: entry,
-		},
-	})
+	flatEntries = append(flatEntries, treeEntry)
 
 	// Add notes based on different conditions
 	if len(entry.Notes) > 0 {
@@ -125,7 +150,7 @@ func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntr
 
 			isLastNote := i == len(notesToShow)-1 && len(entry.Children) == 0
 			flatEntries = append(flatEntries, TreeEntry{
-				Type:   TreeEntryType_Note,
+				Type:   models.LogEntryViewType_Note,
 				Prefix: notePrefix,
 				IsLast: isLastNote,
 				Note: &TreeNote{
@@ -203,7 +228,7 @@ func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedI
 	if selectedID != 0 {
 		var foundIndex int = -1
 		for i, wrapperEntry := range entries {
-			if wrapperEntry.Type == TreeEntryType_Log && wrapperEntry.Log != nil && wrapperEntry.Log.Entry.Data.ID == selectedID {
+			if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil && wrapperEntry.Entry.Data.ID == selectedID {
 				foundIndex = i
 				break
 			}
@@ -247,7 +272,7 @@ func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedI
 }
 
 // processFocusedEntries processes entries for focused mode, showing only the focused entry and its subtree
-func processFocusedEntries(entries models.LogEntryViews, focusingEntryID int64) (models.LogEntryViews, []string) {
+func processFocusedEntries(entries models.LogEntryViews, focusingEntryID models.EntryIdentity) (models.LogEntryViews, []string) {
 	// Find the focused entry and build its root path
 	focusedEntry := findEntryInTree(entries, focusingEntryID)
 	if focusedEntry == nil {
@@ -272,12 +297,12 @@ func processFocusedEntries(entries models.LogEntryViews, focusingEntryID int64) 
 }
 
 // findEntryInTree recursively finds an entry by ID in the tree
-func findEntryInTree(entries models.LogEntryViews, entryID int64) *models.LogEntryView {
+func findEntryInTree(entries models.LogEntryViews, targetEntry models.EntryIdentity) *models.LogEntryView {
 	for _, entry := range entries {
-		if entry.Data.ID == entryID {
+		if entry.ViewType == entry.ViewType && entry.Data.ID == targetEntry.ID {
 			return entry
 		}
-		if found := findEntryInTree(entry.Children, entryID); found != nil {
+		if found := findEntryInTree(entry.Children, targetEntry); found != nil {
 			return found
 		}
 	}
@@ -285,19 +310,19 @@ func findEntryInTree(entries models.LogEntryViews, entryID int64) *models.LogEnt
 }
 
 // buildRootPath builds the path from root to the specified entry
-func buildRootPath(entries models.LogEntryViews, entryID int64) []string {
+func buildRootPath(entries models.LogEntryViews, entryID models.EntryIdentity) []string {
 	path := findPathToEntry(entries, entryID, []string{})
 	return path
 }
 
 // findPathToEntry recursively finds the path to an entry
-func findPathToEntry(entries models.LogEntryViews, entryID int64, currentPath []string) []string {
+func findPathToEntry(entries models.LogEntryViews, targetEntry models.EntryIdentity, currentPath []string) []string {
 	for _, entry := range entries {
 		newPath := append(currentPath, entry.Data.Text)
-		if entry.Data.ID == entryID {
+		if entry.SameIdentity(targetEntry) {
 			return newPath
 		}
-		if found := findPathToEntry(entry.Children, entryID, newPath); found != nil {
+		if found := findPathToEntry(entry.Children, targetEntry, newPath); found != nil {
 			return found
 		}
 	}
@@ -342,4 +367,96 @@ func countAllChildren(children []*models.LogEntryView) int {
 		count += countAllChildren(child.Children)
 	}
 	return count
+}
+
+// organizeEntriesIntoGroups organizes entries into pseudo groups based on their properties
+func organizeEntriesIntoGroups(entries models.LogEntryViews) models.LogEntryViews {
+	// Create group entries in order: Deadline, WorkPerf, LifeEnhance, WorkHack, LifeHack, Other
+	groupNames := []string{"Deadline", "WorkPerf", "LifeEnhance", "WorkHack", "LifeHack", "Other"}
+	groupEntries := make(models.LogEntryViews, 0, len(groupNames))
+
+	for i, name := range groupNames {
+		id := int64(i + 1) // Natural ID assignment: Deadline=1, WorkPerf=2, LifeEnhance=3, WorkHack=4, LifeHack=5, Other=6
+		groupEntries = append(groupEntries, &models.LogEntryView{
+			// Create a pseudo LogEntry for the group
+			Data: &models.LogEntry{
+				ID:   id,
+				Text: name,
+			},
+			ViewType: models.LogEntryViewType_Group,
+		})
+	}
+
+	// For now, put all original entries under the "Other" group
+	// Later this can be enhanced to categorize entries into appropriate groups
+
+	mapping := exp.GetMapping()
+
+	normalGroups := groupEntries[:len(groupEntries)-1]
+	otherGroup := groupEntries[len(groupEntries)-1]
+
+	type LogAndGroup struct {
+		LogGroupID int64
+
+		StagingChildren models.LogEntryViews
+	}
+
+	// mount log to a specific group:
+	//    if log has no group, follow its parent chain
+	//    if log has a group, find the nearest parent in chain in the same group
+	var mountToGroup func(entry *models.LogEntryView, parents []*LogAndGroup) *models.LogEntryView
+	mountToGroup = func(entry *models.LogEntryView, parents []*LogAndGroup) *models.LogEntryView {
+		groupID := mapping[entry.Data.ID]
+		var foundNormalGroup *models.LogEntryView
+		for _, groupEntry := range normalGroups {
+			if groupEntry.Data.ID == groupID {
+				foundNormalGroup = groupEntry
+				break
+			}
+		}
+
+		targetGroup := otherGroup
+		if foundNormalGroup != nil {
+			targetGroup = foundNormalGroup
+		}
+		targetGroupID := targetGroup.Data.ID
+
+		var foundSameGroupParent *LogAndGroup
+		n := len(parents)
+		for i := n - 1; i >= 0; i-- {
+			p := parents[i]
+			if p.LogGroupID == targetGroupID {
+				foundSameGroupParent = p
+				break
+			}
+		}
+		var logAndGroup *LogAndGroup
+
+		cloneEntry := *entry
+		if foundSameGroupParent == nil {
+			targetGroup.Children = append(targetGroup.Children, &cloneEntry)
+			logAndGroup = &LogAndGroup{
+				LogGroupID: targetGroupID,
+			}
+		} else {
+			foundSameGroupParent.StagingChildren = append(foundSameGroupParent.StagingChildren, &cloneEntry)
+			logAndGroup = &LogAndGroup{
+				LogGroupID: foundSameGroupParent.LogGroupID,
+			}
+		}
+		parents = append(parents, logAndGroup)
+
+		for _, child := range entry.Children {
+			mountToGroup(child, parents)
+		}
+
+		cloneEntry.Children = logAndGroup.StagingChildren
+		return &cloneEntry
+	}
+
+	for _, entry := range entries {
+		mountToGroup(entry, nil)
+	}
+
+	return groupEntries
 }

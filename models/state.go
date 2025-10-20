@@ -55,6 +55,16 @@ func (s *State) Update(optional *StateOptional) {
 	s.UpdateTime = time.Now()
 }
 
+// GetID returns the ID of the state
+func (s *State) GetID() int64 {
+	return s.ID
+}
+
+// SetID sets the ID of the state
+func (s *State) SetID(id int64) {
+	s.ID = id
+}
+
 type StateEvent struct {
 	ID            int64     `json:"id"`
 	StateRecordID int64     `json:"state_record_id"`
@@ -111,4 +121,14 @@ func (se *StateEvent) Update(optional *StateEventOptional) {
 		se.UpdateTime = *optional.UpdateTime
 	}
 	se.UpdateTime = time.Now()
+}
+
+// GetID returns the ID of the state event
+func (se *StateEvent) GetID() int64 {
+	return se.ID
+}
+
+// SetID sets the ID of the state event
+func (se *StateEvent) SetID(id int64) {
+	se.ID = id
 }
