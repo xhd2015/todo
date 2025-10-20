@@ -26,8 +26,6 @@ type _MountGroupInfo struct {
 // mountToGroup mounts a log entry to its appropriate group based on mapping and parent chain
 // Returns a cloned entry with proper group association and children
 func mountToGroup(entry *models.LogEntryView, parents []*_MountGroupInfo, groupMapping map[int64]int64, normalGroups models.LogEntryViews, otherGroup *models.LogEntryView) *models.LogEntryView {
-	otherGroupID := otherGroup.Data.ID
-
 	normalGroupID := groupMapping[entry.Data.ID]
 	var foundNormalGroupID int64
 	var foundNormalGroup *models.LogEntryView
@@ -58,16 +56,10 @@ func mountToGroup(entry *models.LogEntryView, parents []*_MountGroupInfo, groupM
 			targetGroup = foundNormalGroup
 		}
 	} else {
-		// if attachToParent is nil, then follow nearest non-other parent
-		for i := n - 1; i >= 0; i-- {
-			p := parents[i]
-			if p.LogGroupID != otherGroupID {
-				attachToParent = p
-				break
-			}
-		}
-		// fallback to other group
-		if attachToParent == nil {
+		// follow nearest parent
+		if n > 0 {
+			attachToParent = parents[n-1]
+		} else {
 			targetGroup = otherGroup
 		}
 	}
