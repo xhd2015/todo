@@ -48,6 +48,7 @@ type LogEntryView struct {
 	// toggled by 'n' command (UI also shows notes when IncludeHistory is true)
 	IncludeNotes bool
 
+	// derived fields
 	// CollapsedChildren stores the original children when entry is collapsed
 	CollapsedChildren LogEntryViews
 

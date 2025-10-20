@@ -113,7 +113,7 @@ type State struct {
 	ViewMode ViewMode // Current view mode (default or group)
 
 	// Group collapse state (for group mode entries that don't exist in DB)
-	GroupCollapseState map[int64]bool // Group ID -> collapsed state
+	GroupCollapseState *MutexMap // Thread-safe map for group collapse states
 
 	Quit func()
 
@@ -193,23 +193,26 @@ func (state *State) ResetAllChildrenVisibility() {
 }
 
 // IsDescendant checks if potentialChild is a descendant of potentialParent
-func (state *State) IsDescendant(potentialChild models.EntryIdentity, potentialParent models.EntryIdentity) bool {
+// cannot paste a parent into its child
+func (state *State) IsDescendantOf(potentialChild models.EntryIdentity, potentialParent models.EntryIdentity) bool {
 	if potentialChild == potentialParent {
 		return true
 	}
 
 	for _, entry := range state.Entries {
-		if entry.SameIdentity(potentialChild) {
-			if potentialParent.EntryType == models.LogEntryViewType_Log && entry.Data.ParentID == potentialParent.ID {
+		entryIdentity := entry.Identity()
+		if entryIdentity == potentialChild {
+			parentID := entry.Data.ParentID
+			if parentID == 0 {
+				return false
+			}
+			if potentialParent.EntryType == models.LogEntryViewType_Log && parentID == potentialParent.ID {
 				return true
 			}
-			if entry.Data.ParentID != 0 {
-				return state.IsDescendant(models.EntryIdentity{
-					EntryType: models.LogEntryViewType_Log,
-					ID:        entry.Data.ParentID,
-				}, potentialParent)
-			}
-			break
+			return state.IsDescendantOf(models.EntryIdentity{
+				EntryType: models.LogEntryViewType_Log,
+				ID:        parentID,
+			}, potentialParent)
 		}
 	}
 	return false

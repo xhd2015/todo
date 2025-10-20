@@ -17,63 +17,82 @@ const (
 	GROUP_OTHER_ID       = 6
 )
 
-// LogAndGroup tracks the group association and staging children for an entry during group organization
-type LogAndGroup struct {
+// _MountGroupInfo tracks the group association and staging children for an entry during group organization
+type _MountGroupInfo struct {
 	LogGroupID      int64
 	StagingChildren models.LogEntryViews
 }
 
 // mountToGroup mounts a log entry to its appropriate group based on mapping and parent chain
 // Returns a cloned entry with proper group association and children
-func mountToGroup(
-	entry *models.LogEntryView,
-	parents []*LogAndGroup,
-	mapping map[int64]int64,
-	normalGroups models.LogEntryViews,
-	otherGroup *models.LogEntryView,
-) *models.LogEntryView {
-	groupID := mapping[entry.Data.ID]
+func mountToGroup(entry *models.LogEntryView, parents []*_MountGroupInfo, groupMapping map[int64]int64, normalGroups models.LogEntryViews, otherGroup *models.LogEntryView) *models.LogEntryView {
+	otherGroupID := otherGroup.Data.ID
+
+	normalGroupID := groupMapping[entry.Data.ID]
+	var foundNormalGroupID int64
 	var foundNormalGroup *models.LogEntryView
-	for _, groupEntry := range normalGroups {
-		if groupEntry.Data.ID == groupID {
-			foundNormalGroup = groupEntry
-			break
+	if normalGroupID != 0 {
+		for _, groupEntry := range normalGroups {
+			if groupEntry.Data.ID == normalGroupID {
+				foundNormalGroupID = normalGroupID
+				foundNormalGroup = groupEntry
+				break
+			}
 		}
 	}
 
-	targetGroup := otherGroup
-	if foundNormalGroup != nil {
-		targetGroup = foundNormalGroup
-	}
-	targetGroupID := targetGroup.Data.ID
-
-	var foundSameGroupParent *LogAndGroup
 	n := len(parents)
-	for i := n - 1; i >= 0; i-- {
-		p := parents[i]
-		if p.LogGroupID == targetGroupID {
-			foundSameGroupParent = p
-			break
-		}
-	}
-	var logAndGroup *LogAndGroup
 
-	cloneEntry := *entry
-	if foundSameGroupParent == nil {
-		targetGroup.Children = append(targetGroup.Children, &cloneEntry)
-		logAndGroup = &LogAndGroup{
-			LogGroupID: targetGroupID,
+	var targetGroup *models.LogEntryView
+
+	var attachToParent *_MountGroupInfo
+	if foundNormalGroupID != 0 {
+		for i := n - 1; i >= 0; i-- {
+			p := parents[i]
+			if p.LogGroupID == foundNormalGroupID {
+				attachToParent = p
+				break
+			}
+		}
+		if attachToParent == nil {
+			targetGroup = foundNormalGroup
 		}
 	} else {
-		foundSameGroupParent.StagingChildren = append(foundSameGroupParent.StagingChildren, &cloneEntry)
-		logAndGroup = &LogAndGroup{
-			LogGroupID: foundSameGroupParent.LogGroupID,
+		// if attachToParent is nil, then follow nearest non-other parent
+		for i := n - 1; i >= 0; i-- {
+			p := parents[i]
+			if p.LogGroupID != otherGroupID {
+				attachToParent = p
+				break
+			}
+		}
+		// fallback to other group
+		if attachToParent == nil {
+			targetGroup = otherGroup
+		}
+	}
+
+	var logAndGroup *_MountGroupInfo
+
+	cloneEntry := *entry
+	if targetGroup != nil {
+		targetGroup.Children = append(targetGroup.Children, &cloneEntry)
+		logAndGroup = &_MountGroupInfo{
+			LogGroupID: targetGroup.Data.ID,
+		}
+	} else {
+		if attachToParent == nil {
+			panic("attach to parent should not be nil when target group is nil")
+		}
+		attachToParent.StagingChildren = append(attachToParent.StagingChildren, &cloneEntry)
+		logAndGroup = &_MountGroupInfo{
+			LogGroupID: attachToParent.LogGroupID,
 		}
 	}
 	parents = append(parents, logAndGroup)
 
 	for _, child := range entry.Children {
-		mountToGroup(child, parents, mapping, normalGroups, otherGroup)
+		mountToGroup(child, parents, groupMapping, normalGroups, otherGroup)
 	}
 
 	cloneEntry.Children = logAndGroup.StagingChildren
@@ -119,7 +138,9 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 	entriesToRender := applyFilter(entries, opts.ZenMode, opts.SearchActive, opts.Query)
 
 	// Process collapsed entries to hide children and add count information
-	processCollapsedEntries(entriesToRender, opts.ExpandAll)
+	if !opts.ExpandAll {
+		entriesToRender = processCollapsedEntries(entriesToRender)
+	}
 
 	// Add top-level entries (ParentID == 0)
 	topLevelEntries := make([]*models.LogEntryView, 0)
@@ -157,6 +178,46 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 		FullEntries:         flatEntries,
 		EffectiveSliceStart: effectiveSliceStart,
 	}
+}
+
+// organizeEntriesIntoGroups organizes entries into pseudo groups based on their properties
+func organizeEntriesIntoGroups(entries models.LogEntryViews, groupCollapseState map[int64]bool) models.LogEntryViews {
+	// Create group entries in order: Deadline, WorkPerf, LifeEnhance, WorkHack, LifeHack, Other
+	groupNames := []string{"Deadline", "WorkPerf", "LifeEnhance", "WorkHack", "LifeHack", "Other"}
+	groupEntries := make(models.LogEntryViews, 0, len(groupNames))
+
+	for i, name := range groupNames {
+		id := int64(i + 1) // Natural ID assignment: see GROUP_*_ID constants
+
+		// Determine if this group should be collapsed
+		collapsed, ok := groupCollapseState[id]
+		if !ok {
+			// Default: "Other" group is collapsed by default
+			collapsed = (id == GROUP_OTHER_ID)
+		}
+
+		groupEntries = append(groupEntries, &models.LogEntryView{
+			// Create a pseudo LogEntry for the group
+			Data: &models.LogEntry{
+				ID:        id,
+				Text:      name,
+				Collapsed: collapsed,
+			},
+			ViewType: models.LogEntryViewType_Group,
+		})
+	}
+
+	mapping := exp.GetMapping()
+
+	normalGroups := groupEntries[:len(groupEntries)-1]
+	otherGroup := groupEntries[len(groupEntries)-1]
+
+	// Use optimized queue-based approach instead of recursive mountToGroup
+	for _, entry := range entries {
+		mountToGroup(entry, nil, mapping, normalGroups, otherGroup)
+	}
+
+	return groupEntries
 }
 
 func addEntryRecursive(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, globalShowNotes bool) []TreeEntry {
@@ -406,32 +467,29 @@ func findPathToEntry(entries models.LogEntryViews, targetEntry models.EntryIdent
 // processCollapsedEntries processes the tree to hide children of collapsed entries
 // and adds collapsed count information to the entry view
 // If expandAll is true, ignores collapse flags and shows all entries
-func processCollapsedEntries(entries models.LogEntryViews, expandAll bool) {
+func processCollapsedEntries(entries models.LogEntryViews) models.LogEntryViews {
+	copiedEntries := make(models.LogEntryViews, 0, len(entries))
 	for _, entry := range entries {
-		if !expandAll && entry.Data.Collapsed {
+		cloned := *entry
+		clonedEntry := &cloned
+		if clonedEntry.Data.Collapsed {
 			// If we have children visible, we need to collapse them
-			if len(entry.Children) > 0 {
-				// Count total children (including nested children)
-				collapsedCount := countAllChildren(entry.Children)
+			// Count total children (including nested children)
+			collapsedCount := countAllChildren(clonedEntry.Children)
 
-				// Store the original children for potential expansion later
-				// and clear the visible children
-				entry.CollapsedChildren = entry.Children
-				entry.CollapsedCount = collapsedCount
-				entry.Children = []*models.LogEntryView{}
-			}
+			// Store the original children for potential expansion later
+			// and clear the visible children
+			clonedEntry.CollapsedChildren = clonedEntry.Children
+			clonedEntry.CollapsedCount = collapsedCount
+			clonedEntry.Children = []*models.LogEntryView{}
 			// If children are already hidden but we don't have a count, keep existing state
 		} else {
 			// If not collapsed but we have collapsed children, restore them
-			if len(entry.CollapsedChildren) > 0 {
-				entry.Children = entry.CollapsedChildren
-				entry.CollapsedChildren = nil
-				entry.CollapsedCount = 0
-			}
-			// Recursively process non-collapsed children
-			processCollapsedEntries(entry.Children, expandAll)
+			clonedEntry.Children = processCollapsedEntries(clonedEntry.Children)
 		}
+		copiedEntries = append(copiedEntries, clonedEntry)
 	}
+	return copiedEntries
 }
 
 // countAllChildren recursively counts all children and their descendants
@@ -441,49 +499,4 @@ func countAllChildren(children []*models.LogEntryView) int {
 		count += countAllChildren(child.Children)
 	}
 	return count
-}
-
-// organizeEntriesIntoGroups organizes entries into pseudo groups based on their properties
-func organizeEntriesIntoGroups(entries models.LogEntryViews, groupCollapseState map[int64]bool) models.LogEntryViews {
-	// Create group entries in order: Deadline, WorkPerf, LifeEnhance, WorkHack, LifeHack, Other
-	groupNames := []string{"Deadline", "WorkPerf", "LifeEnhance", "WorkHack", "LifeHack", "Other"}
-	groupEntries := make(models.LogEntryViews, 0, len(groupNames))
-
-	for i, name := range groupNames {
-		id := int64(i + 1) // Natural ID assignment: see GROUP_*_ID constants
-
-		// Determine if this group should be collapsed
-		var collapsed bool
-		if groupCollapseState != nil {
-			// Use the stored collapse state if available
-			collapsed = groupCollapseState[id]
-		} else {
-			// Default: "Other" group is collapsed by default
-			collapsed = (id == GROUP_OTHER_ID)
-		}
-
-		groupEntries = append(groupEntries, &models.LogEntryView{
-			// Create a pseudo LogEntry for the group
-			Data: &models.LogEntry{
-				ID:        id,
-				Text:      name,
-				Collapsed: collapsed,
-			},
-			ViewType: models.LogEntryViewType_Group,
-		})
-	}
-
-	// For now, put all original entries under the "Other" group
-	// Later this can be enhanced to categorize entries into appropriate groups
-
-	mapping := exp.GetMapping()
-
-	normalGroups := groupEntries[:len(groupEntries)-1]
-	otherGroup := groupEntries[len(groupEntries)-1]
-
-	for _, entry := range entries {
-		mountToGroup(entry, nil, mapping, normalGroups, otherGroup)
-	}
-
-	return groupEntries
 }

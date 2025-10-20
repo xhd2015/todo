@@ -39,7 +39,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		FocusingEntryID:    state.FocusedEntry,
 		ExpandAll:          state.ExpandAll,
 		ViewMode:           state.ViewMode,
-		GroupCollapseState: state.GroupCollapseState,
+		GroupCollapseState: state.GroupCollapseState.Copy(),
 	})
 
 	itemsHeight := len(computeResult.VisibleEntries)

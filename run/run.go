@@ -72,6 +72,10 @@ func Main(args []string) error {
 	var serverAddr string
 	var serverToken string
 
+	// into group mode
+	var group bool
+	var humanStat bool
+
 	var showPath bool
 
 	args, err := flags.String("--storage", &storageType).
@@ -79,6 +83,8 @@ func Main(args []string) error {
 		String("--server-token", &serverToken).
 		String("--debug-log", &debugLogFile).
 		Bool("--show-path", &showPath).
+		Bool("--group", &group).
+		Bool("--human-stat,--hstat", &humanStat).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {
@@ -170,7 +176,8 @@ func Main(args []string) error {
 		Input: models.InputState{
 			Focused: true,
 		},
-		SliceStart: -1,
+		SliceStart:         -1,
+		GroupCollapseState: app.NewMutexMap(),
 		Refresh: func() {
 			p.Send(cursor.Blink())
 		},
@@ -426,12 +433,8 @@ func Main(args []string) error {
 			appState.Entries = logManager.Entries
 			return nil
 		} else if entryType == models.LogEntryViewType_Group {
-			// Handle group collapse state in memory
-			if appState.GroupCollapseState == nil {
-				appState.GroupCollapseState = make(map[int64]bool)
-			}
-			// Toggle the collapse state
-			appState.GroupCollapseState[id] = !appState.GroupCollapseState[id]
+			// Handle group collapse state in memory using thread-safe MutexMap
+			appState.GroupCollapseState.Toggle(id)
 			return nil
 		}
 		return nil
@@ -488,6 +491,12 @@ func Main(args []string) error {
 				})
 			})
 		},
+	}
+
+	if group {
+		appState.ViewMode = app.ViewMode_Group
+	} else if humanStat {
+		appState.Routes.Push(app.HumanStateRoute())
 	}
 
 	model := &Model{

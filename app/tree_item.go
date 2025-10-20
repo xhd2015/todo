@@ -295,7 +295,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					}
 					if state.CuttingEntry.IsSet() && state.CuttingEntry != entryIdentiy {
 						// Check if the target is not a descendant of the cutting item
-						if !state.IsDescendant(entryIdentiy, state.CuttingEntry) {
+						if !state.IsDescendantOf(entryIdentiy, state.CuttingEntry) {
 							// Move the cutting item to be a child of the current item
 							if state.OnMove != nil {
 								state.Enqueue(func(ctx context.Context) error {
