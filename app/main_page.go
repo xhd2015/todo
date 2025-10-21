@@ -71,7 +71,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 			} else {
 				// Looking for a log entry
 				for i, wrapperEntry := range computeResult.FullEntries {
-					if wrapperEntry.Entry.SameIdentity(models.EntryIdentity{EntryType: entryType, ID: entryID}) {
+					if wrapperEntry.Entry != nil && wrapperEntry.Entry.SameIdentity(models.EntryIdentity{EntryType: entryType, ID: entryID}) {
 						index = i
 						break
 					}
