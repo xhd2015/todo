@@ -264,17 +264,31 @@ func Tree(props TreeProps) []*dom.Node {
 			}
 
 			if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm && isSelected {
+				deleteText := "Delete todo?"
+				deleteButtonText := "[Delete]"
+				if props.State.ViewMode == ViewMode_Group {
+					deleteText = "Remove from group?"
+					deleteButtonText = "[Remove]"
+				}
+
 				children = append(children, ConfirmDialog(ConfirmDialogProps{
 					SelectedButton: state.SelectedDeleteConfirmButton,
-					PromptText:     "Delete todo?",
-					DeleteText:     "[Delete]",
+					PromptText:     deleteText,
+					DeleteText:     deleteButtonText,
 					CancelText:     "[Cancel]",
 					OnDelete: func() {
 						next := state.Entries.FindNextOrLast(entryID)
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnDelete(entryType, entryID)
-							if err != nil {
-								return err
+							if props.State.ViewMode == ViewMode_Group {
+								err := state.OnRemoveFromGroup(entryType, entryID)
+								if err != nil {
+									return err
+								}
+							} else {
+								err := state.OnDelete(entryType, entryID)
+								if err != nil {
+									return err
+								}
 							}
 							var nextID int64
 							if next != nil {

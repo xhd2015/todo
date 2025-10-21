@@ -123,6 +123,7 @@ type State struct {
 	OnAddChild        func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error)
 	OnUpdate          func(viewType models.LogEntryViewType, id int64, text string) error
 	OnDelete          func(viewType models.LogEntryViewType, id int64) error
+	OnRemoveFromGroup func(viewType models.LogEntryViewType, id int64) error
 	OnToggle          func(viewType models.LogEntryViewType, id int64) error
 	OnPromote         func(viewType models.LogEntryViewType, id int64) error
 	OnUpdateHighlight func(viewType models.LogEntryViewType, id int64, highlightLevel int)

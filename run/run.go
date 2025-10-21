@@ -271,8 +271,28 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
+	appState.OnRemoveFromGroup = func(viewType models.LogEntryViewType, id int64) error {
+		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
+		exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
+			LogID:   id,
+			GroupID: 0,
+		})
+		appState.Entries = logManager.Entries
+		return nil
+	}
+
 	appState.OnDelete = func(viewType models.LogEntryViewType, id int64) error {
 		if viewType != models.LogEntryViewType_Log {
+			return nil
+		}
+		if appState.ViewMode == app.ViewMode_Group {
+			// delete from group
+			exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
+				LogID:   id,
+				GroupID: 0,
+			})
 			return nil
 		}
 		err := logManager.Delete(id)
