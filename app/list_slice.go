@@ -106,7 +106,7 @@ type EntryOptions struct {
 	SelectedSource     SelectedSource
 	ZenMode            bool
 	SearchActive       bool
-	Query              string
+	Search             string
 	ShowNotes          bool
 	FocusingEntryID    models.EntryIdentity
 	ExpandAll          bool
@@ -127,7 +127,7 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 	}
 
 	// Filter entries based on search query if active
-	entriesToRender := applyFilter(entries, opts.ZenMode, opts.SearchActive, opts.Query)
+	entriesToRender := applyFilter(entries, opts.ZenMode, opts.SearchActive, opts.Search)
 
 	// Process collapsed entries to hide children and add count information
 	if !opts.ExpandAll {
@@ -305,7 +305,7 @@ func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntr
 	return flatEntries
 }
 
-func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, query string) models.LogEntryViews {
+func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, searchQuery string) models.LogEntryViews {
 	// Filter entries based on search query if active
 	entriesToRender := list
 
@@ -315,8 +315,9 @@ func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, que
 		})
 	}
 
-	if searchActive && query != "" {
-		entriesToRender = search.FilterEntriesQuery(entriesToRender, query)
+	if searchActive {
+		// when searchQuery is empty, it means clear search labels
+		entriesToRender = search.FilterEntriesQuery(entriesToRender, searchQuery)
 	}
 
 	return entriesToRender

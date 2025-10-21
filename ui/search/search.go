@@ -31,14 +31,15 @@ func FilterEntries(entries []*models.LogEntryView, fn func(entry *models.LogEntr
 // FilterEntriesQuery filters entries and their children based on search query
 // Also searches within notes and highlights matched parts
 func FilterEntriesQuery(entries []*models.LogEntryView, query string) []*models.LogEntryView {
-	if query == "" {
-		return entries
-	}
-
 	query = strings.ToLower(query)
 
 	return FilterEntries(entries, func(entry *models.LogEntryView) bool {
 		// Search in entry text
+		if query == "" {
+			entry.MatchTexts = nil
+			return true
+		}
+
 		entryTextIdx := strings.Index(strings.ToLower(entry.Data.Text), query)
 		var matchTexts []models.MatchText
 		if entryTextIdx >= 0 {

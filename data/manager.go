@@ -159,7 +159,7 @@ func (m *LogManager) Add(entry models.LogEntry) (int64, error) {
 	entry.ID = id
 	entryView := &models.LogEntryView{
 		Data:     &entry,
-		ViewType: models.LogEntryViewType_Note,
+		ViewType: models.LogEntryViewType_Log,
 		Notes:    []*models.NoteView{},
 		Children: []*models.LogEntryView{},
 		DetailPage: &models.EntryOnDetailPage{

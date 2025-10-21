@@ -34,7 +34,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 		SelectedSource:     state.SelectFromSource,
 		ZenMode:            state.ZenMode,
 		SearchActive:       state.IsSearchActive,
-		Query:              state.SearchQuery,
+		Search:             state.SearchQuery,
 		ShowNotes:          state.ShowNotes,
 		FocusingEntryID:    state.FocusedEntry,
 		ExpandAll:          state.ExpandAll,
