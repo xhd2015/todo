@@ -102,7 +102,7 @@ type ComputeResult struct {
 type EntryOptions struct {
 	MaxEntries         int
 	SliceStart         int
-	SelectedID         int64
+	SelectedID         models.EntryIdentity
 	SelectedSource     SelectedSource
 	ZenMode            bool
 	SearchActive       bool
@@ -131,7 +131,7 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 
 	// Process collapsed entries to hide children and add count information
 	if !opts.ExpandAll {
-		entriesToRender = processCollapsedEntries(entriesToRender)
+		entriesToRender = processCollapsedEntries(entriesToRender, opts.SelectedID)
 	}
 
 	// Add top-level entries (ParentID == 0)
@@ -323,7 +323,7 @@ func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, sea
 	return entriesToRender
 }
 
-func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedID int64, selectedFromSource SelectedSource) (int, int, []TreeEntry, int) {
+func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedID models.EntryIdentity, selectedFromSource SelectedSource) (int, int, []TreeEntry, int) {
 	if maxEntries <= 0 || len(entries) <= maxEntries {
 		if sliceStart == -1 {
 			sliceStart = 0
@@ -353,10 +353,10 @@ func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedI
 		end = totalEntries
 	}
 
-	if selectedID != 0 {
+	if selectedID.IsSet() {
 		var foundIndex int = -1
 		for i, wrapperEntry := range entries {
-			if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil && wrapperEntry.Entry.Data.ID == selectedID {
+			if wrapperEntry.Entry != nil && wrapperEntry.Entry.Identity() == selectedID {
 				foundIndex = i
 				break
 			}
@@ -460,13 +460,19 @@ func findPathToEntry(entries models.LogEntryViews, targetEntry models.EntryIdent
 // processCollapsedEntries processes the tree to hide children of collapsed entries
 // and adds collapsed count information to the entry view
 // If expandAll is true, ignores collapse flags and shows all entries
-func processCollapsedEntries(entries models.LogEntryViews) models.LogEntryViews {
+// The selectedID path is kept visible even if parents are collapsed
+func processCollapsedEntries(entries models.LogEntryViews, selectedID models.EntryIdentity) models.LogEntryViews {
 	copiedEntries := make(models.LogEntryViews, 0, len(entries))
 	for _, entry := range entries {
 		cloned := *entry
 		clonedEntry := &cloned
-		if clonedEntry.Data.Collapsed {
-			// If we have children visible, we need to collapse them
+
+		// Check if this entry is in the path to the selected entry
+		// (i.e., the selected entry is a descendant and we need to keep this path visible)
+		isInPathToSelected := selectedID.IsSet() && isInPathToSelectedEntry(clonedEntry, selectedID)
+
+		if clonedEntry.Data.Collapsed && !isInPathToSelected {
+			// Collapse this entry - hide its children
 			// Count total children (including nested children)
 			collapsedCount := countAllChildren(clonedEntry.Children)
 
@@ -475,14 +481,38 @@ func processCollapsedEntries(entries models.LogEntryViews) models.LogEntryViews 
 			clonedEntry.CollapsedChildren = clonedEntry.Children
 			clonedEntry.CollapsedCount = collapsedCount
 			clonedEntry.Children = []*models.LogEntryView{}
-			// If children are already hidden but we don't have a count, keep existing state
 		} else {
-			// If not collapsed but we have collapsed children, restore them
-			clonedEntry.Children = processCollapsedEntries(clonedEntry.Children)
+			// If not collapsed or is in path to selected entry, process children recursively
+			clonedEntry.Children = processCollapsedEntries(clonedEntry.Children, selectedID)
 		}
 		copiedEntries = append(copiedEntries, clonedEntry)
 	}
 	return copiedEntries
+}
+
+// isInPathToSelectedEntry checks if this entry is in the direct path to the selected entry
+// This means the selected entry is a descendant, but we only want to uncollapse the direct path,
+// not show all children of collapsed entries that happen to contain the selected entry somewhere
+func isInPathToSelectedEntry(entry *models.LogEntryView, selectedID models.EntryIdentity) bool {
+	// Don't uncollapse if this entry itself is the selected one
+	// (we want to keep the selected entry collapsed if it was collapsed)
+	if entry.Identity() == selectedID {
+		return false
+	}
+
+	// Check if any direct child is the selected entry or is in path to selected entry
+	for _, child := range entry.Children {
+		if child.Identity() == selectedID {
+			// Direct child is selected - we need to uncollapse this parent
+			return true
+		}
+		if isInPathToSelectedEntry(child, selectedID) {
+			// Child is in path to selected entry - we need to uncollapse this parent
+			return true
+		}
+	}
+
+	return false
 }
 
 // countAllChildren recursively counts all children and their descendants

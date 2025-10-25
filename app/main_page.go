@@ -30,7 +30,7 @@ func MainPage(state *State, window *dom.Window) *dom.Node {
 	computeResult := computeVisibleEntries(state.Entries, EntryOptions{
 		MaxEntries:         maxEntries,
 		SliceStart:         state.SliceStart,
-		SelectedID:         state.SelectedEntry.ID,
+		SelectedID:         state.SelectedEntry,
 		SelectedSource:     state.SelectFromSource,
 		ZenMode:            state.ZenMode,
 		SearchActive:       state.IsSearchActive,

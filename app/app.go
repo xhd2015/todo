@@ -9,6 +9,7 @@ import (
 
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/app/exp"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/app/submit"
 	"github.com/xhd2015/todo/models"
@@ -118,6 +119,9 @@ type State struct {
 
 	// Group collapse state (for group mode entries that don't exist in DB)
 	GroupCollapseState *MutexMap // Thread-safe map for group collapse states
+
+	// Navigation stack for group mode 'l' and 'L' commands
+	NavigationStack []models.EntryIdentity // Stack to track navigation history
 
 	Quit func()
 
@@ -245,6 +249,108 @@ func (state *State) SelectNote(noteID int64, entryID int64) {
 	state.SelectedNoteID = noteID
 	state.SelectedNoteEntryID = entryID
 	state.SelectFromSource = SelectedSource_Default
+}
+
+// PushToNavigationStack pushes the current selected entry to the navigation stack
+func (state *State) PushToNavigationStack(entry models.EntryIdentity) {
+	state.NavigationStack = append(state.NavigationStack, entry)
+}
+
+// PopFromNavigationStack pops and returns the last entry from the navigation stack
+func (state *State) PopFromNavigationStack() (models.EntryIdentity, bool) {
+	if len(state.NavigationStack) == 0 {
+		return models.EntryIdentity{}, false
+	}
+
+	lastIndex := len(state.NavigationStack) - 1
+	entry := state.NavigationStack[lastIndex]
+	state.NavigationStack = state.NavigationStack[:lastIndex]
+	return entry, true
+}
+
+// FindEntryByID finds an entry by its ID in the entries tree
+func (state *State) FindEntryByID(entryID int64) *models.LogEntryView {
+	var findEntry func(entries models.LogEntryViews, targetID int64) *models.LogEntryView
+	findEntry = func(entries models.LogEntryViews, targetID int64) *models.LogEntryView {
+		for _, entry := range entries {
+			if entry.Data.ID == targetID {
+				return entry
+			}
+			if found := findEntry(entry.Children, targetID); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+	return findEntry(state.Entries, entryID)
+}
+
+// findGroupForEntry finds which group an entry belongs to in group mode
+func (state *State) findGroupForEntry(entryID int64) int64 {
+	// Get the group mapping from exp package
+	mapping := exp.GetMapping()
+
+	// Check if this entry has a direct group mapping
+	if groupID, exists := mapping[entryID]; exists {
+		return groupID
+	}
+
+	// If no direct mapping, find the entry and check its parent chain
+	var findEntryAndCheckParents func(entries models.LogEntryViews, targetID int64) int64
+	findEntryAndCheckParents = func(entries models.LogEntryViews, targetID int64) int64 {
+		for _, entry := range entries {
+			if entry.Data.ID == targetID {
+				// Check parent chain for group mapping
+				currentID := targetID
+				for currentID != 0 {
+					if groupID, exists := mapping[currentID]; exists {
+						return groupID
+					}
+					// Find parent
+					parentEntry := findEntryAndCheckParents(state.Entries, entry.Data.ParentID)
+					if parentEntry != 0 {
+						return parentEntry
+					}
+					// Move up the chain
+					if entry.Data.ParentID == 0 {
+						break
+					}
+					currentID = entry.Data.ParentID
+					// Find the parent entry to continue the chain
+					var findParent func(entries models.LogEntryViews, parentID int64) *models.LogEntryView
+					findParent = func(entries models.LogEntryViews, parentID int64) *models.LogEntryView {
+						for _, e := range entries {
+							if e.Data.ID == parentID {
+								return e
+							}
+							if found := findParent(e.Children, parentID); found != nil {
+								return found
+							}
+						}
+						return nil
+					}
+					parentEntryObj := findParent(state.Entries, currentID)
+					if parentEntryObj == nil {
+						break
+					}
+					entry = parentEntryObj
+				}
+				// If no mapping found in parent chain, default to "Other" group
+				return 6 // GROUP_OTHER_ID
+			}
+			if found := findEntryAndCheckParents(entry.Children, targetID); found != 0 {
+				return found
+			}
+		}
+		return 0
+	}
+
+	result := findEntryAndCheckParents(state.Entries, entryID)
+	if result == 0 {
+		// Default to "Other" group if no mapping found
+		return 6 // GROUP_OTHER_ID
+	}
+	return result
 }
 
 const _REFRESH_DELAY = 200 * time.Millisecond

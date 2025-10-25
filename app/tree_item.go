@@ -266,6 +266,35 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						props.OnNavigate(e, -1)
 						return
 					}
+				case "l":
+					// Navigate to parent and push current to stack (only in group mode)
+					if state.ViewMode == ViewMode_Group {
+						// Push current entry to navigation stack
+						state.PushToNavigationStack(entryIdentiy)
+
+						// Get current entry and navigate to parent
+						currentEntry := state.FindEntryByID(entryID)
+						if currentEntry != nil {
+							parentID := currentEntry.Data.ParentID
+							if parentID == 0 {
+								// No parent, focus on the group this entry belongs to
+								groupID := state.findGroupForEntry(entryID)
+								if groupID > 0 {
+									state.Select(models.LogEntryViewType_Group, groupID)
+								}
+							} else {
+								// Navigate to parent
+								state.Select(models.LogEntryViewType_Log, parentID)
+							}
+						}
+					}
+				case "L":
+					// Pop from navigation stack and focus previous entry (only in group mode)
+					if state.ViewMode == ViewMode_Group {
+						if prevEntry, found := state.PopFromNavigationStack(); found {
+							state.Select(prevEntry.EntryType, prevEntry.ID)
+						}
+					}
 				case "z":
 					state.ZenMode = !state.ZenMode
 				case "d":
