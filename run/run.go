@@ -186,6 +186,13 @@ func Main(args []string) error {
 		},
 	}
 
+	// Initialize SubmitState with restore callback
+	appState.SubmitState.SetOnRestore(func(content string) {
+		// Append the failed content to existing input instead of replacing
+		appState.Input.Value = appState.Input.Value + content
+		appState.Input.CursorPosition = len([]rune(appState.Input.Value))
+	})
+
 	refreshEntries := func() {
 		err := logManager.InitWithHistory(appState.ShowHistory)
 		if err != nil {
@@ -201,7 +208,7 @@ func Main(args []string) error {
 		refreshEntries()
 		return nil
 	}
-	appState.OnAdd = func(viewType models.LogEntryViewType, value string) error {
+	appState.OnAdd = func(ctx context.Context, viewType models.LogEntryViewType, value string) error {
 		if viewType != models.LogEntryViewType_Log {
 			return nil
 		}
@@ -209,14 +216,18 @@ func Main(args []string) error {
 		if value == "" {
 			return nil
 		}
-		_, err := logManager.Add(models.LogEntry{
-			Text: value,
+
+		return appState.SubmitState.Do(ctx, value, func() error {
+			_, err := logManager.Add(models.LogEntry{
+				Text: value,
+			})
+			if err != nil {
+				return err
+			}
+			// Success: update entries
+			appState.Entries = logManager.Entries
+			return nil
 		})
-		if err != nil {
-			return err
-		}
-		appState.Entries = logManager.Entries
-		return nil
 	}
 	appState.OnAddChild = func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error) {
 		if viewType != models.LogEntryViewType_Log && viewType != models.LogEntryViewType_Group {
@@ -476,6 +487,13 @@ func Main(args []string) error {
 			Focused: true,
 		},
 	}
+
+	// Initialize SubmitState for happening with restore callback
+	appState.Happening.SubmitState.SetOnRestore(func(content string) {
+		// Append the failed content to existing happening input instead of replacing
+		appState.Happening.Input.Value = appState.Happening.Input.Value + content
+		appState.Happening.Input.CursorPosition = len([]rune(appState.Happening.Input.Value))
+	})
 
 	// Initialize sync.Once for state loading
 	var loadStateOnce sync.Once

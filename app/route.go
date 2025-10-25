@@ -159,27 +159,30 @@ func HappeningListPage(state *State) *dom.Node {
 		OnBlurItem: func(id int64) {
 			happeningState.FocusedItemID = 0
 		},
-		InputState: &happeningState.Input,
+		InputState:  &happeningState.Input,
+		SubmitState: &happeningState.SubmitState,
 		OnNavigateBack: func() {
 			// Navigate back to main page by popping the current route
 			state.Routes.Pop()
 		},
 		OnAddHappening: func(text string) {
-			// Add new happening using backend API
+			// Add new happening using backend API with submission state management
 			state.Enqueue(func(ctx context.Context) error {
-				if happeningState.AddHappening == nil {
-					return fmt.Errorf("AddHappening function not available")
-				}
+				return happeningState.SubmitState.Do(ctx, text, func() error {
+					if happeningState.AddHappening == nil {
+						return fmt.Errorf("AddHappening function not available")
+					}
 
-				// Add via backend service
-				newHappening, err := happeningState.AddHappening(ctx, text)
-				if err != nil {
-					return fmt.Errorf("failed to add happening: %w", err)
-				}
+					// Add via backend service
+					newHappening, err := happeningState.AddHappening(ctx, text)
+					if err != nil {
+						return fmt.Errorf("failed to add happening: %w", err)
+					}
 
-				// Add to local list for immediate UI update
-				happeningState.Happenings = append(happeningState.Happenings, newHappening)
-				return nil
+					// Add to local list for immediate UI update
+					happeningState.Happenings = append(happeningState.Happenings, newHappening)
+					return nil
+				})
 			})
 		},
 		OnReload: func() {

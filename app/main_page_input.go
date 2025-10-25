@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -51,6 +52,12 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 		OnEnter: func(s string) bool {
 			state.StatusBar.Error = ""
 			if strings.TrimSpace(s) == "" {
+				return false
+			}
+
+			// Check if there's an ongoing submission
+			if state.SubmitState.IsSubmitting() {
+				state.StatusBar.Error = "submission in progress, please wait..."
 				return false
 			}
 
@@ -203,8 +210,11 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 				}
 			}
 
+			// Log the content before attempting to add it
+			log.Infof(context.Background(), "attempting to add todo: %s", s)
+
 			state.Enqueue(func(ctx context.Context) error {
-				return state.OnAdd(models.LogEntryViewType_Log, s)
+				return state.OnAdd(ctx, models.LogEntryViewType_Log, s)
 			})
 			return true
 		},

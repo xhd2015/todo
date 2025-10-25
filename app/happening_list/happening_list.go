@@ -6,6 +6,7 @@ import (
 
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/app/submit"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -13,6 +14,7 @@ import (
 type HappeningListProps struct {
 	Items          []*models.Happening
 	InputState     *models.InputState
+	SubmitState    *submit.SubmitState // Submission state management
 	OnNavigateBack func()
 	OnAddHappening func(text string)
 	OnReload       func() // New callback for reloading the list
@@ -146,6 +148,12 @@ func HappeningList(props HappeningListProps) *dom.Node {
 					if keyEvent.KeyType == dom.KeyTypeEnter {
 						text := strings.TrimSpace(props.InputState.Value)
 						if text == "" {
+							return
+						}
+
+						// Check if there's an ongoing submission
+						if props.SubmitState != nil && props.SubmitState.IsSubmitting() {
+							// Don't clear input, just show that submission is in progress
 							return
 						}
 

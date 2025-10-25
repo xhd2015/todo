@@ -10,6 +10,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/human_state"
+	"github.com/xhd2015/todo/app/submit"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -44,10 +45,11 @@ const (
 )
 
 type HappeningState struct {
-	Loading    bool
-	Happenings []*models.Happening
-	Error      string
-	Input      models.InputState
+	Loading     bool
+	Happenings  []*models.Happening
+	Error       string
+	Input       models.InputState
+	SubmitState submit.SubmitState // Submission state management
 
 	FocusedItemID int64
 
@@ -66,7 +68,9 @@ type HappeningState struct {
 type State struct {
 	Entries models.LogEntryViews
 
-	Input               models.InputState
+	Input       models.InputState
+	SubmitState submit.SubmitState // Submission state management
+
 	SelectedEntry       models.EntryIdentity
 	LastSelectedEntry   models.EntryIdentity
 	SelectedNoteID      int64 // ID of the selected note (0 if none)
@@ -119,7 +123,7 @@ type State struct {
 
 	Refresh func()
 
-	OnAdd             func(viewType models.LogEntryViewType, text string) error
+	OnAdd             func(ctx context.Context, viewType models.LogEntryViewType, text string) error
 	OnAddChild        func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error)
 	OnUpdate          func(viewType models.LogEntryViewType, id int64, text string) error
 	OnDelete          func(viewType models.LogEntryViewType, id int64) error
