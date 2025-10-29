@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -119,6 +121,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 					Focusable: dom.Focusable(true),
 					OnKeyDown: func(e *dom.DOMEvent) {
 						keyEvent := e.KeydownEvent
+
 						switch keyEvent.KeyType {
 						default:
 							key := string(keyEvent.Runes)
@@ -128,6 +131,15 @@ func DetailPage(state *State, id int64) *dom.Node {
 								inputState.FocusWithText(note.Data.Text)
 							case "d":
 								item.DetailPage.SelectedNoteMode = models.SelectedNoteMode_Deleting
+							case "y":
+								// copy to clipboard
+								err := clipboard.WriteAll(note.Data.Text)
+								if err != nil {
+									log.Errorf(context.TODO(), "failed to copy to clipboard: %v", err)
+									state.StatusBar.Error = err.Error()
+								} else {
+									log.Infof(context.TODO(), "copied to clipboard: %v", note.Data.Text)
+								}
 							}
 						}
 					},
