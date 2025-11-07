@@ -9,6 +9,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/component/chart"
 	"github.com/xhd2015/todo/log"
 )
 
@@ -22,10 +23,17 @@ const (
 	HP_STATE_NAME  = "H/P State"
 )
 
+// HumanStateHistoryPoint represents a single history point with date and score
+type HumanStateHistoryPoint struct {
+	Date  string  // Date in YYYY-MM-DD format
+	Score float64 // HP score for that date
+}
+
 // HumanState represents the state of human metrics with one hp state having 5 bars
 type HumanState struct {
 	HpScores        int                                          // 5 bars for the single hp state
 	FocusedBarIndex int                                          // Which bar is currently focused (0-4)
+	History         []HumanStateHistoryPoint                     // History of HP scores by date
 	OnAdjustScore   func(delta int) error                        // Callback for when score is adjusted
 	Enqueue         func(action func(ctx context.Context) error) // Async task enqueue function
 	LoadStateOnce   func()                                       // Load state once on first access
@@ -49,8 +57,38 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 		humanState.FocusedBarIndex = index
 	})
 
-	// Combine ASCII art with hp bars side by side
-	combinedNodes := combineAlignBottom(asciiNodes, hpBarNodes, 2) // 2 spaces between
+	// Render history chart if available
+	var chartNodes []*dom.Node
+	// Convert history to chart data points
+	chartData := make([]chart.DataPoint, len(humanState.History))
+	for i, point := range humanState.History {
+		chartData[i] = chart.DataPoint{
+			X: point.Date,
+			Y: point.Score,
+		}
+	}
+
+	// Render chart lines
+	chartLines := chart.RenderLineChartLines(chart.LineChartProps{
+		Data:   chartData,
+		Width:  100,
+		Height: 10,
+		Title:  "30-Day History",
+	})
+
+	// Convert chart lines to DOM nodes
+	for _, line := range chartLines {
+		chartNodes = append(chartNodes, dom.Text(line, styles.Style{Color: colors.GREY_TEXT}))
+	}
+
+	// Combine hp bars with chart (chart below bars)
+	var rightSideNodes []*dom.Node
+	rightSideNodes = append(rightSideNodes, hpBarNodes...)
+	rightSideNodes = append(rightSideNodes, dom.Text("")) // Empty line
+	rightSideNodes = append(rightSideNodes, chartNodes...)
+
+	// Combine ASCII art with hp bars+chart side by side
+	combinedNodes := combineAlignBottom(asciiNodes, rightSideNodes, 2) // 2 spaces between
 
 	// Create the main art container
 	artNode := dom.Div(dom.DivProps{}, combinedNodes...)

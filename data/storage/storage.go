@@ -57,6 +57,11 @@ type HappeningService interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+type GetStateHistoryOptions struct {
+	Names []string // State names to filter by (empty = all states)
+	Days  int      // Number of days of history (default: 30)
+}
+
 type StateRecordingService interface {
 	// GetState retrieves a state record by name
 	GetState(ctx context.Context, name string) (*models.State, error)
@@ -68,4 +73,6 @@ type StateRecordingService interface {
 	ListStates(ctx context.Context, scope string) ([]*models.State, error)
 	// GetStateEvents retrieves events for a specific state
 	GetStateEvents(ctx context.Context, stateID int64, limit int) ([]*models.StateEvent, error)
+	// GetStateHistory retrieves historical data points for states
+	GetStateHistory(ctx context.Context, options GetStateHistoryOptions) ([]models.StateHistoryPoint, error)
 }

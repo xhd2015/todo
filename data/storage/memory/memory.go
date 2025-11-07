@@ -322,3 +322,80 @@ func (s *MemoryStateRecordingService) GetStateEvents(ctx context.Context, stateI
 
 	return filteredEvents, nil
 }
+
+func (s *MemoryStateRecordingService) GetStateHistory(ctx context.Context, options storage.GetStateHistoryOptions) ([]models.StateHistoryPoint, error) {
+	// Set default days
+	days := options.Days
+	if days <= 0 {
+		days = 30
+	}
+
+	// Find state IDs based on names filter
+	var stateIDs []int64
+	if len(options.Names) == 0 {
+		// No filter - get all states
+		allStates := s.dataStore.GetAllStates()
+		for _, state := range allStates {
+			stateIDs = append(stateIDs, state.ID)
+		}
+	} else {
+		// Filter by names
+		for _, name := range options.Names {
+			state, exists := s.dataStore.GetStateByName(name)
+			if exists {
+				stateIDs = append(stateIDs, state.ID)
+			}
+		}
+	}
+
+	// Guard clause: check if any states found
+	if len(stateIDs) == 0 {
+		return []models.StateHistoryPoint{}, nil
+	}
+
+	// Calculate start time (N days ago)
+	startTime := time.Now().AddDate(0, 0, -days)
+
+	// Get all events
+	allEvents := s.dataStore.GetAllStateEvents()
+
+	// Group events by date and calculate cumulative score
+	dateScores := make(map[string]float64)
+	var dates []string
+	var cumulativeScore float64
+
+	// Create a map for quick state ID lookup
+	stateIDMap := make(map[int64]bool)
+	for _, id := range stateIDs {
+		stateIDMap[id] = true
+	}
+
+	for _, event := range allEvents {
+		if !stateIDMap[event.StateRecordID] {
+			continue
+		}
+		if event.CreateTime.Before(startTime) {
+			continue
+		}
+
+		dateStr := event.CreateTime.Format("2006-01-02")
+		cumulativeScore += event.DeltaScore
+
+		// Track dates in order if not seen before
+		if _, exists := dateScores[dateStr]; !exists {
+			dates = append(dates, dateStr)
+		}
+		dateScores[dateStr] = cumulativeScore
+	}
+
+	// Build history response
+	history := make([]models.StateHistoryPoint, 0, len(dates))
+	for _, date := range dates {
+		history = append(history, models.StateHistoryPoint{
+			Date:  date,
+			Score: dateScores[date],
+		})
+	}
+
+	return history, nil
+}

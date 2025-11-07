@@ -64,8 +64,8 @@ github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFA
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
 github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
-github.com/xhd2015/go-dom-tui v0.0.14 h1:p3oXrBJ3++JrTziQZq2GOmdIJZ8p81WNXc9TOTYtB4g=
-github.com/xhd2015/go-dom-tui v0.0.14/go.mod h1:YUxjk4p7NPTOiX8HjTMWcEOFcXBnyz8w496NLObO2Eg=
+github.com/xhd2015/go-dom-tui v0.0.15 h1:Z5JS0puWb2iN9nn8F8SRuxeBuL8t3OG4VdgjpP4SbM4=
+github.com/xhd2015/go-dom-tui v0.0.15/go.mod h1:YUxjk4p7NPTOiX8HjTMWcEOFcXBnyz8w496NLObO2Eg=
 github.com/xhd2015/go-http-request v0.0.3 h1:iqDysdi7/Tin1dt5cSYa2NI4l4FKjIEDddTwu4EqTE4=
 github.com/xhd2015/go-http-request v0.0.3/go.mod h1:D6Kw3r5UZD6KougXXZHmxT6+Zmn3c+QOuPNY3wEOvZA=
 github.com/xhd2015/less-gen v0.0.19 h1:JllrPhx3HzN+f2AB6cTvW9aRCpvuODJFx7affpa0zQY=

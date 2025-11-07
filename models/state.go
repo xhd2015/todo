@@ -132,3 +132,9 @@ func (se *StateEvent) GetID() int64 {
 func (se *StateEvent) SetID(id int64) {
 	se.ID = id
 }
+
+// StateHistoryPoint represents a single point in state history
+type StateHistoryPoint struct {
+	Date  string  `json:"date"`  // Date in YYYY-MM-DD format
+	Score float64 `json:"score"` // Total score on that date
+}

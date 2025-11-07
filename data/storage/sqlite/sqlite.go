@@ -1113,3 +1113,116 @@ func (srs *StateRecordingSQLiteStore) GetStateEvents(ctx context.Context, stateI
 
 	return events, nil
 }
+
+func (srs *StateRecordingSQLiteStore) GetStateHistory(ctx context.Context, options storage.GetStateHistoryOptions) ([]models.StateHistoryPoint, error) {
+	// Set default days
+	days := options.Days
+	if days <= 0 {
+		days = 30
+	}
+
+	// Build query to find state IDs
+	var stateIDs []int64
+	var stateQuery string
+	var stateArgs []interface{}
+
+	if len(options.Names) == 0 {
+		// No filter - get all states
+		stateQuery = `SELECT id FROM states`
+	} else {
+		// Filter by names
+		placeholders := make([]string, len(options.Names))
+		for i := range options.Names {
+			placeholders[i] = "?"
+			stateArgs = append(stateArgs, options.Names[i])
+		}
+		stateQuery = fmt.Sprintf(`SELECT id FROM states WHERE name IN (%s)`, strings.Join(placeholders, ","))
+	}
+
+	rows, err := srs.db.QueryContext(ctx, stateQuery, stateArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query states: %w", err)
+	}
+
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("failed to scan state ID: %w", err)
+		}
+		stateIDs = append(stateIDs, id)
+	}
+	rows.Close()
+
+	// Guard clause: check if any states found
+	if len(stateIDs) == 0 {
+		return []models.StateHistoryPoint{}, nil
+	}
+
+	// Calculate start time (N days ago)
+	startTime := time.Now().AddDate(0, 0, -days)
+
+	// Build query for state events
+	placeholders := make([]string, len(stateIDs))
+	var eventsArgs []interface{}
+	for i, id := range stateIDs {
+		placeholders[i] = "?"
+		eventsArgs = append(eventsArgs, id)
+	}
+	eventsArgs = append(eventsArgs, startTime.Format("2006-01-02 15:04:05"))
+
+	eventsQuery := fmt.Sprintf(`SELECT delta_score, create_time 
+					FROM state_events 
+					WHERE state_record_id IN (%s) AND create_time >= ? 
+					ORDER BY create_time ASC`, strings.Join(placeholders, ","))
+
+	rows, err = srs.db.QueryContext(ctx, eventsQuery, eventsArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query state events: %w", err)
+	}
+	defer rows.Close()
+
+	// Group events by date and calculate cumulative score
+	dateScores := make(map[string]float64)
+	var dates []string
+	var cumulativeScore float64
+
+	for rows.Next() {
+		var deltaScore float64
+		var createTimeStr string
+
+		err := rows.Scan(&deltaScore, &createTimeStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan event: %w", err)
+		}
+
+		createTime, err := tryParseTime(createTimeStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse create time: %w", err)
+		}
+
+		dateStr := createTime.Format("2006-01-02")
+		cumulativeScore += deltaScore
+
+		// Track dates in order if not seen before
+		if _, exists := dateScores[dateStr]; !exists {
+			dates = append(dates, dateStr)
+		}
+		dateScores[dateStr] = cumulativeScore
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	// Build history response
+	history := make([]models.StateHistoryPoint, 0, len(dates))
+	for _, date := range dates {
+		history = append(history, models.StateHistoryPoint{
+			Date:  date,
+			Score: dateScores[date],
+		})
+	}
+
+	return history, nil
+}

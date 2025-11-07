@@ -147,3 +147,25 @@ func (s *StateRecordingHttpService) GetStateEvents(ctx context.Context, stateID 
 
 	return response.Events, nil
 }
+
+func (s *StateRecordingHttpService) GetStateHistory(ctx context.Context, options storage.GetStateHistoryOptions) ([]models.StateHistoryPoint, error) {
+	// Create request payload for getting state history
+	req := struct {
+		Names []string `json:"names"`
+		Days  int      `json:"days"`
+	}{
+		Names: options.Names,
+		Days:  options.Days,
+	}
+
+	var response struct {
+		History []models.StateHistoryPoint `json:"history"`
+	}
+
+	err := s.client.makeRequest(ctx, "/state/history", req, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get state history: %w", err)
+	}
+
+	return response.History, nil
+}

@@ -17,11 +17,13 @@ import (
 	"github.com/xhd2015/todo/app/exp"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/data"
+	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/internal/config"
 	"github.com/xhd2015/todo/internal/macos"
 	"github.com/xhd2015/todo/internal/process"
 	applog "github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/run/tool"
 )
 
 const help = `
@@ -35,6 +37,7 @@ Available sub commands:
   export <file.json>
   import <file.json>
   config
+  tool
 
 Options:
   --storage <type>                 storage backend: file (default), sqlite, or server
@@ -64,6 +67,8 @@ func Main(args []string) error {
 			return handleImport(args[1:])
 		case "config":
 			return handleConfig(args[1:])
+		case "tool":
+			return handleTool(args[1:])
 		}
 	}
 
@@ -498,6 +503,28 @@ func Main(args []string) error {
 	// Initialize sync.Once for state loading
 	var loadStateOnce sync.Once
 
+	// Helper function to load and refresh history
+	loadHistory := func(ctx context.Context) error {
+		history, err := logManager.StateRecordingService.GetStateHistory(ctx, storage.GetStateHistoryOptions{
+			Names: []string{human_state.HP_STATE_NAME},
+			Days:  30,
+		})
+		if err != nil {
+			return err
+		}
+
+		// Convert to HumanStateHistoryPoint
+		appState.HumanState.History = make([]human_state.HumanStateHistoryPoint, len(history))
+		for i, point := range history {
+			appState.HumanState.History[i] = human_state.HumanStateHistoryPoint{
+				Date:  point.Date,
+				Score: point.Score,
+			}
+		}
+		applog.Infof(ctx, "DEBUG Loaded H/P State history: %d points", len(history))
+		return nil
+	}
+
 	// Initialize human state
 	appState.HumanState = &human_state.HumanState{
 		HpScores:        0,
@@ -512,6 +539,13 @@ func Main(args []string) error {
 				return err
 			}
 			applog.Infof(ctx, "DEBUG Recorded state event with delta: %d", delta)
+
+			// Refresh history after recording the event
+			if err := loadHistory(ctx); err != nil {
+				applog.Errorf(ctx, "Failed to refresh H/P State history: %v", err)
+				// Don't return error, just log it
+			}
+
 			return nil
 		},
 		Enqueue: appState.Enqueue,
@@ -525,6 +559,13 @@ func Main(args []string) error {
 					}
 					appState.HumanState.HpScores = int(state.Score)
 					applog.Infof(ctx, "DEBUG H/P State score: %f", state.Score)
+
+					// Load state history
+					if err := loadHistory(ctx); err != nil {
+						applog.Infof(ctx, "DEBUG Failed to fetch H/P State history: %v", err)
+						return err
+					}
+
 					return nil
 				})
 			})
@@ -551,6 +592,10 @@ func Main(args []string) error {
 	p = tea.NewProgram(model, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
+}
+
+func handleTool(args []string) error {
+	return tool.Handle(args)
 }
 
 type Model struct {
