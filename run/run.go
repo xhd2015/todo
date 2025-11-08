@@ -80,6 +80,7 @@ func Main(args []string) error {
 	// into group mode
 	var group bool
 	var humanStat bool
+	var learning bool
 
 	var showPath bool
 
@@ -90,6 +91,7 @@ func Main(args []string) error {
 		Bool("--show-path", &showPath).
 		Bool("--group", &group).
 		Bool("--human-stat,--hstat", &humanStat).
+		Bool("--learning", &learning).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {
@@ -134,7 +136,7 @@ func Main(args []string) error {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
 
-	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
+	logManager, services, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}
@@ -192,11 +194,8 @@ func Main(args []string) error {
 	}
 
 	// Initialize SubmitState with restore callback
-	appState.SubmitState.SetOnRestore(func(content string) {
-		// Append the failed content to existing input instead of replacing
-		appState.Input.Value = appState.Input.Value + content
-		appState.Input.CursorPosition = len([]rune(appState.Input.Value))
-	})
+	appState.SubmitState.SetOnRestore(appState.Input.Append)
+	appState.ChildSubmitState.SetOnRestore(appState.ChildInputState.Append)
 
 	refreshEntries := func() {
 		err := logManager.InitWithHistory(appState.ShowHistory)
@@ -234,45 +233,60 @@ func Main(args []string) error {
 			return nil
 		})
 	}
-	appState.OnAddChild = func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error) {
+	appState.OnAddChild = func(ctx context.Context, viewType models.LogEntryViewType, parentID int64, text string) (models.LogEntryViewType, int64, error) {
 		if viewType != models.LogEntryViewType_Log && viewType != models.LogEntryViewType_Group {
-			return 0, nil
+			return models.LogEntryViewType_Log, 0, nil
 		}
 		text = strings.TrimSpace(text)
 		if text == "" {
-			return 0, nil
+			return models.LogEntryViewType_Log, 0, nil
 		}
+		var id int64
+		var subEntryType models.LogEntryViewType
+		submit := func() error {
+			// Check if the parent is a group entry
+			if viewType == models.LogEntryViewType_Group {
+				// Create a rootless log entry (ParentID = 0) and bind to group
+				logID, err := logManager.Add(models.LogEntry{
+					Text: text,
+				})
+				if err != nil {
+					return err
+				}
 
-		// Check if the parent is a group entry
-		if viewType == models.LogEntryViewType_Group {
-			// Create a rootless log entry (ParentID = 0) and bind to group
-			logID, err := logManager.Add(models.LogEntry{
-				Text: text,
-			})
-			if err != nil {
-				return 0, err
+				// Bind the new log to the group
+				_, err = exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
+					LogID:   logID,
+					GroupID: parentID,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to bind log to group: %w", err)
+				}
+
+				appState.Entries = logManager.Entries
+				id = logID
+				subEntryType = models.LogEntryViewType_Log
+				return nil
 			}
 
-			// Bind the new log to the group
-			_, err = exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
-				LogID:   logID,
-				GroupID: parentID,
+			// Regular child entry creation for log entries
+			var err error
+			id, err = logManager.Add(models.LogEntry{
+				Text:     text,
+				ParentID: parentID,
 			})
 			if err != nil {
-				return 0, fmt.Errorf("failed to bind log to group: %w", err)
+				return err
 			}
-
 			appState.Entries = logManager.Entries
-			return logID, nil
+			subEntryType = models.LogEntryViewType_Log
+			return nil
 		}
-
-		// Regular child entry creation for log entries
-		id, err := logManager.Add(models.LogEntry{
-			Text:     text,
-			ParentID: parentID,
-		})
-		appState.Entries = logManager.Entries
-		return id, err
+		err := appState.ChildSubmitState.Do(ctx, text, submit)
+		if err != nil {
+			return subEntryType, 0, err
+		}
+		return subEntryType, id, err
 	}
 	appState.OnUpdate = func(viewType models.LogEntryViewType, id int64, text string) error {
 		if viewType != models.LogEntryViewType_Log {
@@ -504,7 +518,7 @@ func Main(args []string) error {
 	var loadStateOnce sync.Once
 
 	// Helper function to load and refresh history
-	loadHistory := func(ctx context.Context) error {
+	loadHStatHistory := func(ctx context.Context) error {
 		history, err := logManager.StateRecordingService.GetStateHistory(ctx, storage.GetStateHistoryOptions{
 			Names: []string{human_state.HP_STATE_NAME},
 			Days:  30,
@@ -525,6 +539,28 @@ func Main(args []string) error {
 		return nil
 	}
 
+	loadHStat := func() {
+		loadStateOnce.Do(func() {
+			appState.Enqueue(func(ctx context.Context) error {
+				state, err := logManager.StateRecordingService.GetState(ctx, human_state.HP_STATE_NAME)
+				if err != nil {
+					applog.Infof(ctx, "DEBUG Failed to fetch H/P State: %v", err)
+					return err
+				}
+				appState.HumanState.HpScores = int(state.Score)
+				applog.Infof(ctx, "DEBUG H/P State score: %f", state.Score)
+
+				// Load state history
+				if err := loadHStatHistory(ctx); err != nil {
+					applog.Infof(ctx, "DEBUG Failed to fetch H/P State history: %v", err)
+					return err
+				}
+
+				return nil
+			})
+		})
+	}
+
 	// Initialize human state
 	appState.HumanState = &human_state.HumanState{
 		HpScores:        0,
@@ -541,41 +577,75 @@ func Main(args []string) error {
 			applog.Infof(ctx, "DEBUG Recorded state event with delta: %d", delta)
 
 			// Refresh history after recording the event
-			if err := loadHistory(ctx); err != nil {
+			if err := loadHStatHistory(ctx); err != nil {
 				applog.Errorf(ctx, "Failed to refresh H/P State history: %v", err)
 				// Don't return error, just log it
 			}
 
 			return nil
 		},
-		Enqueue: appState.Enqueue,
-		LoadStateOnce: func() {
-			loadStateOnce.Do(func() {
-				appState.Enqueue(func(ctx context.Context) error {
-					state, err := logManager.StateRecordingService.GetState(ctx, human_state.HP_STATE_NAME)
-					if err != nil {
-						applog.Infof(ctx, "DEBUG Failed to fetch H/P State: %v", err)
-						return err
-					}
-					appState.HumanState.HpScores = int(state.Score)
-					applog.Infof(ctx, "DEBUG H/P State score: %f", state.Score)
+		Enqueue:       appState.Enqueue,
+		LoadStateOnce: loadHStat,
+	}
 
-					// Load state history
-					if err := loadHistory(ctx); err != nil {
-						applog.Infof(ctx, "DEBUG Failed to fetch H/P State history: %v", err)
-						return err
-					}
+	// Initialize sync.Once for learning materials loading
+	var loadMaterialsOnce sync.Once
 
+	loadLearningMaterials := func() {
+		loadMaterialsOnce.Do(func() {
+			appState.Learning.Loading = true
+			appState.Enqueue(func(ctx context.Context) error {
+				if appState.Learning.LoadMaterials == nil {
+					appState.Learning.Error = "LoadMaterials is not set"
 					return nil
-				})
+				}
+				materials, _, err := appState.Learning.LoadMaterials(ctx, 0, 10)
+				if err != nil {
+					appState.Learning.Error = err.Error()
+					return err
+				}
+				// Update the state with loaded data
+				appState.Learning.Loading = false
+				appState.Learning.Materials = materials
+				return nil
 			})
+		})
+	}
+
+	// Initialize learning state
+	appState.Learning = app.LearningState{
+		LoadMaterials: func(ctx context.Context, offset int, limit int) ([]*models.LearningMaterial, int64, error) {
+			if services.LearningMaterials == nil {
+				return nil, 0, fmt.Errorf("learning materials service not available")
+			}
+			return services.LearningMaterials.ListMaterials(ctx, offset, limit)
+		},
+		LoadMaterialsOnce: loadLearningMaterials,
+	}
+
+	// Initialize reading state
+	appState.Reading = app.ReadingState{
+		ContentCache: make(map[int]string),
+		LoadContent: func(ctx context.Context, materialID int64, offset int, limit int) (string, int, int64, error) {
+			if services.LearningMaterials == nil {
+				return "", 0, 0, fmt.Errorf("learning materials service not available")
+			}
+			resp, err := services.LearningMaterials.GetMaterialContent(ctx, materialID, offset, limit)
+			if err != nil {
+				return "", 0, 0, err
+			}
+			return resp.Content, resp.TotalBytes, resp.LastOffset, nil
 		},
 	}
 
 	if group {
 		appState.ViewMode = app.ViewMode_Group
 	} else if humanStat {
+		loadHStat()
 		appState.Routes.Push(app.HumanStateRoute())
+	} else if learning {
+		loadLearningMaterials()
+		appState.Routes.Push(app.LearningRoute())
 	}
 
 	model := &Model{

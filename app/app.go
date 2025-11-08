@@ -66,6 +66,45 @@ type HappeningState struct {
 	DeleteHappening func(ctx context.Context, id int64) error
 }
 
+type LearningState struct {
+	Loading   bool
+	Materials []*models.LearningMaterial
+	Error     string
+
+	LoadMaterials     func(ctx context.Context, offset int, limit int) ([]*models.LearningMaterial, int64, error)
+	LoadMaterialsOnce func() // Load materials once on first access
+
+	// Selected material for reading
+	SelectedMaterialIndex int
+}
+
+type ReadingState struct {
+	MaterialID   int64
+	CurrentPage  int
+	TotalBytes   int
+	Loading      bool
+	Error        string
+	ContentCache map[int]string // Cache content by page number (each page is 4096 bytes)
+
+	// Word-level navigation
+	FocusedWordIndex int                   // Index of currently focused word in the current page
+	WordPositions    []models.WordPosition // Positions of all words in current page
+
+	// Viewport scrolling
+	ScrollOffset int // Current scroll position (line offset from top)
+
+	// Vim-like navigation
+	LastKeyWasG bool // Track if last key was 'g' for 'gg' sequence
+
+	// Search functionality
+	SearchMode        bool   // Whether in search mode (typing query)
+	SearchQuery       string // Current search query
+	SearchMatches     []int  // Indices of words that match the search
+	CurrentMatchIndex int    // Index in SearchMatches array
+
+	LoadContent func(ctx context.Context, materialID int64, offset int, limit int) (content string, totalBytes int, lastOffset int64, err error)
+}
+
 type State struct {
 	Entries models.LogEntryViews
 
@@ -80,6 +119,7 @@ type State struct {
 	SelectedEntryMode   SelectedEntryMode
 	SelectedInputState  models.InputState
 	ChildInputState     models.InputState
+	ChildSubmitState    submit.SubmitState // Submission state management for child entries
 
 	SelectedDeleteConfirmButton int
 
@@ -96,6 +136,12 @@ type State struct {
 
 	// Human state functionality
 	HumanState *human_state.HumanState
+
+	// Learning functionality
+	Learning LearningState
+
+	// Reading functionality
+	Reading ReadingState
 
 	ShowHistory bool // Whether to show historical (done) todos from before today
 	ShowNotes   bool // Whether to show all notes globally
@@ -128,7 +174,7 @@ type State struct {
 	Refresh func()
 
 	OnAdd             func(ctx context.Context, viewType models.LogEntryViewType, text string) error
-	OnAddChild        func(viewType models.LogEntryViewType, parentID int64, text string) (int64, error)
+	OnAddChild        func(ctx context.Context, viewType models.LogEntryViewType, parentID int64, text string) (models.LogEntryViewType, int64, error)
 	OnUpdate          func(viewType models.LogEntryViewType, id int64, text string) error
 	OnDelete          func(viewType models.LogEntryViewType, id int64) error
 	OnRemoveFromGroup func(viewType models.LogEntryViewType, id int64) error
@@ -444,6 +490,10 @@ func App(state *State, window *dom.Window) *dom.Node {
 					title = "Human States"
 				case RouteType_Help:
 					title = "Help"
+				case RouteType_Learning:
+					title = "Learning Materials"
+				case RouteType_Reading:
+					title = "Reading"
 				}
 			}
 			return dom.H1(dom.DivProps{}, dom.Text(title, styles.Style{

@@ -19,13 +19,14 @@ type ServerResponse struct {
 }
 
 // makeRequest makes an HTTP request and unwraps the server response
-func (c *Client) makeRequest(ctx context.Context, url string, reqData any, respData any) error {
+// api is the API path that omits the prefix "/api/todo/termui", e.g. "/entries/list"
+func (c *Client) makeRequest(ctx context.Context, api string, reqData any, respData any) error {
 
 	// Log the request with full JSON
 	if reqJSON, err := json.Marshal(reqData); err == nil {
-		applog.Infof(ctx, "HTTP Request: %s %s, payload: %s", "POST", c.serverAddr+url, string(reqJSON))
+		applog.Infof(ctx, "HTTP Request: %s %s, payload: %s", "POST", c.serverAddr+api, string(reqJSON))
 	} else {
-		applog.Infof(ctx, "HTTP Request: %s %s, payload marshal error: %v", "POST", c.serverAddr+url, err)
+		applog.Infof(ctx, "HTTP Request: %s %s, payload marshal error: %v", "POST", c.serverAddr+api, err)
 	}
 
 	req := http_request.New()
@@ -34,18 +35,18 @@ func (c *Client) makeRequest(ctx context.Context, url string, reqData any, respD
 	}
 
 	var serverResp ServerResponse
-	err := req.PostJSON(ctx, c.serverAddr+url, reqData, &serverResp)
+	err := req.PostJSON(ctx, c.serverAddr+api, reqData, &serverResp)
 	if err != nil {
-		applog.Errorf(ctx, "HTTP Request failed: %s %s, error: %v", "POST", c.serverAddr+url, err)
+		applog.Errorf(ctx, "HTTP Request failed: %s %s, error: %v", "POST", c.serverAddr+api, err)
 		return fmt.Errorf("request failed: %w", err)
 	}
 
 	// Log the response with length only
 	responseLength := len(serverResp.Data)
-	applog.Infof(ctx, "HTTP Response: %s %s, code: %d, msg: %s, data_length: %d", "POST", c.serverAddr+url, serverResp.Code, serverResp.Msg, responseLength)
+	applog.Infof(ctx, "HTTP Response: %s %s, code: %d, msg: %s, data_length: %d", "POST", c.serverAddr+api, serverResp.Code, serverResp.Msg, responseLength)
 
 	if serverResp.Code != 0 {
-		applog.Errorf(ctx, "HTTP Server error: %s %s, code: %d, msg: %s", "POST", c.serverAddr+url, serverResp.Code, serverResp.Msg)
+		applog.Errorf(ctx, "HTTP Server error: %s %s, code: %d, msg: %s", "POST", c.serverAddr+api, serverResp.Code, serverResp.Msg)
 		return fmt.Errorf("server error (code %d): %s", serverResp.Code, serverResp.Msg)
 	}
 
@@ -53,7 +54,7 @@ func (c *Client) makeRequest(ctx context.Context, url string, reqData any, respD
 		// Directly unmarshal the raw JSON data
 		err = json.Unmarshal(serverResp.Data, respData)
 		if err != nil {
-			applog.Errorf(ctx, "HTTP Response unmarshal failed: %s %s, error: %v", "POST", c.serverAddr+url, err)
+			applog.Errorf(ctx, "HTTP Response unmarshal failed: %s %s, error: %v", "POST", c.serverAddr+api, err)
 			return fmt.Errorf("failed to unmarshal response data: %w", err)
 		}
 	}

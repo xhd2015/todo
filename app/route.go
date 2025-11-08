@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
@@ -10,6 +11,7 @@ import (
 	"github.com/xhd2015/todo/app/happening_list"
 	"github.com/xhd2015/todo/app/help"
 	"github.com/xhd2015/todo/app/human_state"
+	"github.com/xhd2015/todo/app/learning"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
@@ -23,6 +25,8 @@ const (
 	RouteType_HappeningList
 	RouteType_HumanState
 	RouteType_Help
+	RouteType_Learning
+	RouteType_Reading
 )
 
 type Routes []Route
@@ -35,6 +39,8 @@ type Route struct {
 	HappeningListPage *HappeningListPageState
 	HumanStatePage    *HumanStatePageState
 	HelpPage          *HelpPageState
+	LearningPage      *LearningPageState
+	ReadingPage       *ReadingPageState
 }
 
 func (routes *Routes) Push(route Route) {
@@ -97,6 +103,14 @@ type HelpPageState struct {
 	ScrollOffset int // Current scroll position (line offset from top)
 }
 
+type LearningPageState struct {
+	// This can be empty since learning state is now in main State
+}
+
+type ReadingPageState struct {
+	MaterialID int64
+}
+
 func DetailRoute(entryID int64) Route {
 	return Route{
 		Type: RouteType_Detail,
@@ -131,6 +145,22 @@ func HelpRoute() Route {
 	return Route{
 		Type:     RouteType_Help,
 		HelpPage: &HelpPageState{},
+	}
+}
+
+func LearningRoute() Route {
+	return Route{
+		Type:         RouteType_Learning,
+		LearningPage: &LearningPageState{},
+	}
+}
+
+func ReadingRoute(materialID int64) Route {
+	return Route{
+		Type: RouteType_Reading,
+		ReadingPage: &ReadingPageState{
+			MaterialID: materialID,
+		},
 	}
 }
 
@@ -327,6 +357,441 @@ func HumanStatePage(state *State) *dom.Node {
 	)
 }
 
+// LearningPage renders the learning materials page
+func LearningPage(state *State) *dom.Node {
+	learningState := &state.Learning
+
+	if learningState.Loading {
+		return dom.Div(dom.DivProps{},
+			dom.Text("Loading learning materials..."),
+		)
+	}
+
+	if learningState.Error != "" {
+		return dom.Div(dom.DivProps{},
+			dom.Text("Error loading learning materials: "+learningState.Error),
+		)
+	}
+
+	return learning.LearningMaterialList(learning.LearningMaterialListProps{
+		Materials:     learningState.Materials,
+		SelectedIndex: learningState.SelectedMaterialIndex,
+		OnNavigateBack: func() {
+			state.Routes.Pop()
+		},
+		OnReload: func() {
+			// Reload learning materials by setting loading state and fetching fresh data
+			if len(learningState.Materials) == 0 {
+				learningState.Loading = true
+			}
+			learningState.Error = ""
+
+			state.Enqueue(func(ctx context.Context) error {
+				log.Infof(ctx, "Reload learning materials")
+				if learningState.LoadMaterials == nil {
+					learningState.Error = "LoadMaterials is not set"
+					return nil
+				}
+				materials, _, err := learningState.LoadMaterials(ctx, 0, 10)
+				if err != nil {
+					learningState.Error = err.Error()
+					return err
+				}
+				// Update the state with loaded data
+				learningState.Loading = false
+				learningState.Materials = materials
+				return nil
+			})
+		},
+		OnNavigateUp: func() {
+			if learningState.SelectedMaterialIndex > 0 {
+				learningState.SelectedMaterialIndex--
+			}
+		},
+		OnNavigateDown: func() {
+			if learningState.SelectedMaterialIndex < len(learningState.Materials)-1 {
+				learningState.SelectedMaterialIndex++
+			}
+		},
+		OnOpenMaterial: func(materialID int64) {
+			// Initialize reading state
+			state.Reading.MaterialID = materialID
+			state.Reading.CurrentPage = 0
+			state.Reading.ContentCache = make(map[int]string)
+			state.Reading.Loading = true
+			state.Reading.Error = ""
+
+			// Navigate to reading page
+			state.Routes.Push(ReadingRoute(materialID))
+
+			// Load first page
+			state.Enqueue(func(ctx context.Context) error {
+				return loadPage(ctx, state, 0)
+			})
+
+			// Pre-fetch next page
+			state.Enqueue(func(ctx context.Context) error {
+				return loadPage(ctx, state, 1)
+			})
+		},
+	})
+}
+
+// ReadingPage renders the reading page for a material
+func ReadingPage(state *State, materialID int64, window *dom.Window) *dom.Node {
+	readingState := &state.Reading
+
+	// Find the material title
+	var materialTitle string
+	for _, m := range state.Learning.Materials {
+		if m.ID == materialID {
+			materialTitle = m.Title
+			break
+		}
+	}
+
+	totalPages := 0
+	if readingState.TotalBytes > 0 {
+		totalPages = (readingState.TotalBytes + PAGE_SIZE - 1) / PAGE_SIZE
+	}
+
+	currentContent := readingState.ContentCache[readingState.CurrentPage]
+
+	// Calculate viewport height
+	// Reserve space for: title (1), help (1), empty line (1), scroll indicators (2),
+	// empty line before pagination (1), pagination (1), status bar (1), plus extra buffer (2)
+	reservedLines := 10
+	viewportHeight := window.Height - reservedLines
+	if viewportHeight < 5 {
+		viewportHeight = 5 // Minimum viewport height
+	}
+
+	return learning.ReadingMaterialPage(learning.ReadingProps{
+		MaterialID:       materialID,
+		MaterialTitle:    materialTitle,
+		CurrentPage:      readingState.CurrentPage,
+		TotalPages:       totalPages,
+		Content:          currentContent,
+		Loading:          readingState.Loading,
+		Error:            readingState.Error,
+		FocusedWordIndex: readingState.FocusedWordIndex,
+		WordPositions:    readingState.WordPositions,
+		ScrollOffset:     readingState.ScrollOffset,
+		ViewportHeight:   viewportHeight,
+		OnNavigateBack: func() {
+			state.Routes.Pop()
+		},
+		OnNavigateWord: func(delta int) {
+			// Navigate by word (left/right)
+			readingState.LastKeyWasG = false // Reset 'g' sequence
+
+			if len(readingState.WordPositions) == 0 {
+				return
+			}
+
+			newIndex := readingState.FocusedWordIndex + delta
+			if newIndex < 0 {
+				newIndex = 0
+			}
+			if newIndex >= len(readingState.WordPositions) {
+				newIndex = len(readingState.WordPositions) - 1
+			}
+			readingState.FocusedWordIndex = newIndex
+
+			// Ensure focused word is visible
+			ensureWordVisible(readingState, viewportHeight)
+		},
+		OnNavigateLine: func(delta int) {
+			// Navigate by line (up/down)
+			readingState.LastKeyWasG = false // Reset 'g' sequence
+
+			if len(readingState.WordPositions) == 0 {
+				return
+			}
+
+			currentWord := readingState.WordPositions[readingState.FocusedWordIndex]
+			currentLine := currentWord.LineIndex
+
+			// Find the target line by searching in the direction of delta
+			// If no word exists on the exact target line, find the next available line
+			var targetWordIdx int = -1
+			bestDistance := -1
+
+			if delta > 0 {
+				// Moving down - find first word on a line > currentLine
+				for i, wp := range readingState.WordPositions {
+					if wp.LineIndex > currentLine {
+						if targetWordIdx == -1 || wp.LineIndex < readingState.WordPositions[targetWordIdx].LineIndex {
+							// Found a closer line
+							targetWordIdx = i
+							bestDistance = wp.WordInLine - currentWord.WordInLine
+							if bestDistance < 0 {
+								bestDistance = -bestDistance
+							}
+						} else if wp.LineIndex == readingState.WordPositions[targetWordIdx].LineIndex {
+							// Same line as current target, check if closer word position
+							distance := wp.WordInLine - currentWord.WordInLine
+							if distance < 0 {
+								distance = -distance
+							}
+							if distance < bestDistance {
+								targetWordIdx = i
+								bestDistance = distance
+							}
+						}
+					}
+				}
+			} else {
+				// Moving up - find last word on a line < currentLine
+				for i, wp := range readingState.WordPositions {
+					if wp.LineIndex < currentLine {
+						if targetWordIdx == -1 || wp.LineIndex > readingState.WordPositions[targetWordIdx].LineIndex {
+							// Found a closer line
+							targetWordIdx = i
+							bestDistance = wp.WordInLine - currentWord.WordInLine
+							if bestDistance < 0 {
+								bestDistance = -bestDistance
+							}
+						} else if wp.LineIndex == readingState.WordPositions[targetWordIdx].LineIndex {
+							// Same line as current target, check if closer word position
+							distance := wp.WordInLine - currentWord.WordInLine
+							if distance < 0 {
+								distance = -distance
+							}
+							if distance < bestDistance {
+								targetWordIdx = i
+								bestDistance = distance
+							}
+						}
+					}
+				}
+			}
+
+			// If we found a word on another line, move to it
+			if targetWordIdx != -1 {
+				readingState.FocusedWordIndex = targetWordIdx
+
+				// Ensure focused word is visible
+				ensureWordVisible(readingState, viewportHeight)
+			}
+		},
+		OnPageNavigation: func(delta int) {
+			// Page navigation with h/l keys
+			readingState.LastKeyWasG = false // Reset 'g' sequence
+
+			if delta < 0 {
+				// Previous page
+				if readingState.CurrentPage > 0 {
+					readingState.CurrentPage--
+					updatePageWordPositions(state)
+					loadPageIfNeeded(state, readingState.CurrentPage)
+				}
+			} else {
+				// Next page
+				if readingState.CurrentPage < totalPages-1 {
+					readingState.CurrentPage++
+					updatePageWordPositions(state)
+					loadPageIfNeeded(state, readingState.CurrentPage)
+					// Pre-fetch next page
+					if readingState.CurrentPage+1 < totalPages {
+						loadPageIfNeeded(state, readingState.CurrentPage+1)
+					}
+				}
+			}
+		},
+		OnNextPage: func() {
+			// Not used anymore, replaced by OnPageNavigation
+		},
+		OnPrevPage: func() {
+			// Not used anymore, replaced by OnPageNavigation
+		},
+		OnKeyG: func() {
+			// Handle 'g' key press for 'gg' sequence
+			if readingState.LastKeyWasG {
+				// Second 'g' press - jump to first word
+				if len(readingState.WordPositions) > 0 {
+					readingState.FocusedWordIndex = 0
+					readingState.ScrollOffset = 0
+				}
+				readingState.LastKeyWasG = false
+			} else {
+				// First 'g' press - set flag
+				readingState.LastKeyWasG = true
+			}
+		},
+		OnJumpToFirst: func() {
+			// Jump to first word (gg)
+			if len(readingState.WordPositions) > 0 {
+				readingState.FocusedWordIndex = 0
+				readingState.ScrollOffset = 0
+			}
+			readingState.LastKeyWasG = false
+		},
+		OnJumpToLast: func() {
+			// Jump to last word (G)
+			if len(readingState.WordPositions) > 0 {
+				readingState.FocusedWordIndex = len(readingState.WordPositions) - 1
+				ensureWordVisible(readingState, viewportHeight)
+			}
+			readingState.LastKeyWasG = false
+		},
+	})
+}
+
+const PAGE_SIZE = 4096 // Each page is 4096 bytes
+
+// parseWordPositions extracts word positions from content
+func parseWordPositions(content string) []models.WordPosition {
+	var positions []models.WordPosition
+	lines := strings.Split(content, "\n")
+
+	currentPos := 0
+	for lineIdx, line := range lines {
+		words := strings.Fields(line) // Split by whitespace
+		if len(words) == 0 {
+			currentPos += len(line) + 1 // +1 for newline
+			continue
+		}
+
+		// Find each word in the line
+		wordInLine := 0
+		searchStart := 0
+		for _, word := range words {
+			// Find the word's position in the line
+			wordStart := strings.Index(line[searchStart:], word)
+			if wordStart == -1 {
+				continue
+			}
+			wordStart += searchStart
+
+			positions = append(positions, models.WordPosition{
+				Word:       word,
+				LineIndex:  lineIdx,
+				WordInLine: wordInLine,
+				StartPos:   currentPos + wordStart,
+				EndPos:     currentPos + wordStart + len(word),
+			})
+
+			searchStart = wordStart + len(word)
+			wordInLine++
+		}
+
+		currentPos += len(line) + 1 // +1 for newline
+	}
+
+	return positions
+}
+
+func loadPage(ctx context.Context, state *State, pageNum int) error {
+	// Check if already in cache
+	if _, exists := state.Reading.ContentCache[pageNum]; exists {
+		return nil
+	}
+
+	readingState := &state.Reading
+	readingState.Loading = true
+
+	if readingState.LoadContent == nil {
+		readingState.Error = "LoadContent is not set"
+		readingState.Loading = false
+		return nil
+	}
+
+	offset := pageNum * PAGE_SIZE
+	content, totalBytes, lastOffset, err := readingState.LoadContent(ctx, readingState.MaterialID, offset, 10240) // Load 10240 bytes at once
+	if err != nil {
+		readingState.Error = err.Error()
+		readingState.Loading = false
+		return err
+	}
+
+	readingState.TotalBytes = totalBytes
+	readingState.Loading = false
+
+	// If this is the first load (page 0) and there's a saved offset, navigate to it
+	if pageNum == 0 && lastOffset > 0 {
+		// Calculate the page number from the offset
+		savedPage := int(lastOffset / int64(PAGE_SIZE))
+		totalPages := (totalBytes + PAGE_SIZE - 1) / PAGE_SIZE
+		if savedPage < totalPages {
+			readingState.CurrentPage = savedPage
+			// Load the saved page
+			if _, exists := readingState.ContentCache[savedPage]; !exists {
+				// Recursively load the saved page
+				return loadPage(ctx, state, savedPage)
+			}
+		}
+	}
+
+	// Split the loaded content into pages and cache them
+	for i := 0; i < len(content); i += PAGE_SIZE {
+		end := i + PAGE_SIZE
+		if end > len(content) {
+			end = len(content)
+		}
+		pageContent := content[i:end]
+		cachePageNum := pageNum + (i / PAGE_SIZE)
+		readingState.ContentCache[cachePageNum] = pageContent
+	}
+
+	// If this is the current page, parse word positions
+	if pageNum == readingState.CurrentPage {
+		pageContent := readingState.ContentCache[pageNum]
+		readingState.WordPositions = parseWordPositions(pageContent)
+		readingState.FocusedWordIndex = 0
+	}
+
+	return nil
+}
+
+// ensureWordVisible adjusts scroll offset to ensure the focused word is visible in the viewport
+func ensureWordVisible(readingState *ReadingState, viewportHeight int) {
+	if len(readingState.WordPositions) == 0 {
+		return
+	}
+
+	focusedWord := readingState.WordPositions[readingState.FocusedWordIndex]
+	focusedLine := focusedWord.LineIndex
+
+	// Check if focused line is above viewport
+	if focusedLine < readingState.ScrollOffset {
+		readingState.ScrollOffset = focusedLine
+	}
+
+	// Check if focused line is below viewport
+	if focusedLine >= readingState.ScrollOffset+viewportHeight {
+		readingState.ScrollOffset = focusedLine - viewportHeight + 1
+	}
+
+	// Ensure scroll offset is not negative
+	if readingState.ScrollOffset < 0 {
+		readingState.ScrollOffset = 0
+	}
+}
+
+// updatePageWordPositions updates word positions when page changes
+func updatePageWordPositions(state *State) {
+	readingState := &state.Reading
+	if pageContent, exists := readingState.ContentCache[readingState.CurrentPage]; exists {
+		readingState.WordPositions = parseWordPositions(pageContent)
+		readingState.FocusedWordIndex = 0
+		readingState.ScrollOffset = 0 // Reset scroll to top when changing pages
+	} else {
+		readingState.WordPositions = nil
+		readingState.FocusedWordIndex = 0
+		readingState.ScrollOffset = 0
+	}
+}
+
+// loadPageIfNeeded loads a page if it's not in cache
+func loadPageIfNeeded(state *State, pageNum int) {
+	if _, exists := state.Reading.ContentCache[pageNum]; !exists {
+		state.Enqueue(func(ctx context.Context) error {
+			return loadPage(ctx, state, pageNum)
+		})
+	}
+}
+
 // HelpPage renders the help page with scrolling support
 func HelpPage(state *State, window *dom.Window) *dom.Node {
 	route := state.Routes.Last()
@@ -389,6 +854,10 @@ func RenderRoute(state *State, route Route, window *dom.Window) *dom.Node {
 		return HumanStatePage(state)
 	case RouteType_Help:
 		return HelpPage(state, window)
+	case RouteType_Learning:
+		return LearningPage(state)
+	case RouteType_Reading:
+		return ReadingPage(state, route.ReadingPage.MaterialID, window)
 	default:
 		return dom.Text(fmt.Sprintf("unknown route: %d", route.Type), styles.Style{
 			Bold:  true,

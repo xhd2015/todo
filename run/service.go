@@ -4,92 +4,89 @@ import (
 	"fmt"
 
 	"github.com/xhd2015/todo/data"
-	"github.com/xhd2015/todo/data/storage"
 	"github.com/xhd2015/todo/data/storage/filestore"
 	"github.com/xhd2015/todo/data/storage/http"
 	"github.com/xhd2015/todo/data/storage/sqlite"
 	"github.com/xhd2015/todo/internal/config"
 )
 
-func createLogServices(storageType string, serverAddr string, serverToken string) (storage.LogEntryService, storage.LogNoteService, storage.HappeningService, storage.StateRecordingService, error) {
-	var logEntryService storage.LogEntryService
-	var logNoteService storage.LogNoteService
-	var happeningService storage.HappeningService
-	var stateRecordingService storage.StateRecordingService
+func createLogServices(storageType string, serverAddr string, serverToken string) (*data.Services, error) {
+	services := &data.Services{}
 
 	switch storageType {
 	case "sqlite":
 		sqliteFile, err := config.GetSqliteFile()
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
 
 		sqliteStore, err := sqlite.New(sqliteFile)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
 
-		logEntryService = &sqlite.LogEntrySQLiteStore{
+		services.LogEntry = &sqlite.LogEntrySQLiteStore{
 			SQLiteStore: sqliteStore,
 		}
-		logNoteService = &sqlite.LogNoteSQLiteStore{
+		services.LogNote = &sqlite.LogNoteSQLiteStore{
 			SQLiteStore: sqliteStore,
 		}
-		happeningService = &sqlite.HappeningSQLiteStore{
+		services.Happening = &sqlite.HappeningSQLiteStore{
 			SQLiteStore: sqliteStore,
 		}
-		stateRecordingService = &sqlite.StateRecordingSQLiteStore{
+		services.StateRecording = &sqlite.StateRecordingSQLiteStore{
 			SQLiteStore: sqliteStore,
 		}
 	case "file":
 		recordFile, err := config.GetRecordJSONFile()
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
 
-		logEntryService, err = filestore.NewLogEntryService(recordFile)
+		services.LogEntry, err = filestore.NewLogEntryService(recordFile)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
-		logNoteService, err = filestore.NewLogNoteService(recordFile)
+		services.LogNote, err = filestore.NewLogNoteService(recordFile)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
-		happeningService, err = filestore.NewHappeningService(recordFile)
+		services.Happening, err = filestore.NewHappeningService(recordFile)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
-		stateRecordingService, err = filestore.NewStateRecordingService(recordFile)
+		services.StateRecording, err = filestore.NewStateRecordingService(recordFile)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, err
 		}
 	case "server":
 		if serverAddr == "" {
-			return nil, nil, nil, nil, fmt.Errorf("requires --server-addr")
+			return nil, fmt.Errorf("requires --server-addr")
 		}
 		if serverToken == "" {
-			return nil, nil, nil, nil, fmt.Errorf("requires --server-token")
+			return nil, fmt.Errorf("requires --server-token")
 		}
 
 		client := http.NewClient(serverAddr, serverToken)
-		logEntryService = http.NewLogEntryService(client)
-		logNoteService = http.NewLogNoteService(client)
-		happeningService = http.NewHappeningService(client)
-		stateRecordingService = http.NewStateRecordingService(client)
+		services.LogEntry = http.NewLogEntryService(client)
+		services.LogNote = http.NewLogNoteService(client)
+		services.Happening = http.NewHappeningService(client)
+		services.StateRecording = http.NewStateRecordingService(client)
+		services.LearningMaterials = http.NewLearningMaterialsService(client)
 
 	default:
-		return nil, nil, nil, nil, fmt.Errorf("unsupported storage type: %s, available: sqlite, file, server", storageType)
+		return nil, fmt.Errorf("unsupported storage type: %s, available: sqlite, file, server", storageType)
 	}
 
-	return logEntryService, logNoteService, happeningService, stateRecordingService, nil
+	return services, nil
 }
 
-func CreateLogManager(storageType string, serverAddr string, serverToken string) (*data.LogManager, error) {
-	logEntryService, logNoteService, happeningService, stateRecordingService, err := createLogServices(storageType, serverAddr, serverToken)
+func CreateLogManager(storageType string, serverAddr string, serverToken string) (*data.LogManager, *data.Services, error) {
+	services, err := createLogServices(storageType, serverAddr, serverToken)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	logManager := data.NewLogManager(logEntryService, logNoteService, happeningService, stateRecordingService)
-	return logManager, nil
+	logManager := data.NewLogManager(services)
+	return logManager, services, nil
 }

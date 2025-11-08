@@ -71,7 +71,7 @@ func handleExport(args []string) error {
 
 	jsonFile := args[0]
 
-	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
+	logManager, _, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func handleImport(args []string) error {
 		return fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
-	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
+	logManager, _, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}

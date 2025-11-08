@@ -246,14 +246,16 @@ func Tree(props TreeProps) []*dom.Node {
 						case dom.KeyTypeEnter:
 							if strings.TrimSpace(state.ChildInputState.Value) != "" {
 								state.Enqueue(func(ctx context.Context) error {
-									id, err := state.OnAddChild(entryType, entryID, state.ChildInputState.Value)
+									subEntryType, id, err := state.OnAddChild(ctx, entryType, entryID, state.ChildInputState.Value)
 									if err != nil {
 										return err
 									}
 
 									state.ChildInputState.Value = ""
 									state.ChildInputState.CursorPosition = 0
-									state.Select(entryType, id)
+									if id != 0 {
+										state.Select(subEntryType, id)
+									}
 									return nil
 								})
 							}

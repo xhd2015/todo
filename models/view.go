@@ -25,6 +25,11 @@ func (c *InputState) FocusWithText(text string) {
 	c.CursorPosition = len([]rune(text))
 }
 
+func (c *InputState) Append(content string) {
+	c.Value = c.Value + content
+	c.CursorPosition = len([]rune(c.Value))
+}
+
 type LogEntryView struct {
 	Data *LogEntry
 
@@ -197,4 +202,13 @@ func (list LogEntryViews) findAdjacent(id int64, next bool) *LogEntryView {
 		prevID = e
 	}
 	return nil
+}
+
+// WordPosition represents the position of a word in content for reading navigation
+type WordPosition struct {
+	Word       string
+	LineIndex  int // Which line this word is on
+	WordInLine int // Position of word within the line
+	StartPos   int // Start position in content string
+	EndPos     int // End position in content string
 }

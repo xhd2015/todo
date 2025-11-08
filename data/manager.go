@@ -7,8 +7,18 @@ import (
 	"time"
 
 	"github.com/xhd2015/todo/data/storage"
+	"github.com/xhd2015/todo/data/storage/http"
 	"github.com/xhd2015/todo/models"
 )
+
+// Services wraps all storage services
+type Services struct {
+	LogEntry          storage.LogEntryService
+	LogNote           storage.LogNoteService
+	Happening         storage.HappeningService
+	StateRecording    storage.StateRecordingService
+	LearningMaterials *http.LearningMaterialsHttpService
+}
 
 type LogManager struct {
 	LogEntryService       storage.LogEntryService
@@ -22,13 +32,13 @@ type LogManager struct {
 	HappeningManager *HappeningManager
 }
 
-func NewLogManager(logEntryService storage.LogEntryService, logNoteService storage.LogNoteService, happeningService storage.HappeningService, stateRecordingService storage.StateRecordingService) *LogManager {
+func NewLogManager(services *Services) *LogManager {
 	return &LogManager{
-		LogEntryService:       logEntryService,
-		LogNoteService:        logNoteService,
-		HappeningService:      happeningService,
-		StateRecordingService: stateRecordingService,
-		HappeningManager:      NewHappeningManager(happeningService),
+		LogEntryService:       services.LogEntry,
+		LogNoteService:        services.LogNote,
+		HappeningService:      services.Happening,
+		StateRecordingService: services.StateRecording,
+		HappeningManager:      NewHappeningManager(services.Happening),
 	}
 }
 

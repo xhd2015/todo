@@ -76,7 +76,7 @@ func handleList(args []string) error {
 		return fmt.Errorf("--server-addr is required when --storage=server")
 	}
 
-	logManager, err := CreateLogManager(storageType, serverAddr, serverToken)
+	logManager, _, err := CreateLogManager(storageType, serverAddr, serverToken)
 	if err != nil {
 		return err
 	}

@@ -195,6 +195,14 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					// Navigate to help page
 					state.Routes.Push(HelpRoute())
 					return true
+				case "/learning":
+					// Load materials on first access
+					if state.Learning.LoadMaterialsOnce != nil {
+						state.Learning.LoadMaterialsOnce()
+					}
+					// Navigate to learning materials page
+					state.Routes.Push(LearningRoute())
+					return true
 				case "/switch":
 					// Toggle view mode between default and group
 					if state.ViewMode == ViewMode_Default {
