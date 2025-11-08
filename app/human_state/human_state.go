@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xhd2015/go-dom-tui/charm/layout"
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/component/chart"
+	"github.com/xhd2015/todo/component/text"
 	"github.com/xhd2015/todo/log"
 )
 
@@ -50,6 +52,31 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 		asciiNodes = append(asciiNodes, dom.Text(line, styles.Style{Color: colors.GREY_TEXT}))
 	}
 
+	// Determine status text based on score
+	var statusText string
+	if humanState.HpScores > HP_TOTAL_SCORE {
+		statusText = "strong"
+	} else if humanState.HpScores >= 0 {
+		statusText = "tender"
+	} else {
+		statusText = "weak"
+	}
+
+	// Render status text as ASCII art
+	statusLines := text.RenderText(statusText, text.TextOptions{})
+	var statusNodes []*dom.Node
+	for _, line := range statusLines {
+		var color string
+		if humanState.HpScores > HP_TOTAL_SCORE {
+			color = colors.GREEN_SUCCESS
+		} else if humanState.HpScores >= 0 {
+			color = colors.GREY_TEXT
+		} else {
+			color = colors.RED_ERROR
+		}
+		statusNodes = append(statusNodes, dom.Text(line, styles.Style{Color: color, Bold: true}))
+	}
+
 	// Create hp bar group as DOM nodes
 	hpBarNodes := RenderBars(humanState.HpScores, HP_TOTAL_SCORE, humanState.FocusedBarIndex, func(delta int) {
 		humanState.AdjustScore(delta)
@@ -81,14 +108,17 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 		chartNodes = append(chartNodes, dom.Text(line, styles.Style{Color: colors.GREY_TEXT}))
 	}
 
-	// Combine hp bars with chart (chart below bars)
+	// First, merge HP bars with status text using Fragment (status to the right of bars, inline)
+	hpAndStatusNodes := layout.MergeAlignBottomFragment(hpBarNodes, statusNodes, 3) // 3 spaces between bars and status
+
+	// Merge hp bars with chart (chart below bars)
 	var rightSideNodes []*dom.Node
-	rightSideNodes = append(rightSideNodes, hpBarNodes...)
+	rightSideNodes = append(rightSideNodes, hpAndStatusNodes...)
 	rightSideNodes = append(rightSideNodes, dom.Text("")) // Empty line
 	rightSideNodes = append(rightSideNodes, chartNodes...)
 
-	// Combine ASCII art with hp bars+chart side by side
-	combinedNodes := combineAlignBottom(asciiNodes, rightSideNodes, 2) // 2 spaces between
+	// Merge ASCII art with hp bars+chart side by side
+	combinedNodes := layout.MergeAlignBottom(asciiNodes, rightSideNodes, 2) // 2 spaces between
 
 	// Create the main art container
 	artNode := dom.Div(dom.DivProps{}, combinedNodes...)
@@ -136,70 +166,6 @@ func (hs *HumanState) AdjustScore(delta int) {
 // GetASCIIArt returns the ASCII art for a male figure
 func GetASCIIArt() string {
 	return strings.TrimSpace(manASCII)
-}
-
-// combineAlignBottom combines two DOM node arrays side by side, aligned from the bottom
-// Handles cases where len(a) != len(b) by padding the shorter array at the top
-func combineAlignBottom(a []*dom.Node, b []*dom.Node, spaceWidth int) []*dom.Node {
-	if len(a) == 0 && len(b) == 0 {
-		return []*dom.Node{}
-	}
-	if len(a) == 0 {
-		return b
-	}
-	if len(b) == 0 {
-		return a
-	}
-
-	maxLen := len(a)
-	if len(b) > maxLen {
-		maxLen = len(b)
-	}
-
-	result := make([]*dom.Node, maxLen)
-
-	// Calculate padding needed for each array
-	aPadding := maxLen - len(a)
-	bPadding := maxLen - len(b)
-
-	for i := 0; i < maxLen; i++ {
-		var nodeA, nodeB *dom.Node
-		var hasA, hasB bool
-
-		// Get node from array a (with top padding)
-		if i < aPadding {
-			hasA = false
-		} else {
-			nodeA = a[i-aPadding]
-			hasA = true
-		}
-
-		// Get node from array b (with top padding)
-		if i < bPadding {
-			hasB = false
-		} else {
-			nodeB = b[i-bPadding]
-			hasB = true
-		}
-
-		// Create div based on what nodes we have
-		if hasA && hasB {
-			// Both nodes exist - create spacer and combine all three
-			spacer := dom.Text(strings.Repeat(" ", spaceWidth), styles.Style{})
-			result[i] = dom.Div(dom.DivProps{}, nodeA, spacer, nodeB)
-		} else if hasA {
-			// Only A exists - just wrap it in a div
-			result[i] = dom.Div(dom.DivProps{}, nodeA)
-		} else if hasB {
-			// Only B exists - just wrap it in a div
-			result[i] = dom.Div(dom.DivProps{}, nodeB)
-		} else {
-			// Neither exists - create empty div
-			result[i] = dom.Div(dom.DivProps{})
-		}
-	}
-
-	return result
 }
 
 // RenderBars renders all 5 hp bars as a group of DOM text nodes
