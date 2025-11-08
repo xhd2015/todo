@@ -1,11 +1,14 @@
 package learning
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/component/layout"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
 
@@ -54,8 +57,8 @@ func ReadingMaterialPage(props ReadingProps) *dom.Node {
 			case dom.KeyTypeEsc:
 				if props.OnNavigateBack != nil {
 					props.OnNavigateBack()
+					event.StopPropagation()
 				}
-				event.PreventDefault()
 			case dom.KeyTypeLeft:
 				// Navigate to previous word
 				if props.OnNavigateWord != nil {
@@ -124,35 +127,8 @@ func ReadingMaterialPage(props ReadingProps) *dom.Node {
 			}),
 		),
 		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
-		// Content or loading/error state
-		func() *dom.Node {
-			if props.Loading {
-				return dom.Div(dom.DivProps{},
-					dom.Text("Loading...", styles.Style{
-						Color: "8",
-					}),
-				)
-			}
-
-			if props.Error != "" {
-				return dom.Div(dom.DivProps{},
-					dom.Text("Error: "+props.Error, styles.Style{
-						Color: "1",
-					}),
-				)
-			}
-
-			if props.Content == "" {
-				return dom.Div(dom.DivProps{},
-					dom.Text("No content available", styles.Style{
-						Color: "8",
-					}),
-				)
-			}
-
-			// Render content with word-level highlighting and viewport scrolling
-			return renderContentWithWordHighlight(props.Content, props.WordPositions, props.FocusedWordIndex, props.ScrollOffset, props.ViewportHeight)
-		}(),
+		// Content with word-level highlighting and viewport scrolling
+		renderContentWithWordHighlight(props.Content, props.WordPositions, props.FocusedWordIndex, props.ScrollOffset, props.ViewportHeight, props.Loading, props.Error),
 		// Page indicator at bottom
 		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
 		dom.Div(dom.DivProps{},
@@ -165,19 +141,38 @@ func ReadingMaterialPage(props ReadingProps) *dom.Node {
 
 // renderContentWithWordHighlight renders content with the focused word highlighted
 // Each word is rendered as a separate inline element for proper focus handling
-// Supports viewport scrolling to show only visible lines
-func renderContentWithWordHighlight(content string, wordPositions []models.WordPosition, focusedWordIndex int, scrollOffset int, viewportHeight int) *dom.Node {
-	if len(wordPositions) == 0 {
-		// No word positions, render as plain text
-		lines := strings.Split(content, "\n")
-		children := make([]*dom.Node, 0, len(lines))
-		for _, line := range lines {
-			children = append(children, dom.Div(dom.DivProps{},
-				dom.Text(line),
-			))
-		}
-		return dom.Div(dom.DivProps{}, children...)
+// Uses VScroller for viewport scrolling
+// Handles loading, error, and empty content states
+// NOTE: content should be safely escaped (control characters removed) before calling this function
+func renderContentWithWordHighlight(content string, wordPositions []models.WordPosition, focusedWordIndex int, scrollOffset int, viewportHeight int, loading bool, errorMsg string) *dom.Node {
+	// Handle loading state
+	if loading {
+		return dom.Div(dom.DivProps{},
+			dom.Text("Loading...", styles.Style{
+				Color: "8",
+			}),
+		)
 	}
+
+	// Handle error state
+	if errorMsg != "" {
+		return dom.Div(dom.DivProps{},
+			dom.Text("Error: "+errorMsg, styles.Style{
+				Color: "1",
+			}),
+		)
+	}
+
+	// Handle empty content
+	if content == "" {
+		return dom.Div(dom.DivProps{},
+			dom.Text("No content available", styles.Style{
+				Color: "8",
+			}),
+		)
+	}
+
+	lines := strings.Split(content, "\n")
 
 	// Group words by line
 	lineWords := make(map[int][]int) // lineIndex -> []wordIndex
@@ -185,61 +180,19 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 		lineWords[wp.LineIndex] = append(lineWords[wp.LineIndex], i)
 	}
 
-	// Get all unique line indices and sort them
-	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
-
-	// Apply viewport scrolling
-	startLine := scrollOffset
-	endLine := startLine + viewportHeight
-
-	// Clamp bounds
-	if startLine < 0 {
-		startLine = 0
-	}
-	if endLine > totalLines {
-		endLine = totalLines
-	}
-	if startLine >= totalLines {
-		startLine = totalLines - 1
-		if startLine < 0 {
-			startLine = 0
-		}
+	// Find which line contains the focused word
+	focusedLineIndex := 0
+	if focusedWordIndex >= 0 && focusedWordIndex < len(wordPositions) {
+		focusedLineIndex = wordPositions[focusedWordIndex].LineIndex
 	}
 
-	children := make([]*dom.Node, 0)
-	linesRendered := 0
-
-	// Add scroll indicator at top if scrolled
-	if startLine > 0 {
-		children = append(children, dom.Div(dom.DivProps{},
-			dom.Text(fmt.Sprintf("↑ (%d lines above)", startLine), styles.Style{
-				Color: "8",
-			}),
-		))
-		linesRendered++
-	}
-
-	// Render only visible lines
-	maxLinesToRender := viewportHeight
-	if startLine > 0 {
-		maxLinesToRender-- // Account for top scroll indicator
-	}
-	if endLine < totalLines {
-		maxLinesToRender-- // Account for bottom scroll indicator
-	}
-
-	actualEndLine := startLine + maxLinesToRender
-	if actualEndLine > totalLines {
-		actualEndLine = totalLines
-	}
-
-	for lineIdx := startLine; lineIdx < actualEndLine; lineIdx++ {
-		line := lines[lineIdx]
+	// Build all line nodes
+	lineNodes := make([]*dom.Node, 0, len(lines))
+	for lineIdx, line := range lines {
 		wordIndices, hasWords := lineWords[lineIdx]
 		if !hasWords || len(line) == 0 {
 			// No words on this line, render as plain text
-			children = append(children, dom.Div(dom.DivProps{},
+			lineNodes = append(lineNodes, dom.Div(dom.DivProps{},
 				dom.Text(line),
 			))
 			continue
@@ -284,25 +237,16 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 			lineChildren = append(lineChildren, dom.Text(line[lastPos:]))
 		}
 
-		children = append(children, dom.Div(dom.DivProps{}, lineChildren...))
-		linesRendered++
+		lineNodes = append(lineNodes, dom.Div(dom.DivProps{}, lineChildren...))
 	}
 
-	// Add scroll indicator at bottom if there's more content
-	if endLine < totalLines {
-		children = append(children, dom.Div(dom.DivProps{},
-			dom.Text(fmt.Sprintf("↓ (%d lines below)", totalLines-endLine), styles.Style{
-				Color: "8",
-			}),
-		))
-		linesRendered++
-	}
+	log.Infof(context.Background(), "lineNodes: %d", len(lineNodes))
 
-	// Pad with empty lines to ensure consistent viewport height
-	for linesRendered < viewportHeight {
-		children = append(children, dom.Div(dom.DivProps{}, dom.Text("")))
-		linesRendered++
-	}
-
-	return dom.Div(dom.DivProps{}, children...)
+	// Use VScroller to handle scrolling and indicators
+	return layout.VScroller(layout.VScrollerProps{
+		Children:      lineNodes,
+		Height:        viewportHeight,
+		BeginIndex:    scrollOffset,
+		SelectedIndex: focusedLineIndex,
+	})
 }

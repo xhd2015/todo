@@ -76,6 +76,8 @@ type LearningState struct {
 
 	// Selected material for reading
 	SelectedMaterialIndex int
+	// Scroll offset for the material list (which item to start displaying from)
+	ScrollOffset int
 }
 
 type ReadingState struct {

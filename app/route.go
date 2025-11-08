@@ -12,6 +12,7 @@ import (
 	"github.com/xhd2015/todo/app/help"
 	"github.com/xhd2015/todo/app/human_state"
 	"github.com/xhd2015/todo/app/learning"
+	"github.com/xhd2015/todo/component/text"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
@@ -358,7 +359,7 @@ func HumanStatePage(state *State) *dom.Node {
 }
 
 // LearningPage renders the learning materials page
-func LearningPage(state *State) *dom.Node {
+func LearningPage(state *State, width int, height int) *dom.Node {
 	learningState := &state.Learning
 
 	if learningState.Loading {
@@ -374,8 +375,11 @@ func LearningPage(state *State) *dom.Node {
 	}
 
 	return learning.LearningMaterialList(learning.LearningMaterialListProps{
-		Materials:     learningState.Materials,
-		SelectedIndex: learningState.SelectedMaterialIndex,
+		Materials:       learningState.Materials,
+		SelectedIndex:   learningState.SelectedMaterialIndex,
+		ScrollOffset:    learningState.ScrollOffset,
+		ContainerHeight: height,
+		ContainerWidth:  width,
 		OnNavigateBack: func() {
 			state.Routes.Pop()
 		},
@@ -406,12 +410,18 @@ func LearningPage(state *State) *dom.Node {
 		OnNavigateUp: func() {
 			if learningState.SelectedMaterialIndex > 0 {
 				learningState.SelectedMaterialIndex--
+				// SliceVertical will automatically adjust scroll position to keep selected item visible
 			}
 		},
 		OnNavigateDown: func() {
 			if learningState.SelectedMaterialIndex < len(learningState.Materials)-1 {
 				learningState.SelectedMaterialIndex++
+				// SliceVertical will automatically adjust scroll position to keep selected item visible
 			}
+		},
+		OnUpdateScrollPos: func(scrollOffset int) {
+			// Update scroll offset based on the adjusted beginIndex from SliceVertical
+			learningState.ScrollOffset = scrollOffset
 		},
 		OnOpenMaterial: func(materialID int64) {
 			// Initialize reading state
@@ -438,7 +448,7 @@ func LearningPage(state *State) *dom.Node {
 }
 
 // ReadingPage renders the reading page for a material
-func ReadingPage(state *State, materialID int64, window *dom.Window) *dom.Node {
+func ReadingPage(state *State, materialID int64, width int, height int) *dom.Node {
 	readingState := &state.Reading
 
 	// Find the material title
@@ -458,12 +468,12 @@ func ReadingPage(state *State, materialID int64, window *dom.Window) *dom.Node {
 	currentContent := readingState.ContentCache[readingState.CurrentPage]
 
 	// Calculate viewport height
-	// Reserve space for: title (1), help (1), empty line (1), scroll indicators (2),
-	// empty line before pagination (1), pagination (1), status bar (1), plus extra buffer (2)
-	reservedLines := 10
-	viewportHeight := window.Height - reservedLines
-	if viewportHeight < 5 {
-		viewportHeight = 5 // Minimum viewport height
+	// Reserve space for: title (1), help (1), empty line (1), empty line before pagination (1), pagination (1)
+	const HEADER_LINES = 6
+	viewportHeight := height - HEADER_LINES
+	log.Infof(context.Background(), "viewportHeight: %d", viewportHeight)
+	if viewportHeight < 3 {
+		viewportHeight = 3 // Minimum viewport height
 	}
 
 	return learning.ReadingMaterialPage(learning.ReadingProps{
@@ -705,6 +715,10 @@ func loadPage(ctx context.Context, state *State, pageNum int) error {
 		return err
 	}
 
+	// Escape control characters in the content to prevent terminal issues
+	// This must be done before caching and parsing word positions
+	content = text.EscapeControlChars(content)
+
 	readingState.TotalBytes = totalBytes
 	readingState.Loading = false
 
@@ -843,6 +857,13 @@ func HelpPage(state *State, window *dom.Window) *dom.Node {
 }
 
 func RenderRoute(state *State, route Route, window *dom.Window) *dom.Node {
+	// Fixed frame overhead: Title (2) + Exit message (1) + Status bar (1) + Spacing (1) = 5 lines
+	const FIXED_FRAME_HEIGHT = 5
+	availableHeight := window.Height - FIXED_FRAME_HEIGHT
+	if availableHeight < 5 {
+		availableHeight = 5 // Minimum height
+	}
+
 	switch route.Type {
 	case RouteType_Detail:
 		return DetailPage(state, route.DetailPage.EntryID)
@@ -855,9 +876,9 @@ func RenderRoute(state *State, route Route, window *dom.Window) *dom.Node {
 	case RouteType_Help:
 		return HelpPage(state, window)
 	case RouteType_Learning:
-		return LearningPage(state)
+		return LearningPage(state, window.Width, availableHeight)
 	case RouteType_Reading:
-		return ReadingPage(state, route.ReadingPage.MaterialID, window)
+		return ReadingPage(state, route.ReadingPage.MaterialID, window.Width, availableHeight)
 	default:
 		return dom.Text(fmt.Sprintf("unknown route: %d", route.Type), styles.Style{
 			Bold:  true,

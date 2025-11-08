@@ -5,18 +5,23 @@ import (
 
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/component/layout"
 	"github.com/xhd2015/todo/models"
 )
 
 type LearningMaterialListProps struct {
-	Materials        []*models.LearningMaterial
-	SelectedIndex    int
-	OnNavigateBack   func()
-	OnReload         func()
-	OnSelectMaterial func(index int)
-	OnOpenMaterial   func(materialID int64)
-	OnNavigateUp     func()
-	OnNavigateDown   func()
+	Materials         []*models.LearningMaterial
+	SelectedIndex     int
+	ScrollOffset      int
+	ContainerHeight   int
+	ContainerWidth    int
+	OnNavigateBack    func()
+	OnReload          func()
+	OnSelectMaterial  func(index int)
+	OnOpenMaterial    func(materialID int64)
+	OnNavigateUp      func()
+	OnNavigateDown    func()
+	OnUpdateScrollPos func(scrollOffset int)
 }
 
 func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
@@ -33,13 +38,12 @@ func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
 			case dom.KeyTypeEsc:
 				if props.OnNavigateBack != nil {
 					props.OnNavigateBack()
+					event.StopPropagation()
 				}
-				event.PreventDefault()
 			case dom.KeyTypeUp:
 				if props.OnNavigateUp != nil {
 					props.OnNavigateUp()
 				}
-				event.PreventDefault()
 			case dom.KeyTypeDown:
 				if props.OnNavigateDown != nil {
 					props.OnNavigateDown()
@@ -62,32 +66,66 @@ func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
 			}
 		},
 	},
-		dom.Div(dom.DivProps{},
-			dom.Text("Learning Materials (Last 10)", styles.Style{
-				Bold: true,
-			}),
-		),
-		dom.Div(dom.DivProps{},
-			dom.Text("Press ↑/↓ to navigate, Enter to read, 'r' to reload, ESC to go back", styles.Style{
-				Color: "8",
-			}),
-		),
-		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
 		func() *dom.Node {
+			// Fixed header lines
+			const HEADER_LINES = 3 // Title + Help + Empty line
+			availableHeight := props.ContainerHeight - HEADER_LINES
+
+			// Ensure minimum height
+			if availableHeight < 5 {
+				availableHeight = 5
+			}
+
+			// Build header nodes
+			headerNodes := []*dom.Node{
+				dom.Div(dom.DivProps{},
+					dom.Text("Learning Materials (Last 10)", styles.Style{
+						Bold: true,
+					}),
+				),
+				dom.Div(dom.DivProps{},
+					dom.Text("Press ↑/↓ to navigate, Enter to read, 'r' to reload, ESC to go back", styles.Style{
+						Color: "8",
+					}),
+				),
+				dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
+			}
+
+			// Handle empty materials case
 			if len(props.Materials) == 0 {
-				return dom.Div(dom.DivProps{},
+				contentNode := dom.Div(dom.DivProps{},
 					dom.Text("No learning materials found", styles.Style{
 						Color: "8",
 					}),
 				)
+				return dom.Fragment(append(headerNodes, contentNode)...)
 			}
 
-			children := make([]*dom.Node, 0, len(props.Materials))
+			// Build all material item nodes
+			allItemNodes := make([]*dom.Node, 0, len(props.Materials))
 			for i, material := range props.Materials {
 				isSelected := i == props.SelectedIndex
-				children = append(children, renderMaterialItem(i+1, material, isSelected))
+				allItemNodes = append(allItemNodes, renderMaterialItem(i+1, material, isSelected))
 			}
-			return dom.Div(dom.DivProps{}, children...)
+
+			// Use VScroller to handle the scrolling logic and indicators
+			// VScroller will automatically calculate visible items and show indicators
+			scrollerNode := layout.VScroller(layout.VScrollerProps{
+				Children:      allItemNodes,
+				Height:        availableHeight,
+				BeginIndex:    props.ScrollOffset,
+				SelectedIndex: props.SelectedIndex,
+			})
+
+			// Extract the adjusted beginIndex from the VScroller result to update scroll position
+			// We need to call SliceVertical to get the adjusted beginIndex
+			sliceResult := layout.SliceVertical(allItemNodes, props.ScrollOffset, props.SelectedIndex, availableHeight)
+			if props.OnUpdateScrollPos != nil && sliceResult.BeginIndex != props.ScrollOffset {
+				props.OnUpdateScrollPos(sliceResult.BeginIndex)
+			}
+
+			// Combine header and scroller content
+			return dom.Fragment(append(headerNodes, scrollerNode)...)
 		}(),
 	)
 }
