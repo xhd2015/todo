@@ -636,6 +636,12 @@ func Main(args []string) error {
 			}
 			return resp.Content, resp.TotalBytes, resp.LastOffset, nil
 		},
+		SavePosition: func(ctx context.Context, materialID int64, offset int64) error {
+			if services.LearningMaterials == nil {
+				return fmt.Errorf("learning materials service not available")
+			}
+			return services.LearningMaterials.UpdateReadingPosition(ctx, materialID, offset)
+		},
 	}
 
 	if group {

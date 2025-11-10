@@ -43,7 +43,7 @@ type HumanState struct {
 
 // HumanStatePage renders the complete human state page
 func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.Node {
-	log.Infof(context.Background(), "DEBUG HumanStatePage: scores=%+v", humanState.HpScores)
+	log.Infof(context.Background(), "DEBUG HumanStatePage: scores=%+v, history=%+v", humanState.HpScores, humanState.History)
 	// Get ASCII art as DOM nodes
 	asciiText := GetASCIIArt()
 	asciiLines := strings.Split(asciiText, "\n")

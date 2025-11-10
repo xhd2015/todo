@@ -1,6 +1,7 @@
 package learning
 
 import (
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 )
@@ -18,8 +19,11 @@ func Word(props WordProps) *dom.Node {
 
 	if props.Focused {
 		wordStyle.Bold = true
-		wordStyle.Color = "3" // Yellow for focused word
+		wordStyle.Color = colors.TextHighlight
 		wordStyle.Underline = true
+	} else {
+		// Make non-focused text brighter for better readability
+		wordStyle.Color = colors.TextPrimary
 	}
 
 	return dom.Span(dom.DivProps{}, dom.Text(props.Text, wordStyle))

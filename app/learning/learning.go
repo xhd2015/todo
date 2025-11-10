@@ -3,6 +3,7 @@ package learning
 import (
 	"fmt"
 
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/component/layout"
@@ -85,7 +86,7 @@ func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
 				),
 				dom.Div(dom.DivProps{},
 					dom.Text("Press ↑/↓ to navigate, Enter to read, 'r' to reload, ESC to go back", styles.Style{
-						Color: "8",
+						Color: colors.TextSecondary,
 					}),
 				),
 				dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
@@ -95,7 +96,7 @@ func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
 			if len(props.Materials) == 0 {
 				contentNode := dom.Div(dom.DivProps{},
 					dom.Text("No learning materials found", styles.Style{
-						Color: "8",
+						Color: colors.TextSecondary,
 					}),
 				)
 				return dom.Fragment(append(headerNodes, contentNode)...)
@@ -147,7 +148,7 @@ func renderMaterialItem(index int, material *models.LearningMaterial, isSelected
 	if material.Description != "" {
 		descNode = dom.Div(dom.DivProps{},
 			dom.Text("   "+material.Description, styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		)
 	}
@@ -171,7 +172,7 @@ func renderMaterialItem(index int, material *models.LearningMaterial, isSelected
 		),
 		dom.Div(dom.DivProps{},
 			dom.Text(metaText, styles.Style{
-				Color: "6",
+				Color: colors.TextMetadata,
 			}),
 		),
 		func() *dom.Node {
@@ -182,7 +183,7 @@ func renderMaterialItem(index int, material *models.LearningMaterial, isSelected
 		}(),
 		dom.Div(dom.DivProps{},
 			dom.Text(timeText, styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		),
 		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing between items

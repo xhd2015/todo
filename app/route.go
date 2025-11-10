@@ -488,6 +488,8 @@ func ReadingPage(state *State, materialID int64, width int, height int) *dom.Nod
 		WordPositions:    readingState.WordPositions,
 		ScrollOffset:     readingState.ScrollOffset,
 		ViewportHeight:   viewportHeight,
+		ShowDefinition:   readingState.ShowDefinition,
+		DefinitionWord:   readingState.DefinitionWord,
 		OnNavigateBack: func() {
 			state.Routes.Pop()
 		},
@@ -595,6 +597,8 @@ func ReadingPage(state *State, materialID int64, width int, height int) *dom.Nod
 					readingState.CurrentPage--
 					updatePageWordPositions(state)
 					loadPageIfNeeded(state, readingState.CurrentPage)
+					// Save the new position
+					saveReadingPosition(state)
 				}
 			} else {
 				// Next page
@@ -606,6 +610,8 @@ func ReadingPage(state *State, materialID int64, width int, height int) *dom.Nod
 					if readingState.CurrentPage+1 < totalPages {
 						loadPageIfNeeded(state, readingState.CurrentPage+1)
 					}
+					// Save the new position
+					saveReadingPosition(state)
 				}
 			}
 		},
@@ -644,6 +650,29 @@ func ReadingPage(state *State, materialID int64, width int, height int) *dom.Nod
 				ensureWordVisible(readingState, viewportHeight)
 			}
 			readingState.LastKeyWasG = false
+		},
+		OnToggleDefinition: func() {
+			log.Infof(context.Background(), "DEBUG OnToggleDefinition called, ShowDefinition=%v, FocusedWordIndex=%d, WordPositions=%d, DefinitionWord=%s", readingState.ShowDefinition, readingState.FocusedWordIndex, len(readingState.WordPositions), readingState.DefinitionWord)
+
+			// Check if we have a valid focused word
+			if len(readingState.WordPositions) == 0 || readingState.FocusedWordIndex >= len(readingState.WordPositions) {
+				log.Infof(context.Background(), "DEBUG Cannot show definition: no words or invalid index")
+				return
+			}
+
+			focusedWord := readingState.WordPositions[readingState.FocusedWordIndex]
+
+			// If definition is showing and it's the same word, hide it (toggle off)
+			if readingState.ShowDefinition && readingState.DefinitionWord == focusedWord.Word {
+				readingState.ShowDefinition = false
+				readingState.DefinitionWord = ""
+				log.Infof(context.Background(), "DEBUG Definition hidden")
+			} else {
+				// Otherwise, show definition for the currently focused word (either new word or first time)
+				readingState.ShowDefinition = true
+				readingState.DefinitionWord = focusedWord.Word
+				log.Infof(context.Background(), "DEBUG Definition shown for word: %s", focusedWord.Word)
+			}
 		},
 	})
 }
@@ -804,6 +833,22 @@ func loadPageIfNeeded(state *State, pageNum int) {
 			return loadPage(ctx, state, pageNum)
 		})
 	}
+}
+
+// saveReadingPosition saves the current reading position to the backend
+func saveReadingPosition(state *State) {
+	readingState := &state.Reading
+	if readingState.SavePosition == nil {
+		return
+	}
+
+	// Calculate byte offset from current page
+	offset := int64(readingState.CurrentPage * PAGE_SIZE)
+
+	// Save position asynchronously
+	state.Enqueue(func(ctx context.Context) error {
+		return readingState.SavePosition(ctx, readingState.MaterialID, offset)
+	})
 }
 
 // HelpPage renders the help page with scrolling support

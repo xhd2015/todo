@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/component/layout"
@@ -31,16 +32,21 @@ type ReadingProps struct {
 	ScrollOffset   int
 	ViewportHeight int
 
-	OnNavigateBack   func()
-	OnNextPage       func()
-	OnPrevPage       func()
-	OnGoToPage       func(page int)
-	OnNavigateWord   func(delta int) // Navigate by word (left/right)
-	OnNavigateLine   func(delta int) // Navigate by line (up/down)
-	OnPageNavigation func(delta int) // Page navigation (h/l keys)
-	OnJumpToFirst    func()          // Jump to first word (gg in vim)
-	OnJumpToLast     func()          // Jump to last word (G in vim)
-	OnKeyG           func()          // Handle 'g' key press for 'gg' sequence
+	// Word definition
+	ShowDefinition bool
+	DefinitionWord string
+
+	OnNavigateBack     func()
+	OnNextPage         func()
+	OnPrevPage         func()
+	OnGoToPage         func(page int)
+	OnNavigateWord     func(delta int) // Navigate by word (left/right)
+	OnNavigateLine     func(delta int) // Navigate by line (up/down)
+	OnPageNavigation   func(delta int) // Page navigation (h/l keys)
+	OnJumpToFirst      func()          // Jump to first word (gg in vim)
+	OnJumpToLast       func()          // Jump to last word (G in vim)
+	OnKeyG             func()          // Handle 'g' key press for 'gg' sequence
+	OnToggleDefinition func()          // Toggle word definition panel (Enter key)
 }
 
 func ReadingMaterialPage(props ReadingProps) *dom.Node {
@@ -59,6 +65,13 @@ func ReadingMaterialPage(props ReadingProps) *dom.Node {
 					props.OnNavigateBack()
 					event.StopPropagation()
 				}
+			case dom.KeyTypeEnter:
+				log.Infof(context.Background(), "DEBUG Enter key pressed, OnToggleDefinition=%v", props.OnToggleDefinition != nil)
+				// Toggle word definition panel
+				if props.OnToggleDefinition != nil {
+					props.OnToggleDefinition()
+				}
+				event.PreventDefault()
 			case dom.KeyTypeLeft:
 				// Navigate to previous word
 				if props.OnNavigateWord != nil {
@@ -123,17 +136,30 @@ func ReadingMaterialPage(props ReadingProps) *dom.Node {
 		// Navigation help
 		dom.Div(dom.DivProps{},
 			dom.Text("Press ←/→ for word, ↑/↓ for line, h/l for page, gg/G to jump, ESC to go back", styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		),
 		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
-		// Content with word-level highlighting and viewport scrolling
-		renderContentWithWordHighlight(props.Content, props.WordPositions, props.FocusedWordIndex, props.ScrollOffset, props.ViewportHeight, props.Loading, props.Error),
+		// Content area: use HDiv if definition is shown, otherwise just the content
+		func() *dom.Node {
+			contentNode := renderContentWithWordHighlight(props.Content, props.WordPositions, props.FocusedWordIndex, props.ScrollOffset, props.ViewportHeight, props.Loading, props.Error)
+
+			if props.ShowDefinition && props.DefinitionWord != "" {
+				// Show content and definition side by side using HDiv
+				return dom.HDiv(dom.DivProps{
+					Align: dom.HDivAlignTop,
+				},
+					contentNode,
+					WordDefinitionPanel(props.DefinitionWord),
+				)
+			}
+			return contentNode
+		}(),
 		// Page indicator at bottom
 		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
 		dom.Div(dom.DivProps{},
 			dom.Text(fmt.Sprintf("Page %d / %d", props.CurrentPage+1, props.TotalPages), styles.Style{
-				Color: "6",
+				Color: colors.TextMetadata,
 			}),
 		),
 	)
@@ -149,7 +175,7 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 	if loading {
 		return dom.Div(dom.DivProps{},
 			dom.Text("Loading...", styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		)
 	}
@@ -158,7 +184,7 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 	if errorMsg != "" {
 		return dom.Div(dom.DivProps{},
 			dom.Text("Error: "+errorMsg, styles.Style{
-				Color: "1",
+				Color: colors.TextError,
 			}),
 		)
 	}
@@ -167,7 +193,7 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 	if content == "" {
 		return dom.Div(dom.DivProps{},
 			dom.Text("No content available", styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		)
 	}
@@ -214,6 +240,12 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 			wordStartInLine := wp.StartPos - lineStartInContent
 			wordEndInLine := wp.EndPos - lineStartInContent
 
+			// Bounds checking to prevent panic
+			if wordStartInLine < 0 || wordEndInLine < 0 || wordStartInLine > len(line) || wordEndInLine > len(line) {
+				// Skip this word if positions are out of bounds
+				continue
+			}
+
 			// Add text before the word (spaces, punctuation, etc.)
 			if wordStartInLine > lastPos {
 				beforeText := line[lastPos:wordStartInLine]
@@ -221,7 +253,7 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 			}
 
 			// Render each word using the Word component
-			if wordEndInLine <= len(line) {
+			if wordEndInLine <= len(line) && wordStartInLine <= wordEndInLine {
 				wordText := line[wordStartInLine:wordEndInLine]
 				isFocused := wordIdx == focusedWordIndex
 				lineChildren = append(lineChildren, Word(WordProps{
@@ -249,4 +281,38 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 		BeginIndex:    scrollOffset,
 		SelectedIndex: focusedLineIndex,
 	})
+}
+
+// WordDefinitionPanel renders a bordered panel showing word definition
+func WordDefinitionPanel(word string) *dom.Node {
+	// Fake definition data for now
+	definition := fmt.Sprintf(`Word: %s
+
+Definition:
+1. (noun) A placeholder definition for the word "%s"
+2. (verb) To demonstrate the definition panel feature
+
+Example:
+"This is an example sentence using %s."
+
+Synonyms: example, sample, demo
+Antonyms: real, actual
+
+Etymology: From the Greek "demos" meaning people`, word, word, word)
+
+	return dom.Div(dom.DivProps{
+		Style: styles.Style{
+			BorderColor: colors.TextMetadata,
+		},
+	},
+		dom.Div(dom.DivProps{},
+			dom.Text("Word Definition", styles.Style{
+				Bold: true,
+			}),
+		),
+		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line
+		dom.Div(dom.DivProps{},
+			dom.Text(definition),
+		),
+	)
 }

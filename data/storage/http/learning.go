@@ -67,3 +67,52 @@ func (s *LearningMaterialsHttpService) GetMaterialContent(ctx context.Context, i
 
 	return &response, nil
 }
+
+// GetReadingPosition retrieves the saved reading position for a material
+func (s *LearningMaterialsHttpService) GetReadingPosition(ctx context.Context, materialID int64) (int64, error) {
+	// Create request payload
+	req := struct {
+		MaterialID int64 `json:"material_id"`
+	}{
+		MaterialID: materialID,
+	}
+
+	var response struct {
+		MaterialID int64 `json:"material_id"`
+		Offset     int64 `json:"offset"`
+	}
+
+	err := s.client.makeRequest(ctx, "/learning/recording/get", req, &response)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get reading position: %w", err)
+	}
+
+	return response.Offset, nil
+}
+
+// UpdateReadingPosition saves the reading offset for a material
+func (s *LearningMaterialsHttpService) UpdateReadingPosition(ctx context.Context, materialID int64, offset int64) error {
+	// Create request payload
+	req := struct {
+		MaterialID int64 `json:"material_id"`
+		Offset     int64 `json:"offset"`
+	}{
+		MaterialID: materialID,
+		Offset:     offset,
+	}
+
+	var response struct {
+		Success bool `json:"success"`
+	}
+
+	err := s.client.makeRequest(ctx, "/learning/recording/updateOffset", req, &response)
+	if err != nil {
+		return fmt.Errorf("failed to update reading offset: %w", err)
+	}
+
+	if !response.Success {
+		return fmt.Errorf("server reported failure to update reading offset")
+	}
+
+	return nil
+}

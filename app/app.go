@@ -104,7 +104,12 @@ type ReadingState struct {
 	SearchMatches     []int  // Indices of words that match the search
 	CurrentMatchIndex int    // Index in SearchMatches array
 
-	LoadContent func(ctx context.Context, materialID int64, offset int, limit int) (content string, totalBytes int, lastOffset int64, err error)
+	// Word definition functionality
+	ShowDefinition bool   // Whether to show word definition panel
+	DefinitionWord string // The word to show definition for
+
+	LoadContent  func(ctx context.Context, materialID int64, offset int, limit int) (content string, totalBytes int, lastOffset int64, err error)
+	SavePosition func(ctx context.Context, materialID int64, offset int64) error
 }
 
 type State struct {
