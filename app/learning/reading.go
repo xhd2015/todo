@@ -140,15 +140,13 @@ func ReadingMaterialPage(props ReadingProps) *dom.Node {
 			}),
 		),
 		dom.Div(dom.DivProps{}, dom.Text("")), // Empty line for spacing
-		// Content area: use HDiv if definition is shown, otherwise just the content
+		// Content area: use ZDiv if definition is shown to overlay it on top of content
 		func() *dom.Node {
 			contentNode := renderContentWithWordHighlight(props.Content, props.WordPositions, props.FocusedWordIndex, props.ScrollOffset, props.ViewportHeight, props.Loading, props.Error)
 
 			if props.ShowDefinition && props.DefinitionWord != "" {
-				// Show content and definition side by side using HDiv
-				return dom.HDiv(dom.DivProps{
-					Align: dom.HDivAlignTop,
-				},
+				// Show definition overlaid on top of content using ZDiv
+				return dom.ZDiv(dom.DivProps{},
 					contentNode,
 					WordDefinitionPanel(props.DefinitionWord),
 				)

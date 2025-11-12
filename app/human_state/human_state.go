@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xhd2015/go-dom-tui/charm/layout"
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
@@ -108,20 +107,23 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 		chartNodes = append(chartNodes, dom.Text(line, styles.Style{Color: colors.GREY_TEXT}))
 	}
 
-	// First, merge HP bars with status text using Fragment (status to the right of bars, inline)
-	hpAndStatusNodes := layout.MergeAlignBottomFragment(hpBarNodes, statusNodes, 3) // 3 spaces between bars and status
-
-	// Merge hp bars with chart (chart below bars)
-	var rightSideNodes []*dom.Node
-	rightSideNodes = append(rightSideNodes, hpAndStatusNodes...)
-	rightSideNodes = append(rightSideNodes, dom.Text("")) // Empty line
-	rightSideNodes = append(rightSideNodes, chartNodes...)
-
-	// Merge ASCII art with hp bars+chart side by side
-	combinedNodes := layout.MergeAlignBottom(asciiNodes, rightSideNodes, 2) // 2 spaces between
-
 	// Create the main art container
-	artNode := dom.Div(dom.DivProps{}, combinedNodes...)
+	artNode := dom.HDiv(dom.DivProps{
+		Align: dom.AlignBottom,
+	},
+		dom.Div(dom.DivProps{}, asciiNodes...),
+		dom.FixedSpacer(2),
+		dom.Div(dom.DivProps{},
+			dom.HDiv(dom.DivProps{
+				Align: dom.AlignBottom,
+			},
+				dom.Div(dom.DivProps{}, hpBarNodes...),
+				dom.FixedSpacer(2),
+				dom.Div(dom.DivProps{}, statusNodes...),
+			),
+			dom.Div(dom.DivProps{}, chartNodes...),
+		),
+	)
 
 	// Instructions
 	instructions := []string{
@@ -225,7 +227,7 @@ func RenderBars(hpScores int, totalScore int, focusedBarIndex int, onAdjustScore
 
 	// Add label at the top
 	nodes = append(nodes,
-		dom.Fragment(
+		dom.HDiv(dom.DivProps{},
 			dom.Text("H/P", styles.Style{Bold: true, Color: colors.GREY_TEXT}),
 			dom.Text(" "),
 			opNode("+"),
