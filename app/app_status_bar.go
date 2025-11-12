@@ -43,7 +43,7 @@ func AppStatusBar(state *State) *dom.Node {
 	// Spacer to push modes to the right
 	hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes || state.FocusedEntry.IsSet() || state.ViewMode != ViewMode_Default
 	if hasRightContent {
-		nodes = append(nodes, dom.Spacer())
+		nodes = append(nodes, dom.Spacer(dom.WithMaxSize(40)))
 
 		// Right side: modes
 		var modeCount int
@@ -94,5 +94,5 @@ func AppStatusBar(state *State) *dom.Node {
 		}
 	}
 
-	return dom.Div(dom.DivProps{Width: UIWidth}, nodes...)
+	return dom.HDiv(dom.DivProps{Width: UIWidth}, nodes...)
 }
