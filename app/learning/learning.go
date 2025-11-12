@@ -11,18 +11,16 @@ import (
 )
 
 type LearningMaterialListProps struct {
-	Materials         []*models.LearningMaterial
-	SelectedIndex     int
-	ScrollOffset      int
-	ContainerHeight   int
-	ContainerWidth    int
-	OnNavigateBack    func()
-	OnReload          func()
-	OnSelectMaterial  func(index int)
-	OnOpenMaterial    func(materialID int64)
-	OnNavigateUp      func()
-	OnNavigateDown    func()
-	OnUpdateScrollPos func(scrollOffset int)
+	Materials        []*models.LearningMaterial
+	SelectedIndex    int
+	ContainerHeight  int
+	ContainerWidth   int
+	OnNavigateBack   func()
+	OnReload         func()
+	OnSelectMaterial func(index int)
+	OnOpenMaterial   func(materialID int64)
+	OnNavigateUp     func()
+	OnNavigateDown   func()
 }
 
 func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
@@ -114,17 +112,8 @@ func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
 			scrollerNode := layout.VScroller(layout.VScrollerProps{
 				Children:      allItemNodes,
 				Height:        availableHeight,
-				BeginIndex:    props.ScrollOffset,
 				SelectedIndex: props.SelectedIndex,
 			})
-
-			// Extract the adjusted beginIndex from the VScroller result to update scroll position
-			// We need to call SliceVertical to get the adjusted beginIndex
-			sliceResult := layout.SliceVertical(allItemNodes, props.ScrollOffset, props.SelectedIndex, availableHeight)
-			if props.OnUpdateScrollPos != nil && sliceResult.BeginIndex != props.ScrollOffset {
-				props.OnUpdateScrollPos(sliceResult.BeginIndex)
-			}
-
 			// Combine header and scroller content
 			return dom.Fragment(append(headerNodes, scrollerNode)...)
 		}(),

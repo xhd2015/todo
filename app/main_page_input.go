@@ -179,6 +179,7 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 						// Update the state with loaded data
 						state.Happening.Loading = false
 						state.Happening.Happenings = happenings
+						state.Happening.SelectedItemIndex = len(happenings) - 1
 						return nil
 					})
 

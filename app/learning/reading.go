@@ -276,7 +276,6 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 	return layout.VScroller(layout.VScrollerProps{
 		Children:      lineNodes,
 		Height:        viewportHeight,
-		BeginIndex:    scrollOffset,
 		SelectedIndex: focusedLineIndex,
 	})
 }

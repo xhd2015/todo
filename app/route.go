@@ -166,7 +166,7 @@ func ReadingRoute(materialID int64) Route {
 }
 
 // HappeningListPage renders the happening list page
-func HappeningListPage(state *State) *dom.Node {
+func HappeningListPage(state *State, height int) *dom.Node {
 	happeningState := &state.Happening
 
 	if happeningState.Loading {
@@ -182,13 +182,30 @@ func HappeningListPage(state *State) *dom.Node {
 	}
 
 	return happening_list.HappeningList(happening_list.HappeningListProps{
-		Items:         happeningState.Happenings,
-		FocusedItemID: happeningState.FocusedItemID,
-		OnFocusItem: func(id int64) {
-			happeningState.FocusedItemID = id
+		Height:            height,
+		Items:             happeningState.Happenings,
+		SelectedItemIndex: happeningState.SelectedItemIndex,
+		OnFocusItem: func(id int64, index int) {
+			happeningState.SelectedItemIndex = index
 		},
-		OnBlurItem: func(id int64) {
-			happeningState.FocusedItemID = 0
+		OnBlurItem: func(id int64, index int) {
+			// happeningState.SelectedItemIndex = index
+		},
+		OnNavigateUp: func(e *dom.DOMEvent) {
+			if happeningState.SelectedItemIndex > 0 {
+				happeningState.SelectedItemIndex--
+				e.PreventDefault()
+			} else {
+				happeningState.SelectedItemIndex = -1
+			}
+		},
+		OnNavigateDown: func(e *dom.DOMEvent) {
+			if happeningState.SelectedItemIndex < len(happeningState.Happenings)-1 {
+				happeningState.SelectedItemIndex++
+				e.PreventDefault()
+			} else {
+				happeningState.SelectedItemIndex = len(happeningState.Happenings)
+			}
 		},
 		InputState:  &happeningState.Input,
 		SubmitState: &happeningState.SubmitState,
@@ -377,7 +394,6 @@ func LearningPage(state *State, width int, height int) *dom.Node {
 	return learning.LearningMaterialList(learning.LearningMaterialListProps{
 		Materials:       learningState.Materials,
 		SelectedIndex:   learningState.SelectedMaterialIndex,
-		ScrollOffset:    learningState.ScrollOffset,
 		ContainerHeight: height,
 		ContainerWidth:  width,
 		OnNavigateBack: func() {
@@ -418,10 +434,6 @@ func LearningPage(state *State, width int, height int) *dom.Node {
 				learningState.SelectedMaterialIndex++
 				// SliceVertical will automatically adjust scroll position to keep selected item visible
 			}
-		},
-		OnUpdateScrollPos: func(scrollOffset int) {
-			// Update scroll offset based on the adjusted beginIndex from SliceVertical
-			learningState.ScrollOffset = scrollOffset
 		},
 		OnOpenMaterial: func(materialID int64) {
 			// Initialize reading state
@@ -915,7 +927,7 @@ func RenderRoute(state *State, route Route, window *dom.Window) *dom.Node {
 	case RouteType_Config:
 		return ConfigPage(state)
 	case RouteType_HappeningList:
-		return HappeningListPage(state)
+		return HappeningListPage(state, availableHeight)
 	case RouteType_HumanState:
 		return HumanStatePage(state)
 	case RouteType_Help:

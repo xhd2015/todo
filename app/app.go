@@ -52,7 +52,7 @@ type HappeningState struct {
 	Input       models.InputState
 	SubmitState submit.SubmitState // Submission state management
 
-	FocusedItemID int64
+	SelectedItemIndex int
 
 	// Edit/Delete state
 	EditingItemID       int64
@@ -77,7 +77,7 @@ type LearningState struct {
 	// Selected material for reading
 	SelectedMaterialIndex int
 	// Scroll offset for the material list (which item to start displaying from)
-	ScrollOffset int
+	// ScrollOffset int
 }
 
 type ReadingState struct {

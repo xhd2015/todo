@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	domLayout "github.com/xhd2015/go-dom-tui/charm/layout"
+	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/log"
@@ -13,7 +14,6 @@ import (
 type VScrollerProps struct {
 	Children      []*dom.Node
 	Height        int
-	BeginIndex    int
 	SelectedIndex int // The currently selected/focused item index
 }
 
@@ -27,7 +27,7 @@ func VScroller(props VScrollerProps) *dom.Node {
 	}
 
 	// Use SliceVertical to calculate the visible range and indicator requirements
-	result := SliceVertical(props.Children, props.BeginIndex, props.SelectedIndex, props.Height)
+	result := SliceVertical(props.Children, props.SelectedIndex, props.Height)
 
 	// Build the result nodes
 	var resultNodes []*dom.Node
@@ -36,7 +36,7 @@ func VScroller(props VScrollerProps) *dom.Node {
 	if result.ShowTopIndicator {
 		topHeader := dom.Div(dom.DivProps{},
 			dom.Text(fmt.Sprintf("↑ (%d items above)", result.ItemsAbove), styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		)
 		resultNodes = append(resultNodes, topHeader)
@@ -50,7 +50,7 @@ func VScroller(props VScrollerProps) *dom.Node {
 	if result.ShowBottomIndicator {
 		bottomHeader := dom.Div(dom.DivProps{},
 			dom.Text(fmt.Sprintf("↓ (%d items below)", result.ItemsBelow), styles.Style{
-				Color: "8",
+				Color: colors.TextSecondary,
 			}),
 		)
 		resultNodes = append(resultNodes, bottomHeader)
@@ -63,7 +63,7 @@ func VScroller(props VScrollerProps) *dom.Node {
 
 // SliceVerticalResult contains the result of vertical slicing calculation
 type SliceVerticalResult struct {
-	BeginIndex          int  // The actual begin index (adjusted if out of bounds)
+	BeginIndex          int  // The begin index (inclusive) for slicing
 	EndIndex            int  // The end index (exclusive) for slicing
 	ShowTopIndicator    bool // Whether to show "items above" indicator
 	ShowBottomIndicator bool // Whether to show "items below" indicator
@@ -82,7 +82,7 @@ type SliceVerticalResult struct {
 //   - height: The total available height
 //
 // The function ensures both beginIndex and selectedIndex are visible, adjusting beginIndex if necessary.
-func SliceVertical(nodes []*dom.Node, beginIndex int, selectedIndex int, height int) SliceVerticalResult {
+func SliceVertical(nodes []*dom.Node, selectedIndex int, height int) SliceVerticalResult {
 	// Handle empty nodes
 	if len(nodes) == 0 {
 		return SliceVerticalResult{
@@ -95,13 +95,7 @@ func SliceVertical(nodes []*dom.Node, beginIndex int, selectedIndex int, height 
 		}
 	}
 
-	// Ensure beginIndex is within bounds
-	if beginIndex < 0 {
-		beginIndex = 0
-	}
-	if beginIndex >= len(nodes) {
-		beginIndex = len(nodes) - 1
-	}
+	beginIndex := 0
 
 	// Ensure selectedIndex is within bounds
 	if selectedIndex < 0 {

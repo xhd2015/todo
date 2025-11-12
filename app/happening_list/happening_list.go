@@ -1,17 +1,22 @@
 package happening_list
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/submit"
+	"github.com/xhd2015/todo/component/layout"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 )
 
 // HappeningListProps represents the props for the HappeningList component
 type HappeningListProps struct {
+	Height int
+
 	Items          []*models.Happening
 	InputState     *models.InputState
 	SubmitState    *submit.SubmitState // Submission state management
@@ -19,9 +24,9 @@ type HappeningListProps struct {
 	OnAddHappening func(text string)
 	OnReload       func() // New callback for reloading the list
 
-	FocusedItemID int64
-	OnFocusItem   func(id int64)
-	OnBlurItem    func(id int64)
+	SelectedItemIndex int
+	OnFocusItem       func(id int64, index int)
+	OnBlurItem        func(id int64, index int)
 
 	// Edit/Delete functionality
 	EditingItemID           int64
@@ -35,6 +40,9 @@ type HappeningListProps struct {
 	OnConfirmDelete         func(e *dom.DOMEvent, id int64)
 	OnCancelDelete          func(e *dom.DOMEvent)
 	OnNavigateDeleteConfirm func(direction int)
+
+	OnNavigateUp   func(e *dom.DOMEvent)
+	OnNavigateDown func(e *dom.DOMEvent)
 }
 
 // HappeningList renders a list of happening items
@@ -42,17 +50,20 @@ func HappeningList(props HappeningListProps) *dom.Node {
 	// Create children nodes for each happening item
 	children := make([]*dom.Node, 0, len(props.Items))
 
+	var itemNodes []*dom.Node
+
+	selectedIndex := props.SelectedItemIndex
 	// Add each happening item
-	for _, item := range props.Items {
+	for i, item := range props.Items {
 		itemID := item.ID // Capture item ID for closure
-		children = append(children, HappeningItem(&HappeningItemProps{
+		itemNodes = append(itemNodes, HappeningItem(&HappeningItemProps{
 			Item:    item,
-			Focused: props.FocusedItemID == item.ID,
+			Focused: selectedIndex == i,
 			OnFocus: func() {
-				props.OnFocusItem(itemID)
+				props.OnFocusItem(itemID, i)
 			},
 			OnBlur: func() {
-				props.OnBlurItem(itemID)
+				props.OnBlurItem(itemID, i)
 			},
 			// Edit/Delete functionality
 			IsEditing:           props.EditingItemID == item.ID,
@@ -96,13 +107,19 @@ func HappeningList(props HappeningListProps) *dom.Node {
 			},
 			// Key event handling - moved from HappeningItem
 			OnKeyEvent: func(e *dom.DOMEvent) {
-				handleItemKeyEvent(e, itemID, &props)
+				handleItemKeyEvent(e, itemID, i, &props)
 			},
 		}))
 	}
 
 	// If no items, show empty message
-	if len(props.Items) == 0 {
+	if len(props.Items) > 0 {
+		children = append(children, layout.VScroller(layout.VScrollerProps{
+			Children:      itemNodes,
+			Height:        props.Height - 1,
+			SelectedIndex: selectedIndex,
+		}))
+	} else {
 		children = append(children,
 			dom.P(
 				dom.DivProps{},
@@ -192,11 +209,21 @@ func HappeningList(props HappeningListProps) *dom.Node {
 }
 
 // handleItemKeyEvent handles key events for happening items
-func handleItemKeyEvent(e *dom.DOMEvent, itemID int64, props *HappeningListProps) {
+func handleItemKeyEvent(e *dom.DOMEvent, itemID int64, index int, props *HappeningListProps) {
 	// Handle delete confirmation navigation
 	if props.DeletingItemID == itemID {
 		keyEvent := e.KeydownEvent
 		switch keyEvent.KeyType {
+		case dom.KeyTypeUp:
+			if props.OnNavigateUp != nil {
+				log.Infof(context.Background(), "on navigate up, index: %d", index)
+				props.OnNavigateUp(e)
+			}
+		case dom.KeyTypeDown:
+			if props.OnNavigateDown != nil {
+				log.Infof(context.Background(), "on navigate down, index: %d", index)
+				props.OnNavigateDown(e)
+			}
 		case dom.KeyTypeLeft:
 			if props.OnNavigateDeleteConfirm != nil {
 				props.OnNavigateDeleteConfirm(-1)
@@ -228,6 +255,16 @@ func handleItemKeyEvent(e *dom.DOMEvent, itemID int64, props *HappeningListProps
 	// Handle normal key events
 	keyEvent := e.KeydownEvent
 	switch keyEvent.KeyType {
+	case dom.KeyTypeUp:
+		if props.OnNavigateUp != nil {
+			log.Infof(context.Background(), "on navigate up, index: %d", index)
+			props.OnNavigateUp(e)
+		}
+	case dom.KeyTypeDown:
+		if props.OnNavigateDown != nil {
+			log.Infof(context.Background(), "on navigate down, index: %d", index)
+			props.OnNavigateDown(e)
+		}
 	default:
 		key := string(keyEvent.Runes)
 		switch key {
@@ -242,7 +279,7 @@ func handleItemKeyEvent(e *dom.DOMEvent, itemID int64, props *HappeningListProps
 		case "/":
 			// Focus input when "/" is pressed and clear item focus
 			if props.OnBlurItem != nil {
-				props.OnBlurItem(itemID)
+				props.OnBlurItem(itemID, index)
 			}
 			if props.InputState != nil {
 				props.InputState.Focused = true
