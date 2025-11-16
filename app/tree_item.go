@@ -412,23 +412,20 @@ func TodoItem(props TodoItemProps) *dom.Node {
 		}(),
 		func() *dom.Node {
 			// Only show collapsed indicator if the entry is collapsed AND expandAll is not active
-			if item.Data.Collapsed && !props.State.ExpandAll {
-				var text string
-				if item.CollapsedCount > 0 {
-					text = fmt.Sprintf(" (%d collapsed)", item.CollapsedCount)
-				} else {
-					text = " (collapsed)"
-				}
-				return dom.Text(text, styles.Style{
-					Color: func() string {
-						if isSelected {
-							return colors.GREEN_SUCCESS
-						}
-						return colors.GREY_TEXT
-					}(),
-				})
+			var text string
+			if item.CollapsedCount > 0 {
+				text = fmt.Sprintf(" (%d collapsed)", item.CollapsedCount)
+			} else if item.Data.Collapsed {
+				text = " (collapsed)"
 			}
-			return nil
+			return dom.Text(text, styles.Style{
+				Color: func() string {
+					if isSelected {
+						return colors.GREEN_SUCCESS
+					}
+					return colors.GREY_TEXT
+				}(),
+			})
 		}(),
 		func() *dom.Node {
 			if state.CuttingEntry == entryIdentiy {
