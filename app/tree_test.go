@@ -45,12 +45,12 @@ func TestRenderEntryTree_NoPagination(t *testing.T) {
 	maxEntries := 30
 	state := createTestState(entries, 0, 0, maxEntries)
 
-	props := TreeProps{
+	props := TodoTreeProps{
 		State:   state,
 		Entries: []TreeEntry{},
 	}
 
-	nodes := Tree(props)
+	nodes := TodoTree(props)
 
 	// Create a ul node to contain the rendered entries
 	ulNode := dom.Ul(dom.DivProps{}, nodes...)
@@ -81,14 +81,14 @@ func TestRenderEntryTree_ShowDownIndicator(t *testing.T) {
 	entries := createTestEntries(35) // More than MaxEntries (30)
 	state := createTestState(entries, 0, 0, 30)
 
-	props := TreeProps{
+	props := TodoTreeProps{
 		State:        state,
 		Entries:      []TreeEntry{},
 		EntriesAbove: 0,
 		EntriesBelow: 0,
 	}
 
-	nodes := Tree(props)
+	nodes := TodoTree(props)
 	ulNode := dom.Ul(dom.DivProps{}, nodes...)
 
 	renderer := renderer.NewInteractiveCharmRenderer()
@@ -127,14 +127,14 @@ func TestRenderEntryTree_ShowUpIndicator(t *testing.T) {
 	entries := createTestEntries(35)            // More than MaxEntries (30)
 	state := createTestState(entries, 5, 0, 30) // Start from entry 6
 
-	props := TreeProps{
+	props := TodoTreeProps{
 		State:        state,
 		Entries:      []TreeEntry{},
 		EntriesAbove: 5,
 		EntriesBelow: 0,
 	}
 
-	nodes := Tree(props)
+	nodes := TodoTree(props)
 	ulNode := dom.Ul(dom.DivProps{}, nodes...)
 
 	renderer := renderer.NewInteractiveCharmRenderer()
@@ -173,14 +173,14 @@ func TestRenderEntryTree_ShowBothIndicators(t *testing.T) {
 	entries := createTestEntries(50)             // Much more than MaxEntries (30)
 	state := createTestState(entries, 10, 0, 30) // Start from entry 11
 
-	props := TreeProps{
+	props := TodoTreeProps{
 		State:        state,
 		Entries:      []TreeEntry{},
 		EntriesAbove: 10,
 		EntriesBelow: 10,
 	}
 
-	nodes := Tree(props)
+	nodes := TodoTree(props)
 	ulNode := dom.Ul(dom.DivProps{}, nodes...)
 
 	renderer := renderer.NewInteractiveCharmRenderer()
@@ -229,14 +229,14 @@ func TestRenderEntryTree_EdgeCaseNavigation(t *testing.T) {
 
 	// Test case 1: SliceStart at end boundary
 	state := createTestState(entries, 35, 0, 30) // Beyond total entries
-	props := TreeProps{
+	props := TodoTreeProps{
 		State:        state,
 		Entries:      []TreeEntry{},
 		EntriesAbove: 5, // This should be adjusted to 5 (35 - 30)
 		EntriesBelow: 0,
 	}
 
-	nodes := Tree(props)
+	nodes := TodoTree(props)
 	ulNode := dom.Ul(dom.DivProps{}, nodes...)
 
 	renderer := renderer.NewInteractiveCharmRenderer()
@@ -250,14 +250,14 @@ func TestRenderEntryTree_EdgeCaseNavigation(t *testing.T) {
 
 	// Test case 2: Negative SliceStart
 	state2 := createTestState(entries, -5, 0, 30) // Negative, should be adjusted to 0
-	props2 := TreeProps{
+	props2 := TodoTreeProps{
 		State:        state2,
 		Entries:      []TreeEntry{},
 		EntriesAbove: 0,
 		EntriesBelow: 5,
 	}
 
-	nodes2 := Tree(props2)
+	nodes2 := TodoTree(props2)
 	ulNode2 := dom.Ul(dom.DivProps{}, nodes2...)
 
 	output2 := renderer.Render(ulNode2)

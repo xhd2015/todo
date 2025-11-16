@@ -914,14 +914,16 @@ func HelpPage(state *State, window *dom.Window) *dom.Node {
 }
 
 func RenderRoute(state *State, route Route, window *dom.Window) *dom.Node {
-	// Fixed frame overhead: Title (2) + Exit message (1) + Status bar (1) + Spacing (1) = 5 lines
-	const FIXED_FRAME_HEIGHT = 5
+	// Fixed frame overhead: Title (1) + Help/Exit message (1) + Status bar (1) = 3 lines
+	const FIXED_FRAME_HEIGHT = 3
 	availableHeight := window.Height - FIXED_FRAME_HEIGHT
 	if availableHeight < 5 {
 		availableHeight = 5 // Minimum height
 	}
 
 	switch route.Type {
+	case RouteType_Main:
+		return MainPage(state, availableHeight)
 	case RouteType_Detail:
 		return DetailPage(state, route.DetailPage.EntryID)
 	case RouteType_Config:

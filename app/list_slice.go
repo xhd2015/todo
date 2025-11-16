@@ -91,17 +91,9 @@ func mountToGroup(entry *models.LogEntryView, parents []*_MountGroupInfo, groupM
 	return &cloneEntry
 }
 
-type ComputeResult struct {
-	EntriesAbove        int
-	EntriesBelow        int
-	VisibleEntries      []TreeEntry
-	FullEntries         []TreeEntry
-	EffectiveSliceStart int
-}
-
 type EntryOptions struct {
-	MaxEntries         int
-	SliceStart         int
+	// MaxEntries int
+	// SliceStart         int
 	SelectedID         models.EntryIdentity
 	SelectedSource     SelectedSource
 	ZenMode            bool
@@ -114,7 +106,7 @@ type EntryOptions struct {
 	GroupCollapseState map[int64]bool
 }
 
-func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) ComputeResult {
+func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []TreeEntry {
 	var focusedRootPath []string
 	// Process focusing if focusingEntryID is provided
 	if opts.FocusingEntryID.IsSet() {
@@ -161,15 +153,7 @@ func computeVisibleEntries(entries models.LogEntryViews, opts EntryOptions) Comp
 		isLast := i == len(topLevelEntries)-1
 		flatEntries = addEntryRecursive(flatEntries, entry, 0, "", isLast, false, opts.ShowNotes)
 	}
-
-	entriesAbove, entriesBelow, visibleEntries, effectiveSliceStart := sliceEntries(flatEntries, opts.MaxEntries, opts.SliceStart, opts.SelectedID, opts.SelectedSource)
-	return ComputeResult{
-		EntriesAbove:        entriesAbove,
-		EntriesBelow:        entriesBelow,
-		VisibleEntries:      visibleEntries,
-		FullEntries:         flatEntries,
-		EffectiveSliceStart: effectiveSliceStart,
-	}
+	return flatEntries
 }
 
 // organizeEntriesIntoGroups organizes entries into pseudo groups based on their properties
@@ -321,82 +305,6 @@ func applyFilter(list models.LogEntryViews, zenMode bool, searchActive bool, sea
 	}
 
 	return entriesToRender
-}
-
-func sliceEntries(entries []TreeEntry, maxEntries int, sliceStart int, selectedID models.EntryIdentity, selectedFromSource SelectedSource) (int, int, []TreeEntry, int) {
-	if maxEntries <= 0 || len(entries) <= maxEntries {
-		if sliceStart == -1 {
-			sliceStart = 0
-		}
-		return 0, 0, entries, sliceStart
-	}
-	totalEntries := len(entries)
-	var visibleEntries []TreeEntry
-	// Ensure SliceStart is within bounds
-
-	// default to last N entries
-	if sliceStart == -1 {
-		sliceStart = totalEntries - maxEntries
-	}
-	if sliceStart < 0 {
-		sliceStart = 0
-	}
-	if sliceStart >= totalEntries {
-		sliceStart = totalEntries - maxEntries
-		if sliceStart < 0 {
-			sliceStart = 0
-		}
-	}
-
-	end := sliceStart + maxEntries
-	if end > totalEntries {
-		end = totalEntries
-	}
-
-	if selectedID.IsSet() {
-		var foundIndex int = -1
-		for i, wrapperEntry := range entries {
-			if wrapperEntry.Entry != nil && wrapperEntry.Entry.Identity() == selectedID {
-				foundIndex = i
-				break
-			}
-		}
-		if foundIndex != -1 {
-			switch selectedFromSource {
-			case SelectedSource_Search:
-				// on top
-				sliceStart = foundIndex
-				end = foundIndex + maxEntries
-				if end > totalEntries {
-					end = totalEntries
-				}
-			case SelectedSource_NavigateByKey:
-				// ensure the selected entry is visible
-				if foundIndex < sliceStart {
-					sliceStart = foundIndex
-					end = sliceStart + maxEntries
-				} else if foundIndex >= end {
-					sliceStart = foundIndex - maxEntries + 1
-					end = sliceStart + maxEntries
-				}
-			default:
-				if foundIndex < sliceStart {
-					sliceStart = foundIndex
-					end = sliceStart + maxEntries
-				} else if foundIndex >= end {
-					sliceStart = foundIndex - maxEntries + 1
-					end = sliceStart + maxEntries
-				}
-			}
-		}
-	}
-
-	visibleEntries = entries[sliceStart:end]
-
-	// Calculate exact counts for indicators
-	entriesAbove := sliceStart
-	entriesBelow := totalEntries - end
-	return entriesAbove, entriesBelow, visibleEntries, sliceStart
 }
 
 // processFocusedEntries processes entries for focused mode, showing only the focused entry and its subtree

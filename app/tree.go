@@ -76,8 +76,8 @@ func (c *TreeEntry) Text() string {
 	return ""
 }
 
-// TreeProps contains configuration for rendering the entry tree
-type TreeProps struct {
+// TodoTreeProps contains configuration for rendering the entry tree
+type TodoTreeProps struct {
 	State        *State // The application state
 	Entries      []TreeEntry
 	EntriesAbove int
@@ -91,8 +91,8 @@ type TreeProps struct {
 	OnGoToBottom func(e *dom.DOMEvent)
 }
 
-// Tree builds and renders the tree of entries as DOM nodes
-func Tree(props TreeProps) []*dom.Node {
+// TodoTree builds and renders the tree of entries as DOM nodes
+func TodoTree(props TodoTreeProps) []*dom.Node {
 	state := props.State
 
 	entriesAbove := props.EntriesAbove
@@ -115,12 +115,29 @@ func Tree(props TreeProps) []*dom.Node {
 		)
 	}
 
-	// auto select first if selected one is hidden
-	effectiveSelectedEntry := state.SelectedEntry
-	if state.SelectedEntry.IsSet() && len(entries) > 0 {
+	effectiveSelectedEntry := autoSelectEntry(state.SelectedEntry, entries)
+	list := renderEntries(state, props, entries, effectiveSelectedEntry)
+	children = append(children, list...)
+
+	// Add down indicator if needed
+	if showDownIndicator {
+		message := fmt.Sprintf("↓ %d more below", entriesBelow)
+		children = append(children, dom.Text(message, styles.Style{
+			Color: colors.GREY_TEXT,
+		}),
+			dom.Br(),
+		)
+	}
+
+	return children
+}
+
+// auto select first if selected one is hidden
+func autoSelectEntry(selectedEntry models.EntryIdentity, entries []TreeEntry) models.EntryIdentity {
+	if selectedEntry.IsSet() && len(entries) > 0 {
 		var hasSelected bool
 		for _, wrapperEntry := range entries {
-			if wrapperEntry.Entry != nil && wrapperEntry.Entry.SameIdentity(state.SelectedEntry) {
+			if wrapperEntry.Entry != nil && wrapperEntry.Entry.SameIdentity(selectedEntry) {
 				hasSelected = true
 				break
 			}
@@ -129,13 +146,26 @@ func Tree(props TreeProps) []*dom.Node {
 			// Find first entry with non-nil Entry field
 			for _, entry := range entries {
 				if entry.Entry != nil {
-					effectiveSelectedEntry = entry.Entry.Identity()
-					break
+					return entry.Entry.Identity()
 				}
 			}
 		}
 	}
+	return selectedEntry
+}
 
+func getIndex(entries []TreeEntry, id models.EntryIdentity) int {
+	for i, wrapperEntry := range entries {
+		if wrapperEntry.Entry != nil && wrapperEntry.Entry.SameIdentity(id) {
+			return i
+		}
+	}
+	return -1
+}
+
+// TODO: id-based selection
+func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selected models.EntryIdentity) []*dom.Node {
+	var children []*dom.Node
 	for _, entry := range entries {
 		var entryItem *models.LogEntryView
 		var entryIdentity models.EntryIdentity
@@ -148,7 +178,7 @@ func Tree(props TreeProps) []*dom.Node {
 		}
 
 		if entryItem != nil {
-			isSelected := effectiveSelectedEntry == entryIdentity
+			isSelected := selected == entryIdentity
 			entryType := entryIdentity.EntryType
 			entryID := entryIdentity.ID
 
@@ -408,20 +438,10 @@ func Tree(props TreeProps) []*dom.Node {
 			})))
 		}
 	}
-
-	// Add down indicator if needed
-	if showDownIndicator {
-		message := fmt.Sprintf("↓ %d more below", entriesBelow)
-		children = append(children, dom.Text(message, styles.Style{
-			Color: colors.GREY_TEXT,
-		}),
-			dom.Br(),
-		)
-	}
-
 	return children
 }
 
+// TODO: remove this
 func getLines(SelectedEntryMode SelectedEntryMode) int {
 	switch SelectedEntryMode {
 	case SelectedEntryMode_Default:

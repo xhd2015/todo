@@ -151,7 +151,7 @@ func HumanStatePage(humanState *HumanState, onKeyDown func(*dom.DOMEvent)) *dom.
 		dom.Text(""), // Empty line
 
 		// Instructions
-		dom.Div(dom.DivProps{}, instructionNodes...),
+		dom.HDiv(dom.DivProps{}, instructionNodes...),
 	)
 }
 

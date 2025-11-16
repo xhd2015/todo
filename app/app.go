@@ -159,7 +159,7 @@ type State struct {
 	IsSearchActive bool   // Whether search mode is active
 
 	// Pagination
-	SliceStart int // Starting index for the slice of entries to display
+	// SliceStart int // Starting index for the slice of entries to display
 
 	// Cut/Paste functionality
 	CuttingEntry models.EntryIdentity // ID of the entry currently being cut (0 if none)
@@ -509,15 +509,14 @@ func App(state *State, window *dom.Window) *dom.Node {
 			}))
 		}(),
 		func() *dom.Node {
-			if false {
-				return nil
-			}
 			if len(state.Routes) == 0 {
-				return MainPage(state, window)
+				return RenderRoute(state, Route{Type: RouteType_Main}, window)
 			} else {
 				return RenderRoute(state, state.Routes.Last(), window)
 			}
 		}(),
+
+		dom.Spacer(),
 		func() *dom.Node {
 			if time.Since(state.LastCtrlC) < time.Millisecond*CtrlCExitDelayMs {
 				return dom.Text("press Ctrl-C again to exit", styles.Style{

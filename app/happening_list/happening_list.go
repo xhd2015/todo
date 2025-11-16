@@ -135,7 +135,7 @@ func HappeningList(props HappeningListProps) *dom.Node {
 		children = append(children,
 			dom.Br(), // Add some spacing
 			dom.Input(dom.InputProps{
-				Placeholder:    "add happening or /todo to go back",
+				Placeholder:    "add happening or /todo to go back, /refresh to reload",
 				Value:          props.InputState.Value,
 				Focused:        props.InputState.Focused,
 				CursorPosition: props.InputState.CursorPosition,
