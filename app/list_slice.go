@@ -369,7 +369,7 @@ func findPathToEntry(entries models.LogEntryViews, targetEntry models.EntryIdent
 // and adds collapsed count information to the entry view
 // If expandAll is true, ignores collapse flags and shows all entries
 // The selectedID path is kept visible even if parents are collapsed
-func processCollapsedEntries(entries models.LogEntryViews, parentCollapsed bool, selectedID models.EntryIdentity, searchActive bool, zenMode bool) (models.LogEntryViews, models.LogEntryViews) {
+func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bool, selectedID models.EntryIdentity, searchActive bool, zenMode bool) (models.LogEntryViews, models.LogEntryViews) {
 	showEntries := make(models.LogEntryViews, 0, len(entries))
 	collapsedEntries := make(models.LogEntryViews, 0, len(entries))
 	for _, entry := range entries {
@@ -377,7 +377,8 @@ func processCollapsedEntries(entries models.LogEntryViews, parentCollapsed bool,
 		clonedEntry := &cloned
 
 		// clonedEntry.Children
-		shownChildren, collapsedChildren := processCollapsedEntries(clonedEntry.Children, clonedEntry.Data.Collapsed, selectedID, searchActive, zenMode)
+		shouldCollapse := anyParentCollapsed || clonedEntry.Data.Collapsed
+		shownChildren, collapsedChildren := processCollapsedEntries(clonedEntry.Children, shouldCollapse, selectedID, searchActive, zenMode)
 
 		clonedEntry.Children = shownChildren
 		clonedEntry.CollapsedChildren = collapsedChildren
@@ -389,9 +390,8 @@ func processCollapsedEntries(entries models.LogEntryViews, parentCollapsed bool,
 		}
 
 		addToShow := true
-
 		// then select from children
-		if parentCollapsed {
+		if anyParentCollapsed {
 			addToShow = false
 			if len(shownChildren) > 0 || shouldShowEvenIfCollapsed(clonedEntry, selectedID, searchActive, zenMode) {
 				addToShow = true
@@ -431,7 +431,7 @@ func isSearchMatchEntry(entry *models.LogEntryView) bool {
 func countAllChildren(children []*models.LogEntryView) int {
 	count := len(children)
 	for _, child := range children {
-		count += countAllChildren(child.Children)
+		count += child.CollapsedCount
 	}
 	return count
 }

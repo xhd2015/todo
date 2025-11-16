@@ -146,7 +146,9 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 			entryType := entryIdentity.EntryType
 			entryID := entryIdentity.ID
 
+			var isEditing bool
 			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
+				isEditing = true
 				nodes = append(nodes, dom.Input(dom.InputProps{
 					Value:          state.SelectedInputState.Value,
 					Focused:        state.SelectedInputState.Focused,
@@ -175,47 +177,48 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 						}
 					},
 				}))
-				continue
 			}
 
-			// Always render the TodoItem
-			nodes = append(nodes, TodoItem(TodoItemProps{
-				Item:       entryItem,
-				Prefix:     entry.Prefix,
-				IsLast:     entry.IsLast,
-				IsSelected: isSelected,
-				State:      state,
-				OnNavigate: func(e *dom.DOMEvent, direction int) {
-					if props.OnNavigate != nil {
-						props.OnNavigate(e, entryType, entryID, direction)
-					}
-				},
-				OnGoToFirst: func(e *dom.DOMEvent) {
-					if props.OnGoToFirst != nil {
-						props.OnGoToFirst(e)
-					}
-				},
-				OnGoToLast: func(e *dom.DOMEvent) {
-					if props.OnGoToLast != nil {
-						props.OnGoToLast(e)
-					}
-				},
-				OnGoToTop: func(e *dom.DOMEvent) {
-					if props.OnGoToTop != nil {
-						props.OnGoToTop(e)
-					}
-				},
-				OnGoToBottom: func(e *dom.DOMEvent) {
-					if props.OnGoToBottom != nil {
-						props.OnGoToBottom(e)
-					}
-				},
-				OnEnter: func(e *dom.DOMEvent, entryID int64) {
-					if props.OnEnter != nil {
-						props.OnEnter(e, entryType, entryID)
-					}
-				},
-			}))
+			if !isEditing {
+				// Always render the TodoItem
+				nodes = append(nodes, TodoItem(TodoItemProps{
+					Item:       entryItem,
+					Prefix:     entry.Prefix,
+					IsLast:     entry.IsLast,
+					IsSelected: isSelected,
+					State:      state,
+					OnNavigate: func(e *dom.DOMEvent, direction int) {
+						if props.OnNavigate != nil {
+							props.OnNavigate(e, entryType, entryID, direction)
+						}
+					},
+					OnGoToFirst: func(e *dom.DOMEvent) {
+						if props.OnGoToFirst != nil {
+							props.OnGoToFirst(e)
+						}
+					},
+					OnGoToLast: func(e *dom.DOMEvent) {
+						if props.OnGoToLast != nil {
+							props.OnGoToLast(e)
+						}
+					},
+					OnGoToTop: func(e *dom.DOMEvent) {
+						if props.OnGoToTop != nil {
+							props.OnGoToTop(e)
+						}
+					},
+					OnGoToBottom: func(e *dom.DOMEvent) {
+						if props.OnGoToBottom != nil {
+							props.OnGoToBottom(e)
+						}
+					},
+					OnEnter: func(e *dom.DOMEvent, entryID int64) {
+						if props.OnEnter != nil {
+							props.OnEnter(e, entryType, entryID)
+						}
+					},
+				}))
+			}
 
 			// Render child input box under the item when in AddingChild mode
 			if state.SelectedEntryMode == SelectedEntryMode_AddingChild && isSelected {
