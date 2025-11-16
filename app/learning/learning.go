@@ -113,6 +113,7 @@ func LearningMaterialList(props LearningMaterialListProps) *dom.Node {
 				Children:      allItemNodes,
 				Height:        availableHeight,
 				SelectedIndex: props.SelectedIndex,
+				SliceStart:    0,
 			})
 			// Combine header and scroller content
 			return dom.Fragment(append(headerNodes, scrollerNode)...)

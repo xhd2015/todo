@@ -78,10 +78,10 @@ func (c *TreeEntry) Text() string {
 
 // TodoTreeProps contains configuration for rendering the entry tree
 type TodoTreeProps struct {
-	State        *State // The application state
-	Entries      []TreeEntry
-	EntriesAbove int
-	EntriesBelow int
+	State   *State // The application state
+	Entries []TreeEntry
+
+	SelectedEntry models.EntryIdentity
 
 	OnNavigate   func(e *dom.DOMEvent, entryType models.LogEntryViewType, entryID int64, direction int)
 	OnEnter      func(e *dom.DOMEvent, entryType models.LogEntryViewType, entryID int64)
@@ -89,47 +89,6 @@ type TodoTreeProps struct {
 	OnGoToLast   func(e *dom.DOMEvent)
 	OnGoToTop    func(e *dom.DOMEvent)
 	OnGoToBottom func(e *dom.DOMEvent)
-}
-
-// TodoTree builds and renders the tree of entries as DOM nodes
-func TodoTree(props TodoTreeProps) []*dom.Node {
-	state := props.State
-
-	entriesAbove := props.EntriesAbove
-	entriesBelow := props.EntriesBelow
-	entries := props.Entries
-
-	// Apply pagination to flatEntries
-	showUpIndicator := entriesAbove > 0
-	showDownIndicator := entriesBelow > 0
-
-	var children []*dom.Node
-
-	// Add up indicator if needed
-	if showUpIndicator {
-		message := fmt.Sprintf("↑ %d more above", entriesAbove)
-		children = append(children, dom.Text(message, styles.Style{
-			Color: colors.GREY_TEXT,
-		}),
-			dom.Br(),
-		)
-	}
-
-	effectiveSelectedEntry := autoSelectEntry(state.SelectedEntry, entries)
-	list := renderEntries(state, props, entries, effectiveSelectedEntry)
-	children = append(children, list...)
-
-	// Add down indicator if needed
-	if showDownIndicator {
-		message := fmt.Sprintf("↓ %d more below", entriesBelow)
-		children = append(children, dom.Text(message, styles.Style{
-			Color: colors.GREY_TEXT,
-		}),
-			dom.Br(),
-		)
-	}
-
-	return children
 }
 
 // auto select first if selected one is hidden
@@ -163,10 +122,15 @@ func getIndex(entries []TreeEntry, id models.EntryIdentity) int {
 	return -1
 }
 
-// TODO: id-based selection
-func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selected models.EntryIdentity) []*dom.Node {
+func TodoTree(props TodoTreeProps) []*dom.Node {
+	state := props.State
+	entries := props.Entries
+	selected := props.SelectedEntry
 	var children []*dom.Node
 	for _, entry := range entries {
+
+		var nodes []*dom.Node
+
 		var entryItem *models.LogEntryView
 		var entryIdentity models.EntryIdentity
 
@@ -183,7 +147,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 			entryID := entryIdentity.ID
 
 			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
-				children = append(children, dom.Input(dom.InputProps{
+				nodes = append(nodes, dom.Input(dom.InputProps{
 					Value:          state.SelectedInputState.Value,
 					Focused:        state.SelectedInputState.Focused,
 					CursorPosition: state.SelectedInputState.CursorPosition,
@@ -215,7 +179,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 			}
 
 			// Always render the TodoItem
-			children = append(children, TodoItem(TodoItemProps{
+			nodes = append(nodes, TodoItem(TodoItemProps{
 				Item:       entryItem,
 				Prefix:     entry.Prefix,
 				IsLast:     entry.IsLast,
@@ -255,7 +219,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 
 			// Render child input box under the item when in AddingChild mode
 			if state.SelectedEntryMode == SelectedEntryMode_AddingChild && isSelected {
-				children = append(children, dom.Input(dom.InputProps{
+				nodes = append(nodes, dom.Input(dom.InputProps{
 					Placeholder:    "add breakdown",
 					Value:          state.ChildInputState.Value,
 					Focused:        state.ChildInputState.Focused,
@@ -303,7 +267,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 					deleteButtonText = "[Remove]"
 				}
 
-				children = append(children, ConfirmDialog(ConfirmDialogProps{
+				nodes = append(nodes, ConfirmDialog(ConfirmDialogProps{
 					SelectedButton: state.SelectedDeleteConfirmButton,
 					PromptText:     deleteText,
 					DeleteText:     deleteButtonText,
@@ -383,7 +347,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 					})
 				}
 
-				children = append(children, Menu(MenuProps{
+				nodes = append(nodes, Menu(MenuProps{
 					Title:         "Promote",
 					SelectedIndex: state.SelectedActionIndex,
 					OnSelect: func(index int) {
@@ -408,7 +372,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 			note := noteEntry.Note
 			isSelected := state.SelectedNoteID == note.Data.ID
 
-			children = append(children, TodoNote(TodoNoteProps{
+			nodes = append(nodes, TodoNote(TodoNoteProps{
 				Note:       note,
 				EntryID:    noteEntry.EntryID,
 				Prefix:     entry.Prefix,
@@ -428,7 +392,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 			}))
 		} else if entry.Type == models.LogEntryViewType_FocusedItem && entry.FocusedItem != nil {
 			// Handle focused root path rendering
-			children = append(children, dom.Li(dom.ListItemProps{
+			nodes = append(nodes, dom.Li(dom.ListItemProps{
 				Focusable:  dom.Focusable(false),
 				Selected:   false, // Focused items are not selectable like regular entries
 				Focused:    false,
@@ -437,24 +401,7 @@ func renderEntries(state *State, props TodoTreeProps, entries []TreeEntry, selec
 				Color: colors.PURPLE_PRIMARY,
 			})))
 		}
+		children = append(children, dom.Div(dom.DivProps{}, nodes...))
 	}
 	return children
-}
-
-// TODO: remove this
-func getLines(SelectedEntryMode SelectedEntryMode) int {
-	switch SelectedEntryMode {
-	case SelectedEntryMode_Default:
-		return 1
-	case SelectedEntryMode_AddingChild:
-		return 2
-	case SelectedEntryMode_Editing:
-		return 2
-	case SelectedEntryMode_DeleteConfirm:
-		return 2
-	case SelectedEntryMode_ShowActions:
-		return 9
-	default:
-		return 1
-	}
 }

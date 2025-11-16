@@ -118,6 +118,7 @@ func HappeningList(props HappeningListProps) *dom.Node {
 			Children:      itemNodes,
 			Height:        props.Height - 1,
 			SelectedIndex: selectedIndex,
+			SliceStart:    0,
 		}))
 	} else {
 		children = append(children,

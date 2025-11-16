@@ -34,8 +34,9 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 	visibleEntries := flattenEntries
 
 	props := TodoTreeProps{
-		State:   state,
-		Entries: flattenEntries,
+		State:         state,
+		Entries:       flattenEntries,
+		SelectedEntry: selectedEntry,
 		OnNavigate: func(e *dom.DOMEvent, entryType models.LogEntryViewType, entryID int64, direction int) {
 			// find index of current selected item (entry or note)
 			index := selectedIndex
@@ -154,7 +155,7 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			}
 		},
 	}
-	children := renderEntries(state, props, flattenEntries, selectedEntry)
+	children := TodoTree(props)
 
 	return dom.Div(dom.DivProps{
 		MaxHeight: availableHeight,
@@ -163,6 +164,10 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			Children:      children,
 			Height:        availableHeight - INPUT_HEIGHT,
 			SelectedIndex: selectedIndex,
+			SliceStart:    state.EntrySliceStart,
+			OnSliceStartChange: func(newSliceStart int) {
+				state.EntrySliceStart = newSliceStart
+			},
 		}),
 		dom.Spacer(),
 		MainInput(state, flattenEntries),

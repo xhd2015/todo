@@ -277,6 +277,7 @@ func renderContentWithWordHighlight(content string, wordPositions []models.WordP
 		Children:      lineNodes,
 		Height:        viewportHeight,
 		SelectedIndex: focusedLineIndex,
+		SliceStart:    0,
 	})
 }
 

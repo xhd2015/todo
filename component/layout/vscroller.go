@@ -12,9 +12,11 @@ import (
 )
 
 type VScrollerProps struct {
-	Children      []*dom.Node
-	Height        int
-	SelectedIndex int // The currently selected/focused item index
+	Children           []*dom.Node
+	Height             int
+	SelectedIndex      int       // The currently selected/focused item index
+	SliceStart         int       // Current slice start position (preserves window frame)
+	OnSliceStartChange func(int) // Callback to update slice start when it changes (nil if not needed)
 }
 
 // VScroller creates a vertical scrolling container that shows a sliding window of children
@@ -22,12 +24,13 @@ type VScrollerProps struct {
 // It includes headers at the top and bottom indicating items outside the visible area.
 // The SelectedIndex ensures the selected item is always visible.
 func VScroller(props VScrollerProps) *dom.Node {
-	if len(props.Children) == 0 {
-		return dom.Div(dom.DivProps{})
-	}
-
 	// Use SliceVertical to calculate the visible range and indicator requirements
-	result := SliceVertical(props.Children, props.SelectedIndex, props.Height)
+	result := SliceVertical(props.Children, props.SelectedIndex, props.Height, props.SliceStart)
+
+	// Notify parent if slice start changed
+	if props.OnSliceStartChange != nil && result.BeginIndex != props.SliceStart {
+		props.OnSliceStartChange(result.BeginIndex)
+	}
 
 	// Build the result nodes
 	var resultNodes []*dom.Node
@@ -77,12 +80,13 @@ type SliceVerticalResult struct {
 //
 // Parameters:
 //   - nodes: The list of all nodes
-//   - beginIndex: The starting index for the visible window (scroll position)
 //   - selectedIndex: The currently selected item index (must be visible)
 //   - height: The total available height
+//   - sliceStart: Current slice start position (preserves window frame, 0 if unknown)
 //
-// The function ensures both beginIndex and selectedIndex are visible, adjusting beginIndex if necessary.
-func SliceVertical(nodes []*dom.Node, selectedIndex int, height int) SliceVerticalResult {
+// The function ensures selectedIndex is visible, adjusting the visible window as needed.
+// It uses sliceStart as the initial beginIndex to preserve the window position.
+func SliceVertical(nodes []*dom.Node, selectedIndex int, height int, sliceStart int) SliceVerticalResult {
 	// Handle empty nodes
 	if len(nodes) == 0 {
 		return SliceVerticalResult{
@@ -95,14 +99,18 @@ func SliceVertical(nodes []*dom.Node, selectedIndex int, height int) SliceVertic
 		}
 	}
 
-	beginIndex := 0
-
 	// Ensure selectedIndex is within bounds
 	if selectedIndex < 0 {
 		selectedIndex = 0
 	}
 	if selectedIndex >= len(nodes) {
 		selectedIndex = len(nodes) - 1
+	}
+
+	// Start with sliceStart if valid, otherwise start from 0
+	beginIndex := sliceStart
+	if beginIndex < 0 || beginIndex >= len(nodes) {
+		beginIndex = 0
 	}
 
 	// Adjust beginIndex to ensure selectedIndex is visible
@@ -134,7 +142,6 @@ func SliceVertical(nodes []*dom.Node, selectedIndex int, height int) SliceVertic
 
 	for i := beginIndex; i < len(nodes); i++ {
 		nodeHeight := domLayout.GetNodeRenderedHeight(nodes[i])
-
 		// Check if adding this node would exceed the content height limit
 		if currentHeight+nodeHeight > contentHeight {
 			break
