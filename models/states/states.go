@@ -28,6 +28,7 @@ type State struct {
 
 	SelectedEntry       models.EntryIdentity
 	LastSelectedEntry   models.EntryIdentity
+	SearchSelectedEntry models.EntryIdentity
 	EntrySliceStart     int   // Slice start for VScroller to preserve window frame position
 	SelectedNoteID      int64 // ID of the selected note (0 if none)
 	SelectedNoteEntryID int64 // ID of the entry that owns the selected note

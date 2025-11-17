@@ -1,9 +1,12 @@
 package app
 
 import (
+	"context"
+
 	"github.com/xhd2015/go-dom-tui/dom"
-	"github.com/xhd2015/todo/component/layout"
 	"github.com/xhd2015/todo/app/todo_tree"
+	"github.com/xhd2015/todo/component/layout"
+	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
 	"github.com/xhd2015/todo/models/states"
 )
@@ -15,6 +18,7 @@ const INPUT_HEIGHT = 3
 func MainPage(state *State, availableHeight int) *dom.Node {
 	flattenEntries := flattenEntryTree(state.Entries, EntryOptions{
 		SelectedID:         state.SelectedEntry,
+		SearchSelectedID:   state.SearchSelectedEntry,
 		SelectedSource:     state.SelectFromSource,
 		ZenMode:            state.ZenMode,
 		SearchActive:       state.IsSearchActive,
@@ -67,8 +71,7 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 
 				// Check if this item is selectable (both log entries and notes are selectable)
 				nextEntry := flattenEntries[next]
-				if nextEntry.Entry != nil ||
-					(nextEntry.Type == models.LogEntryViewType_Note && nextEntry.Note != nil) {
+				if nextEntry.Entry != nil {
 					break
 				}
 
@@ -86,9 +89,14 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			// Select the appropriate item
 			nextItem := flattenEntries[next]
 			if nextItem.Entry != nil {
+				log.Infof(context.TODO(), "next to entry: %v", nextItem)
 				entryIdentity := nextItem.Entry.Identity()
 				state.Select(entryIdentity.EntryType, entryIdentity.ID)
 			} else if nextItem.Type == models.LogEntryViewType_Note && nextItem.Note != nil {
+				if true {
+					panic("SHOULD REMOVE")
+				}
+				log.Infof(context.TODO(), "next to note: %v", nextItem)
 				state.SelectNote(nextItem.Note.Note.Data.ID, nextItem.Note.EntryID)
 			}
 			state.SelectFromSource = states.SelectedSource_NavigateByKey

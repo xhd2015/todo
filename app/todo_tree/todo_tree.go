@@ -1,6 +1,5 @@
 package todo_tree
 
-
 import (
 	"context"
 	"fmt"
@@ -8,10 +7,10 @@ import (
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
-	"github.com/xhd2015/todo/component/dialog"
-	"github.com/xhd2015/todo/component/menu"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/emojis"
+	"github.com/xhd2015/todo/component/dialog"
+	"github.com/xhd2015/todo/component/menu"
 	"github.com/xhd2015/todo/models"
 	"github.com/xhd2015/todo/models/states"
 )
@@ -74,7 +73,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 		var entryItem *models.LogEntryView
 		var entryIdentity models.EntryIdentity
 
-		if entry.Type == models.LogEntryViewType_Log || entry.Type == models.LogEntryViewType_Group {
+		if entry.Type == models.LogEntryViewType_Log || entry.Type == models.LogEntryViewType_Note || entry.Type == models.LogEntryViewType_Group {
 			entryItem = entry.Entry
 			if entry.Entry != nil {
 				entryIdentity = entry.Entry.Identity()
@@ -154,7 +153,13 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 					},
 					OnEnter: func(e *dom.DOMEvent, entryID int64) {
 						if props.OnEnter != nil {
-							props.OnEnter(e, entryType, entryID)
+							if entryType == models.LogEntryViewType_Note {
+								// adapter for NOTE
+								// TODO: unify this
+								props.OnEnter(e, models.LogEntryViewType_Log, entryItem.EntryIDForNote)
+							} else {
+								props.OnEnter(e, entryType, entryID)
+							}
 						}
 					},
 				}))
@@ -310,6 +315,10 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 				}))
 			}
 		} else if entry.Type == models.LogEntryViewType_Note && entry.Note != nil {
+			// TODO: panic
+			if true {
+				panic("SHOULD REMOVE")
+			}
 			// Handle note rendering
 			noteEntry := entry.Note
 			note := noteEntry.Note

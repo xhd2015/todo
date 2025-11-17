@@ -59,6 +59,9 @@ type LogEntryView struct {
 
 	// CollapsedCount stores the total count of collapsed children (including nested)
 	CollapsedCount int
+
+	// for note
+	EntryIDForNote int64
 }
 
 func (c *LogEntryView) SameIdentity(target EntryIdentity) bool {

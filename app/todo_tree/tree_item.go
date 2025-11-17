@@ -134,6 +134,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				// If search mode is active, clear search instead of entering detail page
 				if state.IsSearchActive {
 					state.ClearSearch()
+					// remember this entry
+					state.SearchSelectedEntry = entryIdentiy
 					return
 				}
 				if props.OnEnter != nil {

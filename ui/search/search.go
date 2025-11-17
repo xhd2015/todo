@@ -12,16 +12,16 @@ func FilterEntries(entries []*models.LogEntryView, fn func(entry *models.LogEntr
 	}
 	var filtered []*models.LogEntryView
 	for _, entry := range entries {
-		ok := fn(entry)
+		cloneEntry := *entry
+		ok := fn(&cloneEntry)
 		// Recursively filter children
-		filteredChildren := FilterEntries(entry.Children, fn)
+		filteredChildren := FilterEntries(cloneEntry.Children, fn)
 
 		// Include entry if it matches or has matching children
 		if ok || len(filteredChildren) > 0 {
 			// Create a copy of the entry with filtered children
-			filteredEntry := *entry
-			filteredEntry.Children = filteredChildren
-			filtered = append(filtered, &filteredEntry)
+			cloneEntry.Children = filteredChildren
+			filtered = append(filtered, &cloneEntry)
 		}
 	}
 
@@ -60,26 +60,33 @@ func FilterEntriesQuery(entries []*models.LogEntryView, query string) []*models.
 
 		// Search in notes
 		hasNoteMatch := false
-		for _, note := range entry.Notes {
-			noteTextIdx := strings.Index(strings.ToLower(note.Data.Text), query)
+
+		cloneNotes := make([]*models.NoteView, len(entry.Notes))
+		for i, note := range entry.Notes {
+			cloneNote := *note
+
+			noteTextIdx := strings.Index(strings.ToLower(cloneNote.Data.Text), query)
 			var noteMatchTexts []models.MatchText
 			if noteTextIdx >= 0 {
 				noteMatchTexts = []models.MatchText{
 					{
-						Text: note.Data.Text[:noteTextIdx],
+						Text: cloneNote.Data.Text[:noteTextIdx],
 					},
 					{
-						Text:  note.Data.Text[noteTextIdx : noteTextIdx+len(query)],
+						Text:  cloneNote.Data.Text[noteTextIdx : noteTextIdx+len(query)],
 						Match: true,
 					},
 					{
-						Text: note.Data.Text[noteTextIdx+len(query):],
+						Text: cloneNote.Data.Text[noteTextIdx+len(query):],
 					},
 				}
 				hasNoteMatch = true
 			}
-			note.MatchTexts = noteMatchTexts
+			cloneNote.MatchTexts = noteMatchTexts
+			cloneNotes[i] = &cloneNote
 		}
+
+		entry.Notes = cloneNotes
 
 		// Return true if either entry text or any note matches
 		return entryTextIdx >= 0 || hasNoteMatch

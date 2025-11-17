@@ -475,6 +475,8 @@ func Main(args []string) error {
 		return nil
 	}
 	appState.OnToggleCollapsed = func(entryType models.LogEntryViewType, id int64) error {
+		// clear search selected entry
+		appState.SearchSelectedEntry = models.EntryIdentity{}
 		if entryType == models.LogEntryViewType_Log {
 			err := logManager.ToggleCollapsed(id)
 			if err != nil {

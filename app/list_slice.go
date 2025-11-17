@@ -86,6 +86,7 @@ type EntryOptions struct {
 	// MaxEntries int
 	// SliceStart         int
 	SelectedID         models.EntryIdentity
+	SearchSelectedID   models.EntryIdentity
 	SelectedSource     states.SelectedSource
 	ZenMode            bool
 	SearchActive       bool
@@ -114,7 +115,7 @@ func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []states.
 
 	// Process collapsed entries to hide children and add count information
 	if !opts.ExpandAll {
-		entriesToRender, _ = processCollapsedEntries(entriesToRender, false, opts.SelectedID, opts.SearchActive, opts.ZenMode)
+		entriesToRender, _ = processCollapsedEntries(entriesToRender, false, opts.SelectedID, opts.SearchSelectedID, opts.SearchActive, opts.ZenMode)
 	}
 
 	// Add top-level entries (ParentID == 0)
@@ -252,7 +253,15 @@ func addEntryRecursiveWithHistory(flatEntries []states.TreeEntry, entry *models.
 
 			isLastNote := i == len(notesToShow)-1 && len(entry.Children) == 0
 			flatEntries = append(flatEntries, states.TreeEntry{
-				Type:   models.LogEntryViewType_Note,
+				Type: models.LogEntryViewType_Note,
+				Entry: &models.LogEntryView{
+					Data: &models.LogEntry{
+						ID:   note.Data.ID,
+						Text: "📝 " + note.Data.Text,
+					},
+					ViewType:       models.LogEntryViewType_Note,
+					EntryIDForNote: entry.Data.ID,
+				},
 				Prefix: notePrefix,
 				IsLast: isLastNote,
 				Note: &states.TreeNote{
@@ -360,7 +369,7 @@ func findPathToEntry(entries models.LogEntryViews, targetEntry models.EntryIdent
 // and adds collapsed count information to the entry view
 // If expandAll is true, ignores collapse flags and shows all entries
 // The selectedID path is kept visible even if parents are collapsed
-func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bool, selectedID models.EntryIdentity, searchActive bool, zenMode bool) (models.LogEntryViews, models.LogEntryViews) {
+func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bool, selectedID models.EntryIdentity, searchSelectedID models.EntryIdentity, searchActive bool, zenMode bool) (models.LogEntryViews, models.LogEntryViews) {
 	showEntries := make(models.LogEntryViews, 0, len(entries))
 	collapsedEntries := make(models.LogEntryViews, 0, len(entries))
 	for _, entry := range entries {
@@ -369,7 +378,7 @@ func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bo
 
 		// clonedEntry.Children
 		shouldCollapse := anyParentCollapsed || clonedEntry.Data.Collapsed
-		shownChildren, collapsedChildren := processCollapsedEntries(clonedEntry.Children, shouldCollapse, selectedID, searchActive, zenMode)
+		shownChildren, collapsedChildren := processCollapsedEntries(clonedEntry.Children, shouldCollapse, selectedID, searchSelectedID, searchActive, zenMode)
 
 		clonedEntry.Children = shownChildren
 		clonedEntry.CollapsedChildren = collapsedChildren
@@ -384,7 +393,7 @@ func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bo
 		// then select from children
 		if anyParentCollapsed {
 			addToShow = false
-			if len(shownChildren) > 0 || shouldShowEvenIfCollapsed(clonedEntry, selectedID, searchActive, zenMode) {
+			if len(shownChildren) > 0 || shouldShowEvenIfCollapsed(clonedEntry, selectedID, searchSelectedID, searchActive, zenMode) {
 				addToShow = true
 			}
 		}
@@ -397,8 +406,11 @@ func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bo
 	return showEntries, collapsedEntries
 }
 
-func shouldShowEvenIfCollapsed(entry *models.LogEntryView, selectedID models.EntryIdentity, searchActive bool, zenMode bool) bool {
+func shouldShowEvenIfCollapsed(entry *models.LogEntryView, selectedID models.EntryIdentity, searchSelectedID models.EntryIdentity, searchActive bool, zenMode bool) bool {
 	if selectedID.IsSet() && entry.SameIdentity(selectedID) {
+		return true
+	}
+	if searchSelectedID.IsSet() && entry.SameIdentity(searchSelectedID) {
 		return true
 	}
 	if searchActive && isSearchMatchEntry(entry) {

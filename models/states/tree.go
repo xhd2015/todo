@@ -12,7 +12,7 @@ type TreeEntry struct {
 	Entry *models.LogEntryView
 
 	Log         *TreeLog
-	Note        *TreeNote
+	Note        *TreeNote // TODO: remove
 	FocusedItem *TreeFocusedItem
 	Group       *TreeGroup
 }
@@ -46,6 +46,10 @@ func (c *TreeEntry) Text() string {
 		}
 		return ""
 	case models.LogEntryViewType_Note:
+		if c.Entry != nil && c.Entry.Data != nil {
+			return c.Entry.Data.Text
+		}
+		// TODO: remove this
 		return c.Note.Note.Data.Text
 	case models.LogEntryViewType_FocusedItem:
 		if c.FocusedItem != nil && len(c.FocusedItem.RootPath) > 0 {
