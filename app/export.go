@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 )
 
 // ExportData represents the structure for exporting entries
@@ -26,7 +27,7 @@ type ExportNote struct {
 }
 
 // ExportVisibleEntries exports the currently visible entries to a JSON file
-func ExportVisibleEntries(filename string, visibleEntries []TreeEntry) error {
+func ExportVisibleEntries(filename string, visibleEntries []states.TreeEntry) error {
 	// Validate filename
 	if strings.TrimSpace(filename) == "" {
 		return fmt.Errorf("filename cannot be empty")

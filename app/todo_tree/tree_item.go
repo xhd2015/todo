@@ -1,4 +1,4 @@
-package app
+package todo_tree
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/xhd2015/todo/app/emojis"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 	"github.com/xhd2015/todo/ui/tree"
 )
 
@@ -21,7 +22,7 @@ type TodoItemProps struct {
 	Prefix     string
 	IsLast     bool
 	IsSelected bool
-	State      *State
+	State      *states.State
 
 	OnNavigate func(e *dom.DOMEvent, direction int)
 	OnEnter    func(e *dom.DOMEvent, entryID int64)
@@ -99,7 +100,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 	return dom.Li(dom.ListItemProps{
 		Focusable: dom.Focusable(true),
 		Selected:  isSelected,
-		Focused:   state.SelectedEntryMode == SelectedEntryMode_Default && isSelected,
+		Focused:   state.SelectedEntryMode == states.SelectedEntryMode_Default && isSelected,
 		ItemPrefix: dom.String(func() string {
 			listIndicator := emojis.LIST_DOT
 			if entryType == models.LogEntryViewType_Group {
@@ -126,8 +127,8 @@ func TodoItem(props TodoItemProps) *dom.Node {
 			keyEvent := e.KeydownEvent
 			switch keyEvent.KeyType {
 			case dom.KeyTypeEnter:
-				if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm {
-					state.SelectedEntryMode = SelectedEntryMode_Default
+				if state.SelectedEntryMode == states.SelectedEntryMode_DeleteConfirm {
+					state.SelectedEntryMode = states.SelectedEntryMode_Default
 					return
 				}
 				// If search mode is active, clear search instead of entering detail page
@@ -146,7 +147,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				} else if state.ZenMode {
 					state.ZenMode = false
 				}
-				state.SelectedEntryMode = SelectedEntryMode_Default
+				state.SelectedEntryMode = states.SelectedEntryMode_Default
 			case dom.KeyTypeUp:
 				if props.OnNavigate != nil {
 					props.OnNavigate(e, -1)
@@ -159,7 +160,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				}
 			case dom.KeyTypeLeft, dom.KeyTypeRight:
 				switch state.SelectedEntryMode {
-				case SelectedEntryMode_DeleteConfirm:
+				case states.SelectedEntryMode_DeleteConfirm:
 					delta := 1
 					if keyEvent.KeyType == dom.KeyTypeLeft {
 						delta = -1
@@ -171,10 +172,10 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					if state.SelectedDeleteConfirmButton > 1 {
 						state.SelectedDeleteConfirmButton = 0
 					}
-				case SelectedEntryMode_Default:
+				case states.SelectedEntryMode_Default:
 					if keyEvent.KeyType == dom.KeyTypeRight {
 						// show actions
-						state.SelectedEntryMode = SelectedEntryMode_ShowActions
+						state.SelectedEntryMode = states.SelectedEntryMode_ShowActions
 					}
 				}
 			case dom.KeyTypeSpace:
@@ -211,7 +212,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 						state.Input.CursorPosition = len(state.Input.Value)
 					}
 				case "e":
-					state.SelectedEntryMode = SelectedEntryMode_Editing
+					state.SelectedEntryMode = states.SelectedEntryMode_Editing
 					state.SelectedInputState.FocusWithText(item.Data.Text)
 				case "g", "t", "b":
 					// Handle combinations first
@@ -268,7 +269,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					}
 				case "l":
 					// Navigate to parent and push current to stack (only in group mode)
-					if state.ViewMode == ViewMode_Group {
+					if state.ViewMode == states.ViewMode_Group {
 						// Push current entry to navigation stack
 						state.PushToNavigationStack(entryIdentiy)
 
@@ -278,7 +279,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 							parentID := currentEntry.Data.ParentID
 							if parentID == 0 {
 								// No parent, focus on the group this entry belongs to
-								groupID := state.findGroupForEntry(entryID)
+								groupID := state.FindGroupForEntry(entryID)
 								if groupID > 0 {
 									state.Select(models.LogEntryViewType_Group, groupID)
 								}
@@ -290,7 +291,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					}
 				case "L":
 					// Pop from navigation stack and focus previous entry (only in group mode)
-					if state.ViewMode == ViewMode_Group {
+					if state.ViewMode == states.ViewMode_Group {
 						if prevEntry, found := state.PopFromNavigationStack(); found {
 							state.Select(prevEntry.EntryType, prevEntry.ID)
 						}
@@ -298,11 +299,11 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				case "z":
 					state.ZenMode = !state.ZenMode
 				case "d":
-					state.SelectedEntryMode = SelectedEntryMode_DeleteConfirm
+					state.SelectedEntryMode = states.SelectedEntryMode_DeleteConfirm
 					state.SelectedDeleteConfirmButton = 0
 				case "a":
 					// add child
-					state.SelectedEntryMode = SelectedEntryMode_AddingChild
+					state.SelectedEntryMode = states.SelectedEntryMode_AddingChild
 					state.ChildInputState.Value = ""
 					state.ChildInputState.Focused = true
 					state.ChildInputState.CursorPosition = 0
@@ -450,7 +451,7 @@ type TodoNoteProps struct {
 	Prefix     string
 	IsLast     bool
 	IsSelected bool
-	State      *State
+	State      *states.State
 
 	OnNavigate func(e *dom.DOMEvent, direction int)
 	OnEnter    func(e *dom.DOMEvent, entryID int64)

@@ -3,7 +3,9 @@ package app
 import (
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/todo/component/layout"
+	"github.com/xhd2015/todo/app/todo_tree"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 )
 
 // an input actually takes 3 lines, not 1 line
@@ -25,15 +27,15 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 	})
 
 	// effective selected entry
-	selectedEntry := autoSelectEntry(state.SelectedEntry, flattenEntries)
+	selectedEntry := todo_tree.AutoSelectEntry(state.SelectedEntry, flattenEntries)
 
 	// compute the selected index
-	selectedIndex := getIndex(flattenEntries, selectedEntry)
+	selectedIndex := todo_tree.GetIndex(flattenEntries, selectedEntry)
 
 	// TODO: fix this
 	visibleEntries := flattenEntries
 
-	props := TodoTreeProps{
+	props := todo_tree.TodoTreeProps{
 		State:         state,
 		Entries:       flattenEntries,
 		SelectedEntry: selectedEntry,
@@ -89,7 +91,7 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			} else if nextItem.Type == models.LogEntryViewType_Note && nextItem.Note != nil {
 				state.SelectNote(nextItem.Note.Note.Data.ID, nextItem.Note.EntryID)
 			}
-			state.SelectFromSource = SelectedSource_NavigateByKey
+			state.SelectFromSource = states.SelectedSource_NavigateByKey
 		},
 		OnGoToFirst: func(e *dom.DOMEvent) {
 			// Find first selectable item (log entry or note)
@@ -144,7 +146,7 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 		OnEnter: func(e *dom.DOMEvent, entryType models.LogEntryViewType, entryID int64) {
 			// Navigate to the detail page of the entry that owns this note
 			// entryType indicates whether this came from a log entry or note
-			state.Routes.Push(DetailRoute(entryID))
+			state.Routes.Push(states.DetailRoute(entryID))
 
 			// Reset the input state for the target entry (same as regular todo items)
 			targetEntry := state.Entries.Get(entryID)
@@ -155,7 +157,7 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			}
 		},
 	}
-	children := TodoTree(props)
+	children := todo_tree.TodoTree(props)
 
 	return dom.Div(dom.DivProps{
 		MaxHeight: availableHeight,

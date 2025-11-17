@@ -8,9 +8,10 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 )
 
-func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
+func MainInput(state *State, fullEntries []states.TreeEntry) *dom.Node {
 	placeholder := "add todo"
 	if state.IsSearchActive {
 		placeholder = "search todos (ESC to exit search)"
@@ -88,7 +89,7 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 						}
 					}
 					state.Select(models.LogEntryViewType_Log, foundID)
-					state.SelectFromSource = SelectedSource_Search
+					state.SelectFromSource = states.SelectedSource_Search
 				}
 				return true
 			}
@@ -155,7 +156,7 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 				case "/config":
 					// show config page
 					configState := loadConfigPageState()
-					state.Routes.Push(ConfigRoute(configState))
+					state.Routes.Push(states.ConfigRoute(configState))
 					return true
 				case "/h", "/happening":
 					// Set loading state and navigate to happening list page
@@ -163,7 +164,7 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 					state.Happening.Error = ""
 					state.Happening.Happenings = nil
 
-					state.Routes.Push(HappeningListRoute())
+					state.Routes.Push(states.HappeningListRoute())
 
 					// Start async loading of happening data
 					state.Enqueue(func(ctx context.Context) error {
@@ -190,11 +191,11 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 						state.HumanState.LoadStateOnce()
 					}
 					// Navigate to human states page
-					state.Routes.Push(HumanStateRoute())
+					state.Routes.Push(states.HumanStateRoute())
 					return true
 				case "/help":
 					// Navigate to help page
-					state.Routes.Push(HelpRoute())
+					state.Routes.Push(states.HelpRoute())
 					return true
 				case "/learning":
 					// Load materials on first access
@@ -202,14 +203,14 @@ func MainInput(state *State, fullEntries []TreeEntry) *dom.Node {
 						state.Learning.LoadMaterialsOnce()
 					}
 					// Navigate to learning materials page
-					state.Routes.Push(LearningRoute())
+					state.Routes.Push(states.LearningRoute())
 					return true
 				case "/switch":
 					// Toggle view mode between default and group
-					if state.ViewMode == ViewMode_Default {
-						state.ViewMode = ViewMode_Group
+					if state.ViewMode == states.ViewMode_Default {
+						state.ViewMode = states.ViewMode_Group
 					} else {
-						state.ViewMode = ViewMode_Default
+						state.ViewMode = states.ViewMode_Default
 					}
 					return true
 				default:

@@ -3,18 +3,9 @@ package app
 import (
 	"github.com/xhd2015/todo/app/exp"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 	"github.com/xhd2015/todo/ui/search"
 	"github.com/xhd2015/todo/ui/tree"
-)
-
-// Group IDs for organizing entries in group mode
-const (
-	GROUP_DEADLINE_ID    = 1
-	GROUP_WORKPERF_ID    = 2
-	GROUP_LIFEENHANCE_ID = 3
-	GROUP_WORKHACK_ID    = 4
-	GROUP_LIFEHACK_ID    = 5
-	GROUP_OTHER_ID       = 6
 )
 
 // _MountGroupInfo tracks the group association and staging children for an entry during group organization
@@ -95,18 +86,18 @@ type EntryOptions struct {
 	// MaxEntries int
 	// SliceStart         int
 	SelectedID         models.EntryIdentity
-	SelectedSource     SelectedSource
+	SelectedSource     states.SelectedSource
 	ZenMode            bool
 	SearchActive       bool
 	Search             string
 	ShowNotes          bool
 	FocusingEntryID    models.EntryIdentity
 	ExpandAll          bool
-	ViewMode           ViewMode
+	ViewMode           states.ViewMode
 	GroupCollapseState map[int64]bool
 }
 
-func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []TreeEntry {
+func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []states.TreeEntry {
 	var focusedRootPath []string
 	// Process focusing if focusingEntryID is provided
 	if opts.FocusingEntryID.IsSet() {
@@ -114,7 +105,7 @@ func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []TreeEnt
 	}
 
 	// Organize entries into groups if ViewMode is Group
-	if opts.ViewMode == ViewMode_Group {
+	if opts.ViewMode == states.ViewMode_Group {
 		entries = organizeEntriesIntoGroups(entries, opts.GroupCollapseState)
 	}
 
@@ -134,15 +125,15 @@ func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []TreeEnt
 		}
 	}
 
-	var flatEntries []TreeEntry
+	var flatEntries []states.TreeEntry
 
 	// Add focused root path as the first entry if in focused mode
 	if len(focusedRootPath) > 0 {
-		focusedTreeEntry := TreeEntry{
+		focusedTreeEntry := states.TreeEntry{
 			Type:   models.LogEntryViewType_FocusedItem,
 			Prefix: "",
 			IsLast: false,
-			FocusedItem: &TreeFocusedItem{
+			FocusedItem: &states.TreeFocusedItem{
 				RootPath: focusedRootPath,
 			},
 		}
@@ -169,7 +160,7 @@ func organizeEntriesIntoGroups(entries models.LogEntryViews, groupCollapseState 
 		collapsed, ok := groupCollapseState[id]
 		if !ok {
 			// Default: "Other" group is collapsed by default
-			collapsed = (id == GROUP_OTHER_ID)
+			collapsed = (id == states.GROUP_OTHER_ID)
 		}
 
 		groupEntries = append(groupEntries, &models.LogEntryView{
@@ -196,35 +187,35 @@ func organizeEntriesIntoGroups(entries models.LogEntryViews, groupCollapseState 
 	return groupEntries
 }
 
-func addEntryRecursive(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, globalShowNotes bool) []TreeEntry {
+func addEntryRecursive(flatEntries []states.TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, globalShowNotes bool) []states.TreeEntry {
 	// Implement 'v implies n': if IncludeHistory is true, also show notes
 	// Also show notes if global notes mode is enabled
 	showNotes := entry.IncludeNotes || entry.IncludeHistory || globalShowNotes
 	return addEntryRecursiveWithHistory(flatEntries, entry, depth, prefix, isLast, hasVerticalLine, entry.IncludeHistory, showNotes, globalShowNotes)
 }
 
-func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool, globalShowNotes bool) []TreeEntry {
+func addEntryRecursiveWithHistory(flatEntries []states.TreeEntry, entry *models.LogEntryView, depth int, prefix string, isLast bool, hasVerticalLine bool, showNotesInSubtree bool, showNotesFromParent bool, globalShowNotes bool) []states.TreeEntry {
 	// Determine entry type based on the ViewType field
-	var treeEntry TreeEntry
+	var treeEntry states.TreeEntry
 
 	if entry.ViewType == models.LogEntryViewType_Group {
-		treeEntry = TreeEntry{
+		treeEntry = states.TreeEntry{
 			Type:   models.LogEntryViewType_Group,
 			Prefix: prefix,
 			IsLast: isLast,
 			Entry:  entry,
-			Group: &TreeGroup{
+			Group: &states.TreeGroup{
 				ID:   entry.Data.ID,
 				Name: entry.Data.Text,
 			},
 		}
 	} else {
-		treeEntry = TreeEntry{
+		treeEntry = states.TreeEntry{
 			Type:   models.LogEntryViewType_Log,
 			Prefix: prefix,
 			IsLast: isLast,
 			Entry:  entry,
-			Log:    &TreeLog{},
+			Log:    &states.TreeLog{},
 		}
 	}
 
@@ -260,11 +251,11 @@ func addEntryRecursiveWithHistory(flatEntries []TreeEntry, entry *models.LogEntr
 			}
 
 			isLastNote := i == len(notesToShow)-1 && len(entry.Children) == 0
-			flatEntries = append(flatEntries, TreeEntry{
+			flatEntries = append(flatEntries, states.TreeEntry{
 				Type:   models.LogEntryViewType_Note,
 				Prefix: notePrefix,
 				IsLast: isLastNote,
-				Note: &TreeNote{
+				Note: &states.TreeNote{
 					Note:    note,
 					EntryID: entry.Data.ID,
 				},

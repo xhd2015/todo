@@ -5,6 +5,7 @@ import (
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/emojis"
+	"github.com/xhd2015/todo/models/states"
 )
 
 // AppState renders the application status bar
@@ -41,7 +42,7 @@ func AppStatusBar(state *State) *dom.Node {
 	}
 
 	// Spacer to push modes to the right
-	hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes || state.FocusedEntry.IsSet() || state.ViewMode != ViewMode_Default
+	hasRightContent := state.ZenMode || state.ShowHistory || state.ShowNotes || state.FocusedEntry.IsSet() || state.ViewMode != states.ViewMode_Default
 	if hasRightContent {
 		nodes = append(nodes, dom.Spacer(dom.WithMaxSize(40)))
 
@@ -83,7 +84,7 @@ func AppStatusBar(state *State) *dom.Node {
 			}))
 			modeCount++
 		}
-		if state.ViewMode != ViewMode_Default {
+		if state.ViewMode != states.ViewMode_Default {
 			if modeCount > 0 {
 				nodes = append(nodes, dom.Text(" ", styles.Style{}))
 			}

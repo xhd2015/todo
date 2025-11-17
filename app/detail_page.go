@@ -9,8 +9,10 @@ import (
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
 	"github.com/xhd2015/go-dom-tui/styles"
+	"github.com/xhd2015/todo/component/dialog"
 	"github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 )
 
 type ChildNotesSection struct {
@@ -146,7 +148,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 				}, dom.Text(note.Data.Text)))
 
 				if item.DetailPage.SelectedNoteMode == models.SelectedNoteMode_Deleting && isSelected {
-					children = append(children, ConfirmDialog(ConfirmDialogProps{
+					children = append(children, dialog.ConfirmDialog(dialog.ConfirmDialogProps{
 						PromptText:     "Delete Note",
 						DeleteText:     "[Delete]",
 						CancelText:     "[Cancel]",
@@ -223,7 +225,7 @@ func DetailPage(state *State, id int64) *dom.Node {
 						case dom.KeyTypeEnter:
 							nextItem := state.Entries.Get(id)
 							if nextItem != nil {
-								state.Routes.Push(DetailRoute(id))
+								state.Routes.Push(states.DetailRoute(id))
 								nextItem.DetailPage.InputState.Reset()
 							}
 						}

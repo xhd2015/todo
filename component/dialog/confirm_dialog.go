@@ -1,4 +1,4 @@
-package app
+package dialog
 
 import (
 	"github.com/xhd2015/go-dom-tui/colors"

@@ -8,33 +8,34 @@ import (
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/data"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 )
 
 // loadConfigPageState loads the current config from file and converts to ConfigPageState
-func loadConfigPageState() ConfigPageState {
+func loadConfigPageState() states.ConfigPageState {
 	savedConfig, err := data.LoadConfig()
 	if err != nil || savedConfig == nil {
 		// Return default state if no config or error
-		return ConfigPageState{
-			ConfigPhase:         ConfigPhase_PickingStorageType,
-			SelectedStorageType: StorageType_LocalSqlite,
-			PickingStorageType:  StorageType_LocalSqlite,
+		return states.ConfigPageState{
+			ConfigPhase:         states.ConfigPhase_PickingStorageType,
+			SelectedStorageType: states.StorageType_LocalSqlite,
+			PickingStorageType:  states.StorageType_LocalSqlite,
 		}
 	}
 
 	// Convert storage type from config
-	var storageType StorageType
+	var storageType states.StorageType
 	switch savedConfig.StorageType {
 	case "file":
-		storageType = StorageType_LocalFile
+		storageType = states.StorageType_LocalFile
 	case "server":
-		storageType = StorageType_Server
+		storageType = states.StorageType_Server
 	default: // "sqlite" or empty
-		storageType = StorageType_LocalSqlite
+		storageType = states.StorageType_LocalSqlite
 	}
 
-	return ConfigPageState{
-		ConfigPhase:         ConfigPhase_PickingStorageType,
+	return states.ConfigPageState{
+		ConfigPhase:         states.ConfigPhase_PickingStorageType,
 		SelectedStorageType: storageType,
 		PickingStorageType:  storageType,
 		ServerAddr: models.InputState{
@@ -47,7 +48,7 @@ func loadConfigPageState() ConfigPageState {
 }
 
 // saveConfigPageState saves the current ConfigPageState to file
-func saveConfigPageState(configState *ConfigPageState) error {
+func saveConfigPageState(configState *states.ConfigPageState) error {
 	// Load existing config to preserve other fields
 	savedConfig, err := data.LoadConfig()
 	if err != nil {
@@ -59,9 +60,9 @@ func saveConfigPageState(configState *ConfigPageState) error {
 
 	// Convert storage type to string
 	switch configState.SelectedStorageType {
-	case StorageType_LocalFile:
+	case states.StorageType_LocalFile:
 		savedConfig.StorageType = "file"
-	case StorageType_Server:
+	case states.StorageType_Server:
 		savedConfig.StorageType = "server"
 	default: // StorageType_LocalSqlite
 		savedConfig.StorageType = "sqlite"
@@ -100,15 +101,15 @@ func ConfigPage(state *State) *dom.Node {
 			return " "
 		}(), storageType), dom.TextNodeProps{
 			Style:     style,
-			Focused:   configState.ConfigPhase == ConfigPhase_PickingStorageType && selected,
-			Focusable: configState.ConfigPhase == ConfigPhase_PickingStorageType,
+			Focused:   configState.ConfigPhase == states.ConfigPhase_PickingStorageType && selected,
+			Focusable: configState.ConfigPhase == states.ConfigPhase_PickingStorageType,
 			OnFocus: func() {
-				configState.PickingStorageType = StorageType(i)
+				configState.PickingStorageType = states.StorageType(i)
 			},
 			OnKeyDown: func(d *dom.DOMEvent) {
 				if d.KeydownEvent.KeyType == dom.KeyTypeEnter {
-					configState.SelectedStorageType = StorageType(i)
-					configState.ConfigPhase = ConfigPhase_PickingStorageDetail
+					configState.SelectedStorageType = states.StorageType(i)
+					configState.ConfigPhase = states.ConfigPhase_PickingStorageDetail
 				}
 			},
 		}))
@@ -117,7 +118,7 @@ func ConfigPage(state *State) *dom.Node {
 
 	// Show server-specific options when server is selected
 	if configState.SelectedStorageType == 2 { // server
-		focusable := configState.ConfigPhase == ConfigPhase_PickingStorageDetail
+		focusable := configState.ConfigPhase == states.ConfigPhase_PickingStorageDetail
 
 		var confirmBorderColor string
 		var cancelBorderColor string

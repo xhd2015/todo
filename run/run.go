@@ -23,6 +23,7 @@ import (
 	"github.com/xhd2015/todo/internal/process"
 	applog "github.com/xhd2015/todo/log"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 	"github.com/xhd2015/todo/run/tool"
 )
 
@@ -183,11 +184,11 @@ func Main(args []string) error {
 		Input: models.InputState{
 			Focused: true,
 		},
-		GroupCollapseState: app.NewMutexMap(),
+		GroupCollapseState: states.NewMutexMap(),
 		Refresh: func() {
 			p.Send(cursor.Blink())
 		},
-		StatusBar: app.StatusBar{
+		StatusBar: states.StatusBar{
 			Storage: storageType,
 		},
 	}
@@ -316,7 +317,7 @@ func Main(args []string) error {
 		if viewType != models.LogEntryViewType_Log {
 			return nil
 		}
-		if appState.ViewMode == app.ViewMode_Group {
+		if appState.ViewMode == states.ViewMode_Group {
 			// delete from group
 			exp.LogGroupStore.Add(&exp.LogIDGroupMapping{
 				LogID:   id,
@@ -488,7 +489,7 @@ func Main(args []string) error {
 		}
 		return nil
 	}
-	appState.Happening = app.HappeningState{
+	appState.Happening = states.HappeningState{
 		LoadHappenings: func(ctx context.Context) ([]*models.Happening, error) {
 			return logManager.HappeningManager.LoadHappenings(ctx)
 		},
@@ -612,7 +613,7 @@ func Main(args []string) error {
 	}
 
 	// Initialize learning state
-	appState.Learning = app.LearningState{
+	appState.Learning = states.LearningState{
 		LoadMaterials: func(ctx context.Context, offset int, limit int) ([]*models.LearningMaterial, int64, error) {
 			if services.LearningMaterials == nil {
 				return nil, 0, fmt.Errorf("learning materials service not available")
@@ -623,7 +624,7 @@ func Main(args []string) error {
 	}
 
 	// Initialize reading state
-	appState.Reading = app.ReadingState{
+	appState.Reading = states.ReadingState{
 		ContentCache: make(map[int]string),
 		LoadContent: func(ctx context.Context, materialID int64, offset int, limit int) (string, int, int64, error) {
 			if services.LearningMaterials == nil {
@@ -644,13 +645,13 @@ func Main(args []string) error {
 	}
 
 	if group {
-		appState.ViewMode = app.ViewMode_Group
+		appState.ViewMode = states.ViewMode_Group
 	} else if humanStat {
 		loadHStat()
-		appState.Routes.Push(app.HumanStateRoute())
+		appState.Routes.Push(states.HumanStateRoute())
 	} else if learning {
 		loadLearningMaterials()
-		appState.Routes.Push(app.LearningRoute())
+		appState.Routes.Push(states.LearningRoute())
 	}
 
 	model := &Model{

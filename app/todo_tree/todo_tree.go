@@ -1,4 +1,5 @@
-package app
+package todo_tree
+
 
 import (
 	"context"
@@ -7,79 +8,18 @@ import (
 
 	"github.com/xhd2015/go-dom-tui/colors"
 	"github.com/xhd2015/go-dom-tui/dom"
+	"github.com/xhd2015/todo/component/dialog"
+	"github.com/xhd2015/todo/component/menu"
 	"github.com/xhd2015/go-dom-tui/styles"
 	"github.com/xhd2015/todo/app/emojis"
 	"github.com/xhd2015/todo/models"
+	"github.com/xhd2015/todo/models/states"
 )
-
-// TreeLog represents a flattened log entry
-type TreeLog struct {
-}
-
-// TreeNote represents a flattened note
-type TreeNote struct {
-	Note    *models.NoteView
-	EntryID int64 // ID of the entry that owns this note
-}
-
-// TreeFocusedItem represents the focused root path
-type TreeFocusedItem struct {
-	RootPath []string
-}
-
-// TreeGroup represents a group entry
-type TreeGroup struct {
-	ID   int64
-	Name string
-}
-
-// TreeEntry wraps either a log entry or a note for unified tree rendering
-type TreeEntry struct {
-	Type   models.LogEntryViewType
-	Prefix string
-	IsLast bool
-
-	// for all
-	Entry *models.LogEntryView
-
-	Log         *TreeLog
-	Note        *TreeNote
-	FocusedItem *TreeFocusedItem
-	Group       *TreeGroup
-}
-
-func (c *TreeEntry) Text() string {
-	switch c.Type {
-	case models.LogEntryViewType_Log:
-		if c.Entry != nil && c.Entry.Data != nil {
-			return c.Entry.Data.Text
-		}
-		return ""
-	case models.LogEntryViewType_Note:
-		return c.Note.Note.Data.Text
-	case models.LogEntryViewType_FocusedItem:
-		if c.FocusedItem != nil && len(c.FocusedItem.RootPath) > 0 {
-			// Join the path components with " > " separator
-			result := c.FocusedItem.RootPath[0]
-			for i := 1; i < len(c.FocusedItem.RootPath); i++ {
-				result += " > " + c.FocusedItem.RootPath[i]
-			}
-			return result
-		}
-		return ""
-	case models.LogEntryViewType_Group:
-		if c.Group != nil {
-			return c.Group.Name
-		}
-		return ""
-	}
-	return ""
-}
 
 // TodoTreeProps contains configuration for rendering the entry tree
 type TodoTreeProps struct {
-	State   *State // The application state
-	Entries []TreeEntry
+	State   *states.State // The application state
+	Entries []states.TreeEntry
 
 	SelectedEntry models.EntryIdentity
 
@@ -92,7 +32,7 @@ type TodoTreeProps struct {
 }
 
 // auto select first if selected one is hidden
-func autoSelectEntry(selectedEntry models.EntryIdentity, entries []TreeEntry) models.EntryIdentity {
+func AutoSelectEntry(selectedEntry models.EntryIdentity, entries []states.TreeEntry) models.EntryIdentity {
 	if selectedEntry.IsSet() && len(entries) > 0 {
 		var hasSelected bool
 		for _, wrapperEntry := range entries {
@@ -113,7 +53,7 @@ func autoSelectEntry(selectedEntry models.EntryIdentity, entries []TreeEntry) mo
 	return selectedEntry
 }
 
-func getIndex(entries []TreeEntry, id models.EntryIdentity) int {
+func GetIndex(entries []states.TreeEntry, id models.EntryIdentity) int {
 	for i, wrapperEntry := range entries {
 		if wrapperEntry.Entry != nil && wrapperEntry.Entry.SameIdentity(id) {
 			return i
@@ -147,7 +87,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 			entryID := entryIdentity.ID
 
 			var isEditing bool
-			if state.SelectedEntryMode == SelectedEntryMode_Editing && isSelected {
+			if state.SelectedEntryMode == states.SelectedEntryMode_Editing && isSelected {
 				isEditing = true
 				nodes = append(nodes, dom.Input(dom.InputProps{
 					Value:          state.SelectedInputState.Value,
@@ -165,15 +105,15 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 						case dom.KeyTypeUp, dom.KeyTypeDown:
 							e.PreventDefault()
 						case dom.KeyTypeEsc:
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 						case dom.KeyTypeCtrlC:
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 							e.StopPropagation()
 						case dom.KeyTypeEnter:
 							state.Enqueue(func(ctx context.Context) error {
 								return state.OnUpdate(entryType, entryID, state.SelectedInputState.Value)
 							})
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 						}
 					},
 				}))
@@ -221,7 +161,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 			}
 
 			// Render child input box under the item when in AddingChild mode
-			if state.SelectedEntryMode == SelectedEntryMode_AddingChild && isSelected {
+			if state.SelectedEntryMode == states.SelectedEntryMode_AddingChild && isSelected {
 				nodes = append(nodes, dom.Input(dom.InputProps{
 					Placeholder:    "add breakdown",
 					Value:          state.ChildInputState.Value,
@@ -239,7 +179,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 						case dom.KeyTypeUp, dom.KeyTypeDown:
 							e.PreventDefault()
 						case dom.KeyTypeEsc:
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 						case dom.KeyTypeEnter:
 							if strings.TrimSpace(state.ChildInputState.Value) != "" {
 								state.Enqueue(func(ctx context.Context) error {
@@ -256,21 +196,21 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 									return nil
 								})
 							}
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 						}
 					},
 				}))
 			}
 
-			if state.SelectedEntryMode == SelectedEntryMode_DeleteConfirm && isSelected {
+			if state.SelectedEntryMode == states.SelectedEntryMode_DeleteConfirm && isSelected {
 				deleteText := "Delete todo?"
 				deleteButtonText := "[Delete]"
-				if props.State.ViewMode == ViewMode_Group {
+				if props.State.ViewMode == states.ViewMode_Group {
 					deleteText = "Remove from group?"
 					deleteButtonText = "[Remove]"
 				}
 
-				nodes = append(nodes, ConfirmDialog(ConfirmDialogProps{
+				nodes = append(nodes, dialog.ConfirmDialog(dialog.ConfirmDialogProps{
 					SelectedButton: state.SelectedDeleteConfirmButton,
 					PromptText:     deleteText,
 					DeleteText:     deleteButtonText,
@@ -278,7 +218,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 					OnDelete: func() {
 						next := state.Entries.FindNextOrLast(entryID)
 						state.Enqueue(func(ctx context.Context) error {
-							if props.State.ViewMode == ViewMode_Group {
+							if props.State.ViewMode == states.ViewMode_Group {
 								err := state.OnRemoveFromGroup(entryType, entryID)
 								if err != nil {
 									return err
@@ -294,12 +234,12 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 								nextID = next.Data.ID
 							}
 							state.Select(entryType, nextID)
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 							return nil
 						})
 					},
 					OnCancel: func() {
-						state.SelectedEntryMode = SelectedEntryMode_Default
+						state.SelectedEntryMode = states.SelectedEntryMode_Default
 					},
 					OnNavigateRight: func() {
 						state.SelectedDeleteConfirmButton = 1
@@ -310,9 +250,9 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 				}))
 			}
 
-			if state.SelectedEntryMode == SelectedEntryMode_ShowActions && isSelected {
+			if state.SelectedEntryMode == states.SelectedEntryMode_ShowActions && isSelected {
 				HIGHLIGHTS := 5
-				items := []MenuItem{
+				items := []menu.MenuItem{
 					{
 						Text: "Promote",
 						OnSelect: func() {
@@ -321,7 +261,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 								if err != nil {
 									return err
 								}
-								state.SelectedEntryMode = SelectedEntryMode_Default
+								state.SelectedEntryMode = states.SelectedEntryMode_Default
 								return nil
 							})
 						}},
@@ -329,7 +269,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 						Text: "No Highlight",
 						OnSelect: func() {
 							state.OnUpdateHighlight(entryType, entryID, 0)
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 						}},
 				}
 				colors := []string{
@@ -340,17 +280,17 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 					colors.DARK_RED_5,
 				}
 				for i := 0; i < HIGHLIGHTS; i++ {
-					items = append(items, MenuItem{
+					items = append(items, menu.MenuItem{
 						Text:  fmt.Sprintf("Highlight-%d", i+1),
 						Color: colors[i],
 						OnSelect: func() {
 							state.OnUpdateHighlight(entryType, entryID, i+1)
-							state.SelectedEntryMode = SelectedEntryMode_Default
+							state.SelectedEntryMode = states.SelectedEntryMode_Default
 						},
 					})
 				}
 
-				nodes = append(nodes, Menu(MenuProps{
+				nodes = append(nodes, menu.Menu(menu.MenuProps{
 					Title:         "Promote",
 					SelectedIndex: state.SelectedActionIndex,
 					OnSelect: func(index int) {
@@ -365,7 +305,7 @@ func TodoTree(props TodoTreeProps) []*dom.Node {
 						}
 					},
 					OnDismiss: func() {
-						state.SelectedEntryMode = SelectedEntryMode_Default
+						state.SelectedEntryMode = states.SelectedEntryMode_Default
 					},
 				}))
 			}
