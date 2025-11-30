@@ -104,11 +104,11 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 		OnGoToFirst: func(e *dom.DOMEvent) {
 			// Find first selectable item (log entry or note)
 			for _, wrapperEntry := range flattenEntries {
-				if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
-					state.Select(models.LogEntryViewType_Log, wrapperEntry.Entry.Data.ID)
-					break
-				} else if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
+				if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
 					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
+					break
+				} else if wrapperEntry.Entry != nil && (wrapperEntry.Type == models.LogEntryViewType_Log || wrapperEntry.Type == models.LogEntryViewType_Group) {
+					state.Select(wrapperEntry.Type, wrapperEntry.Entry.Data.ID)
 					break
 				}
 			}
@@ -117,11 +117,11 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			// Find last selectable item (log entry or note)
 			for i := len(flattenEntries) - 1; i >= 0; i-- {
 				wrapperEntry := flattenEntries[i]
-				if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
-					state.Select(models.LogEntryViewType_Log, wrapperEntry.Entry.Data.ID)
-					break
-				} else if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
+				if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
 					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
+					break
+				} else if wrapperEntry.Entry != nil && (wrapperEntry.Type == models.LogEntryViewType_Log || wrapperEntry.Type == models.LogEntryViewType_Group) {
+					state.Select(wrapperEntry.Type, wrapperEntry.Entry.Data.ID)
 					break
 				}
 			}
@@ -129,11 +129,11 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 		OnGoToTop: func(e *dom.DOMEvent) {
 			// Find first selectable item in visible entries (log entry or note)
 			for _, wrapperEntry := range visibleEntries {
-				if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
-					state.Select(models.LogEntryViewType_Log, wrapperEntry.Entry.Data.ID)
-					break
-				} else if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
+				if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
 					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
+					break
+				} else if wrapperEntry.Entry != nil && (wrapperEntry.Type == models.LogEntryViewType_Log || wrapperEntry.Type == models.LogEntryViewType_Group) {
+					state.Select(wrapperEntry.Type, wrapperEntry.Entry.Data.ID)
 					break
 				}
 			}
@@ -142,11 +142,11 @@ func MainPage(state *State, availableHeight int) *dom.Node {
 			// Find last selectable item in visible entries (log entry or note)
 			for i := len(visibleEntries) - 1; i >= 0; i-- {
 				wrapperEntry := visibleEntries[i]
-				if wrapperEntry.Type == models.LogEntryViewType_Log && wrapperEntry.Log != nil {
-					state.Select(models.LogEntryViewType_Log, wrapperEntry.Entry.Data.ID)
-					break
-				} else if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
+				if wrapperEntry.Type == models.LogEntryViewType_Note && wrapperEntry.Note != nil {
 					state.SelectNote(wrapperEntry.Note.Note.Data.ID, wrapperEntry.Note.EntryID)
+					break
+				} else if wrapperEntry.Entry != nil && (wrapperEntry.Type == models.LogEntryViewType_Log || wrapperEntry.Type == models.LogEntryViewType_Group) {
+					state.Select(wrapperEntry.Type, wrapperEntry.Entry.Data.ID)
 					break
 				}
 			}

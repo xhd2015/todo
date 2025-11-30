@@ -474,22 +474,8 @@ func Main(args []string) error {
 		appState.Entries = logManager.Entries
 		return nil
 	}
-	appState.OnToggleCollapsed = func(entryType models.LogEntryViewType, id int64) error {
-		// clear search selected entry
-		appState.SearchSelectedEntry = models.EntryIdentity{}
-		if entryType == models.LogEntryViewType_Log {
-			err := logManager.ToggleCollapsed(id)
-			if err != nil {
-				return err
-			}
-			appState.Entries = logManager.Entries
-			return nil
-		} else if entryType == models.LogEntryViewType_Group {
-			// Handle group collapse state in memory using thread-safe MutexMap
-			appState.GroupCollapseState.Toggle(id)
-			return nil
-		}
-		return nil
+	appState.OnToggleCollapsed = func(ctx context.Context, entryType models.LogEntryViewType, id int64) error {
+		return HandleToggleCollapsed(ctx, &appState, logManager, entryType, id)
 	}
 	appState.Happening = states.HappeningState{
 		LoadHappenings: func(ctx context.Context) ([]*models.Happening, error) {

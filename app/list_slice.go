@@ -115,7 +115,7 @@ func flattenEntryTree(entries models.LogEntryViews, opts EntryOptions) []states.
 
 	// Process collapsed entries to hide children and add count information
 	if !opts.ExpandAll {
-		entriesToRender, _ = processCollapsedEntries(entriesToRender, false, opts.SelectedID, opts.SearchSelectedID, opts.SearchActive, opts.ZenMode)
+		entriesToRender, _, _ = processCollapsedEntries(entriesToRender, false, true, opts.SelectedID, opts.SearchSelectedID, opts.SearchActive, opts.ZenMode)
 	}
 
 	// Add top-level entries (ParentID == 0)
@@ -369,31 +369,46 @@ func findPathToEntry(entries models.LogEntryViews, targetEntry models.EntryIdent
 // and adds collapsed count information to the entry view
 // If expandAll is true, ignores collapse flags and shows all entries
 // The selectedID path is kept visible even if parents are collapsed
-func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bool, selectedID models.EntryIdentity, searchSelectedID models.EntryIdentity, searchActive bool, zenMode bool) (models.LogEntryViews, models.LogEntryViews) {
+func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bool, parentExpanded bool, selectedID models.EntryIdentity, searchSelectedID models.EntryIdentity, searchActive bool, zenMode bool) (visibleChildren models.LogEntryViews, collapsedChildren models.LogEntryViews, selfOrChildrenSelectedDisplay bool) {
 	showEntries := make(models.LogEntryViews, 0, len(entries))
 	collapsedEntries := make(models.LogEntryViews, 0, len(entries))
+
+	anySiblingSelected := hasAnyDescendantSelected(entries, selectedID, searchSelectedID)
+	effectiveAnyParentCollapsed := anyParentCollapsed
+	if parentExpanded && anySiblingSelected {
+		effectiveAnyParentCollapsed = false
+	}
+
 	for _, entry := range entries {
 		cloned := *entry
 		clonedEntry := &cloned
 
 		// clonedEntry.Children
-		shouldCollapse := anyParentCollapsed || clonedEntry.Data.Collapsed
-		shownChildren, collapsedChildren := processCollapsedEntries(clonedEntry.Children, shouldCollapse, selectedID, searchSelectedID, searchActive, zenMode)
+		shouldCollapse := effectiveAnyParentCollapsed || clonedEntry.Data.Collapsed
+		childParentExpanded := !clonedEntry.Data.Collapsed
+		shownChildrenEntries, collapsedChildrenEntries, childrenSelectedDisplay := processCollapsedEntries(clonedEntry.Children, shouldCollapse, childParentExpanded, selectedID, searchSelectedID, searchActive, zenMode)
 
-		clonedEntry.Children = shownChildren
-		clonedEntry.CollapsedChildren = collapsedChildren
-		clonedEntry.CollapsedCount = countAllChildren(collapsedChildren)
+		clonedEntry.Children = shownChildrenEntries
+		clonedEntry.CollapsedChildren = collapsedChildrenEntries
+		clonedEntry.CollapsedCount = countAllChildren(collapsedChildrenEntries)
 
-		if clonedEntry.Data.Collapsed && len(shownChildren) > 0 {
+		if clonedEntry.Data.Collapsed && len(shownChildrenEntries) > 0 {
 			cloneData := *clonedEntry.Data
 			clonedEntry.Data = &cloneData
 		}
 
+		var selfSelectedDisplay bool
+		if !childrenSelectedDisplay && isSelectedDisplay(clonedEntry, selectedID, searchSelectedID) {
+			selfSelectedDisplay = true
+		}
+
+		selfOrChildrenSelected := childrenSelectedDisplay || selfSelectedDisplay
+
 		addToShow := true
 		// then select from children
-		if anyParentCollapsed {
+		if !selfOrChildrenSelected && effectiveAnyParentCollapsed {
 			addToShow = false
-			if len(shownChildren) > 0 || shouldShowEvenIfCollapsed(clonedEntry, selectedID, searchSelectedID, searchActive, zenMode) {
+			if len(shownChildrenEntries) > 0 || shouldShowEvenIfCollapsed(clonedEntry, searchActive, zenMode) {
 				addToShow = true
 			}
 		}
@@ -402,17 +417,24 @@ func processCollapsedEntries(entries models.LogEntryViews, anyParentCollapsed bo
 		} else {
 			collapsedEntries = append(collapsedEntries, clonedEntry)
 		}
+		if selfOrChildrenSelected {
+			selfOrChildrenSelectedDisplay = true
+		}
 	}
-	return showEntries, collapsedEntries
+	return showEntries, collapsedEntries, selfOrChildrenSelectedDisplay
 }
 
-func shouldShowEvenIfCollapsed(entry *models.LogEntryView, selectedID models.EntryIdentity, searchSelectedID models.EntryIdentity, searchActive bool, zenMode bool) bool {
+func isSelectedDisplay(entry *models.LogEntryView, selectedID models.EntryIdentity, searchSelectedID models.EntryIdentity) bool {
 	if selectedID.IsSet() && entry.SameIdentity(selectedID) {
 		return true
 	}
 	if searchSelectedID.IsSet() && entry.SameIdentity(searchSelectedID) {
 		return true
 	}
+	return false
+}
+
+func shouldShowEvenIfCollapsed(entry *models.LogEntryView, searchActive bool, zenMode bool) bool {
 	if searchActive && isSearchMatchEntry(entry) {
 		return true
 	}
@@ -428,6 +450,18 @@ func isZenModeEntry(entry *models.LogEntryView) bool {
 
 func isSearchMatchEntry(entry *models.LogEntryView) bool {
 	return len(entry.MatchTexts) > 0
+}
+
+func hasAnyDescendantSelected(entries models.LogEntryViews, selectedID, searchSelectedID models.EntryIdentity) bool {
+	for _, entry := range entries {
+		if isSelectedDisplay(entry, selectedID, searchSelectedID) {
+			return true
+		}
+		if hasAnyDescendantSelected(entry.Children, selectedID, searchSelectedID) {
+			return true
+		}
+	}
+	return false
 }
 
 // countAllChildren recursively counts all children and their descendants

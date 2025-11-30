@@ -135,7 +135,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 				if state.IsSearchActive {
 					state.ClearSearch()
 					// remember this entry
-					state.SearchSelectedEntry = entryIdentiy
+					state.SetSearchSelectedEntry(entryIdentiy)
 					return
 				}
 				if props.OnEnter != nil {
@@ -148,6 +148,13 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					state.FocusedEntry.Unset()
 				} else if state.ZenMode {
 					state.ZenMode = false
+				} else {
+					if item.SameIdentity(state.SelectedEntry) {
+						state.ClearSelectedEntry()
+					}
+					if item.SameIdentity(state.SearchSelectedEntry) {
+						state.ClearSearchSelectedEntry()
+					}
 				}
 				state.SelectedEntryMode = states.SelectedEntryMode_Default
 			case dom.KeyTypeUp:
@@ -374,7 +381,7 @@ func TodoItem(props TodoItemProps) *dom.Node {
 					// toggle collapsed state
 					if state.OnToggleCollapsed != nil {
 						state.Enqueue(func(ctx context.Context) error {
-							err := state.OnToggleCollapsed(entryType, entryID)
+							err := state.OnToggleCollapsed(ctx, entryType, entryID)
 							if err != nil {
 								return err
 							}

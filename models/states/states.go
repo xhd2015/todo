@@ -28,7 +28,6 @@ type State struct {
 
 	SelectedEntry       models.EntryIdentity
 	LastSelectedEntry   models.EntryIdentity
-	SearchSelectedEntry models.EntryIdentity
 	EntrySliceStart     int   // Slice start for VScroller to preserve window frame position
 	SelectedNoteID      int64 // ID of the selected note (0 if none)
 	SelectedNoteEntryID int64 // ID of the entry that owns the selected note
@@ -65,8 +64,9 @@ type State struct {
 	ExpandAll   bool // Whether to expand all entries, ignoring individual collapse flags
 
 	// Search functionality
-	SearchQuery    string // Current search query (without the ? prefix)
-	IsSearchActive bool   // Whether search mode is active
+	SearchQuery         string // Current search query (without the ? prefix)
+	IsSearchActive      bool   // Whether search mode is active
+	SearchSelectedEntry models.EntryIdentity
 
 	// Pagination
 	// SliceStart int // Starting index for the slice of entries to display
@@ -104,11 +104,11 @@ type State struct {
 	OnUpdateNote func(entryID int64, noteID int64, text string)
 	OnDeleteNote func(entryID int64, noteID int64)
 
-	RefreshEntries       func(ctx context.Context) error                         // Callback to refresh entries when ShowHistory changes
-	OnShowTop            func(id int64, text string, duration time.Duration)     // Callback to show todo in macOS floating bar
-	OnToggleVisibility   func(id int64) error                                    // Callback to toggle visibility of all children including history
-	OnToggleNotesDisplay func(id int64) error                                    // Callback to toggle notes display for entry and its subtree
-	OnToggleCollapsed    func(entryType models.LogEntryViewType, id int64) error // Callback to toggle collapsed state for entry
+	RefreshEntries       func(ctx context.Context) error                                              // Callback to refresh entries when ShowHistory changes
+	OnShowTop            func(id int64, text string, duration time.Duration)                          // Callback to show todo in macOS floating bar
+	OnToggleVisibility   func(id int64) error                                                         // Callback to toggle visibility of all children including history
+	OnToggleNotesDisplay func(id int64) error                                                         // Callback to toggle notes display for entry and its subtree
+	OnToggleCollapsed    func(ctx context.Context, entryType models.LogEntryViewType, id int64) error // Callback to toggle collapsed state for entry
 
 	LastCtrlC time.Time
 
@@ -117,6 +117,18 @@ type State struct {
 	activeActions    int
 
 	StatusBar StatusBar
+}
+
+func (state *State) SetSearchSelectedEntry(entry models.EntryIdentity) {
+	state.SearchSelectedEntry = entry
+}
+
+func (state *State) ClearSearchSelectedEntry() {
+	state.SearchSelectedEntry = models.EntryIdentity{}
+}
+
+func (state *State) ClearSelectedEntry() {
+	state.SelectedEntry = models.EntryIdentity{}
 }
 
 type HappeningState struct {
